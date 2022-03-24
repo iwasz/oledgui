@@ -23,13 +23,14 @@ public:
         static constexpr uint16_t height = 8; // Dimensions in charcters
 
         // screen wide/tall
-        //  current focus
-        //  scrolling container
-        //  checkboxes
-        //  radiobutons (no state)
-        //  radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
-        //  menu
-        // icon aka indicator
+        // current focus
+        // text wrapping (without scrolling up - only for showinng bigger chunkgs of text, like logs)
+        // scrolling container
+        // checkboxes
+        // radiobutons (no state)
+        // radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
+        // menu
+        // icon aka indicator aka animation (icon with states)
 
         // std::string - like strings??? naah...
 };
@@ -103,14 +104,29 @@ Check check (bool checked, const char *str) { return {checked, str}; }
 
 namespace detail {
 
-        template <typename Disp, typename W, typename... Rst> void vboxPrint (Disp &d, W const &widget, Rst const &...widgets)
+        struct VBox {
+                static void after (auto &d)
+                {
+                        d.y += 1;
+                        d.x = 0;
+                }
+        };
+
+        struct HBox {
+                static void after (auto &d)
+                {
+                        // d.y += 1;
+                        // d.x = 0;
+                }
+        };
+
+        template <typename Layout, typename Disp, typename W, typename... Rst> void layout (Disp &d, W const &widget, Rst const &...widgets)
         {
                 widget (d);
-                d.y += 1;
-                d.x = 0;
+                Layout::after (d);
 
                 if constexpr (sizeof...(widgets) > 0) {
-                        vboxPrint (d, widgets...);
+                        layout<Layout> (d, widgets...);
                 }
         }
 
@@ -118,20 +134,17 @@ namespace detail {
 
 template <typename... W> auto vbox (W const &...widgets)
 {
-        auto vbox = [&] (auto &d) { detail::vboxPrint (d, widgets...); };
+        auto vbox = [&] (auto &d) { detail::layout<detail::VBox> (d, widgets...); };
         return vbox;
 }
 
-template <typename... W> void hbox (W const &...widget)
+template <typename... W> auto hbox (W const &...widgets)
 {
-        // check 1
-        // d1.y = 0;
-        // d1.x = 0;
-
-        // check 2
-        // d1.y = 1;
-        // d1.x = 0;
+        auto vbox = [&] (auto &d) { detail::layout<detail::HBox> (d, widgets...); };
+        return vbox;
 }
+
+// auto menu
 
 } // namespace og
 
@@ -145,8 +158,14 @@ int main ()
         setlocale (LC_ALL, "");
         initscr (); /* Start curses mode 		  */
 
-        // dialog (" Pin:668543 ");
-        vbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);
+        // hbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);
+        // hbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);
+
+        auto vb = vbox (hbox (check (true, " A"), check (true, " B"), check (false, " C")),
+                        hbox (check (true, " D"), check (true, " e"), check (false, " f")),
+                        hbox (check (true, " G"), check (true, " H"), check (false, " I")));
+
+        vb (d1);
 
         refresh (); /* Print it on to the real screen */
         getch ();   /* Wait for user input */
