@@ -17,3 +17,6 @@ Modern C++ GUI library for small displays. Developed with microcontrollers in mi
 
 # Tutorial
 aaa
+
+# TODO
+* [ ] vbox (hbox, hbox) works OK, but hbox (vbox, vbox) does not (at least not when the nesting structure is complicated).
