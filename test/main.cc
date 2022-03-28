@@ -188,12 +188,14 @@ int main ()
 {
         using namespace og;
         Display d1;
-        d1.currentFocus = 3;
         // auto contents = d1.group (1, radio ("red"), radio ("green"), radio ("blue")); // "green is selected"
         // contents ();
 
         setlocale (LC_ALL, "");
         initscr (); /* Start curses mode 		  */
+        // clear ();
+        noecho ();
+        cbreak ();
         use_default_colors ();
         start_color (); /* Start color 			*/
         init_pair (1, COLOR_RED, -1);
@@ -205,14 +207,38 @@ int main ()
                         hbox (check (true, " D"), check (true, " e"), check (false, " f")),
                         hbox (check (true, " G"), check (true, " H"), check (false, " I")));
 
-        vb (d1);
-
         // auto menu = vbox (label ("1"), label ("2"), label ("3"));
 
         // menu (d1);
 
-        refresh (); /* Print it on to the real screen */
-        getch ();   /* Wait for user input */
-        endwin ();  /* End curses mode		  */
+        while (true) {
+                clear ();
+                d1.x = 0;
+                d1.y = 0;
+                vb (d1);
+                refresh ();
+                int ch = getch ();
+
+                if (ch == 'q') {
+                        break;
+                }
+
+                switch (ch) {
+                case 's':
+                        ++d1.currentFocus;
+                        break;
+
+                case 'w':
+                        --d1.currentFocus;
+                        break;
+
+                default:
+                        break;
+                }
+        }
+
+        clrtoeol ();
+        refresh ();
+        endwin (); /* End curses mode		  */
         return 0;
 }
