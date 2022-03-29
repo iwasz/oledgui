@@ -8,9 +8,9 @@ Modern C++ GUI library for small displays. Developed with microcontrollers in mi
 * No dynamic allocation
 
 # Hooks
+* print at cursor's possition with clipping (clips to the viewport area even if passed coordinates are **negative**).
 * switch color (2 colors)
 * move cursor
-* print at cursor's possition
 
 # FAQ
 * How to add a margin? No automatic margins, just add a space.
