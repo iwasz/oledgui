@@ -33,6 +33,7 @@ public:
 
                 if (currentFocus < mainWidget.getFocusIncrement () - 1) {
                         ++currentFocus;
+                        mainWidget.reFocus (*this);
                 }
         }
 
@@ -44,6 +45,7 @@ public:
 
                 if (currentFocus > 0) {
                         --currentFocus;
+                        mainWidget.reFocus (*this);
                 }
         }
 
@@ -146,7 +148,7 @@ auto dialog (const char *str)
 struct Check {
         Check (const char *s, bool c) : str{s}, checked{c} {}
 
-        template <typename Disp> bool operator() (Disp &d, int focusIndex = 0) const
+        void reFocus (auto &d, int focusIndex = 0) const
         {
                 if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
                         if (d.currentFocus == focusIndex) {
@@ -157,9 +159,13 @@ struct Check {
                                         d.currentScroll = y - d.height + 1;
                                 }
                         }
-                        else {
-                                return false;
-                        }
+                }
+        }
+
+        bool operator() (auto &d, int focusIndex = 0) const
+        {
+                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                        return false;
                 }
 
                 if (checked) {
@@ -245,6 +251,19 @@ namespace detail {
 template <typename Decor, typename WidgetsTuple> struct Layout {
 
         Layout (WidgetsTuple w) : widgets (std::move (w)) {}
+
+        void reFocus (auto &d, int focusIndex = 0) const
+        {
+                auto l = [&d] (auto &itself, int focusIndex, auto const &widget, auto const &...widgets) {
+                        widget.reFocus (d, focusIndex);
+
+                        if constexpr (sizeof...(widgets)) {
+                                itself (itself, focusIndex + widget.getFocusIncrement (), widgets...);
+                        }
+                };
+
+                std::apply ([&focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
+        }
 
         bool operator() (auto &d, int focusIndex = 0) const
         {
@@ -363,13 +382,11 @@ int main ()
 
         // ); //
 
-        d1.currentScroll = 1;
-
         auto vb = vbox (check (" 1"), check (" 2"), check (" 3"), check (" 4"), check (" 5"), check (" 6"), check (" 7"), check (" 8"),
                         check (" 9"), check (" 10"), check (" 11"), check (" 12"), check (" 13"), check (" 14"), check (" 15"),
                         check (" 16-last"));
 
-        vb.calculatePositions ();
+        vb.calculatePositions (); // Only once. After composition
 
         while (true) {
                 wclear (d1.win);
