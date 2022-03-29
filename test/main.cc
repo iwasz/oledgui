@@ -148,20 +148,6 @@ auto dialog (const char *str)
 struct Check {
         Check (const char *s, bool c) : str{s}, checked{c} {}
 
-        void reFocus (auto &d, int focusIndex = 0) const
-        {
-                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
-                        if (d.currentFocus == focusIndex) {
-                                if (y < d.currentScroll) {
-                                        d.currentScroll = y;
-                                }
-                                else {
-                                        d.currentScroll = y - d.height + 1;
-                                }
-                        }
-                }
-        }
-
         bool operator() (auto &d, int focusIndex = 0) const
         {
                 if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
@@ -189,6 +175,27 @@ struct Check {
 
                 d.x += strlen (str);
                 return true;
+        }
+
+        void reFocus (auto &d, int focusIndex = 0) const
+        {
+                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                        if (d.currentFocus == focusIndex) {
+                                if (y < d.currentScroll) {
+                                        d.currentScroll = y;
+                                }
+                                else {
+                                        d.currentScroll = y - d.height + 1;
+                                }
+                        }
+                }
+        }
+
+        void input (auto &d, char c, int focusIndex = 0)
+        {
+                if (d.currentFocus == focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+                        checked = !checked;
+                }
         }
 
         static constexpr int getFocusIncrement () { return 1; }
@@ -252,6 +259,16 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
 
         Layout (WidgetsTuple w) : widgets (std::move (w)) {}
 
+        bool operator() (auto &d, int focusIndex = 0) const
+        {
+                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                        return false;
+                }
+
+                std::apply ([&d, &focusIndex] (auto const &...widgets) { detail::layout<Decor> (d, focusIndex, widgets...); }, widgets);
+                return true;
+        }
+
         void reFocus (auto &d, int focusIndex = 0) const
         {
                 auto l = [&d] (auto &itself, int focusIndex, auto const &widget, auto const &...widgets) {
@@ -262,17 +279,20 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         }
                 };
 
-                std::apply ([&focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
+                std::apply ([focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
         }
 
-        bool operator() (auto &d, int focusIndex = 0) const
+        void input (auto &d, char c, int focusIndex = 0)
         {
-                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
-                        return false;
-                }
+                auto l = [&d, c] (auto &itself, int focusIndex, auto &widget, auto &...widgets) {
+                        widget.input (d, c, focusIndex);
 
-                std::apply ([&d, &focusIndex] (auto const &...widgets) { detail::layout<Decor> (d, focusIndex, widgets...); }, widgets);
-                return true;
+                        if constexpr (sizeof...(widgets)) {
+                                itself (itself, focusIndex + widget.getFocusIncrement (), widgets...);
+                        }
+                };
+
+                std::apply ([focusIndex, &l] (auto &...widgets) { l (l, focusIndex, widgets...); }, widgets);
         }
 
         constexpr int getFocusIncrement () const
@@ -353,6 +373,7 @@ int main ()
         use_default_colors ();
         start_color (); /* Start color 			*/
         init_pair (1, COLOR_RED, -1);
+        keypad (stdscr, true);
         d1.win = newwin (d1.height, d1.width, 0, 0);
         refresh ();
 
@@ -401,15 +422,17 @@ int main ()
                 }
 
                 switch (ch) {
-                case 's':
+                case KEY_DOWN:
                         d1.incrementFocus (vb);
                         break;
 
-                case 'w':
+                case KEY_UP:
                         d1.decrementFocus (vb);
                         break;
 
                 default:
+                        // d1.input (vb, char (ch));
+                        vb.input (d1, char (ch));
                         break;
                 }
         }
