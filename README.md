@@ -1,4 +1,4 @@
-Modern C++ GUI library for small displays. Developed with microcontrollers in mind.
+Modern C++ GUI library for small displays. Developed with microcontrollers in mind. Experimental phase.
 
 ![Demo](demo.gif)
 

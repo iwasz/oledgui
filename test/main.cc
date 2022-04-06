@@ -12,6 +12,8 @@
 #include <cstring>
 #include <iostream>
 #include <tuple>
+#include <type_traits>
+#include <utility>
 
 namespace og {
 
@@ -29,9 +31,10 @@ public:
         void incrementFocus (auto const &mainWidget)
         {
                 // ++currentFocus;
-                // currentFocus %= mainWidget.getFocusIncrement ();
+                // currentFocus %= mainWidget..widgetCount;
+                // constexpr int ccc = mainWidget.widgetCount;
 
-                if (currentFocus < mainWidget.getFocusIncrement () - 1) {
+                if (currentFocus < mainWidget.widgetCount - 1) {
                         ++currentFocus;
                         mainWidget.reFocus (*this);
                 }
@@ -40,7 +43,7 @@ public:
         void decrementFocus (auto const &mainWidget)
         {
                 // if (--currentFocus < 0) {
-                //         currentFocus = mainWidget.getFocusIncrement () - 1;
+                //         currentFocus = mainWidget.widgetCount - 1;
                 // }
 
                 if (currentFocus > 0) {
@@ -56,10 +59,13 @@ public:
         // checkboxes
         // radiobutons (no state)
         // radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
-        // menu
+        // menu / list
+        // combo - "action" key changes the value (works for numbers as well)
         // icon aka indicator aka animation (icon with states)
+        // Button (with callback).
 
         // std::string - like strings??? naah...
+        // callbacks and / or references
 };
 
 // void move (uint16_t x, uint16_t y)
@@ -98,13 +104,14 @@ namespace detail {
 struct Line {
         void operator() (auto &d, int /*focusIndex*/ = 0) const
         {
-                // if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                // if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                 //         return;
                 // }
 
                 detail::line (d, len);
         }
-        static constexpr int getFocusIncrement () { return 0; }
+        static constexpr int widgetCount = 0;
+        static constexpr int height = 1;
 
         uint16_t len;
 };
@@ -146,11 +153,13 @@ auto dialog (const char *str)
 /*--------------------------------------------------------------------------*/
 
 struct Check {
-        Check (const char *s, bool c) : str{s}, checked{c} {}
+        constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
-        bool operator() (auto &d, int focusIndex = 0) const
+        // TODO move outside the class.
+        // TODO remove groupIndex and groupSelection. Not needed here.
+        bool operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
         {
-                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                         return false;
                 }
 
@@ -167,19 +176,19 @@ struct Check {
                         wattron (d.win, COLOR_PAIR (1));
                 }
 
-                mvwprintw (d.win, d.y, d.x, str);
+                mvwprintw (d.win, d.y, d.x, label);
 
                 if (d.currentFocus == focusIndex) {
                         wattroff (d.win, COLOR_PAIR (1));
                 }
 
-                d.x += strlen (str);
+                d.x += strlen (label);
                 return true;
         }
 
         void reFocus (auto &d, int focusIndex = 0) const
         {
-                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                         if (d.currentFocus == focusIndex) {
                                 if (y < d.currentScroll) {
                                         d.currentScroll = y;
@@ -191,25 +200,102 @@ struct Check {
                 }
         }
 
-        void input (auto &d, char c, int focusIndex = 0)
+        void input (auto &d, char c, int focusIndex, int /* groupIndex */, int & /* groupSelection */)
         {
                 if (d.currentFocus == focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
                 }
         }
 
-        static constexpr int getFocusIncrement () { return 1; }
-        static constexpr int getHeight () { return 1; }
+        static constexpr int widgetCount = 1;
+        static constexpr int height = 1;
 
         // static constexpr int getY () { return 1; }
         int getY () const { return y; }
         int y{};
 
-        const char *str{};
+        const char *label{};
         bool checked{};
 };
 
-Check check (const char *str, bool checked = false) { return {str, checked}; }
+constexpr Check check (const char *str, bool checked = false) { return {str, checked}; }
+
+/*--------------------------------------------------------------------------*/
+
+struct Radio {
+
+        constexpr Radio (const char *l) : label{l} {}
+        bool operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
+        void reFocus (auto &d, int focusIndex = 0) const;
+        void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection);
+
+        const char *label;
+        static constexpr int widgetCount = 1;
+        static constexpr int height = 1;
+        int getY () const { return y; }
+        int y{};
+};
+
+bool Radio::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
+{
+        if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
+                return false;
+        }
+
+        if (groupIndex == groupSelection) {
+                mvwprintw (d.win, d.y, d.x, "◉");
+        }
+        else {
+                mvwprintw (d.win, d.y, d.x, "○");
+        }
+
+        ++d.x;
+
+        if (d.currentFocus == focusIndex) {
+                wattron (d.win, COLOR_PAIR (1));
+        }
+
+        mvwprintw (d.win, d.y, d.x, label);
+
+        if (d.currentFocus == focusIndex) {
+                wattroff (d.win, COLOR_PAIR (1));
+        }
+
+        d.x += strlen (label);
+        return true;
+}
+
+void Radio::reFocus (auto &d, int focusIndex) const
+{
+        // if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
+        //         if (d.currentFocus == focusIndex) {
+        //                 if (y < d.currentScroll) {
+        //                         d.currentScroll = y;
+        //                 }
+        //                 else {
+        //                         d.currentScroll = y - d.height + 1;
+        //                 }
+        //         }
+        // }
+}
+
+void Radio::input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection)
+{
+        if (d.currentFocus == focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+                groupSelection = groupIndex;
+        }
+}
+
+constexpr Radio radio (const char *label) { return {label}; }
+
+// template <typename Tuple> struct Group {
+
+//         constexpr Group (Tuple t) : radios{std::move (t)} {}
+
+//         Tuple radios;
+// };
+
+// template <typename... R> constexpr auto group (R const &...r) { return Group{std::tuple{r...}}; }
 
 /*--------------------------------------------------------------------------*/
 
@@ -232,40 +318,51 @@ namespace detail {
         };
 
         template <typename Layout, typename Disp, typename W, typename... Rst>
-        void layout (Disp &d, int focusIndex, W const &widget, Rst const &...widgets)
+        void layout (Disp &d, int focusIndex, int groupIndex, int groupSelection, W const &widget, Rst const &...widgets)
         {
-                if (widget (d, focusIndex)) {
+                if (widget (d, focusIndex, groupIndex, groupSelection)) {
                         Layout::after (d);
                 }
 
                 if constexpr (sizeof...(widgets) > 0) {
-                        layout<Layout> (d, focusIndex + widget.getFocusIncrement (), widgets...);
+                        layout<Layout> (d, focusIndex + widget.widgetCount, groupIndex + 1, groupSelection, widgets...);
                 }
         }
 
-        template <typename W, typename... Rst> static constexpr int getFocusIncrement (W const &widget, Rst const &...widgets)
-        {
-                if constexpr (sizeof...(widgets)) {
-                        return widget.getFocusIncrement () + getFocusIncrement (widgets...);
-                }
-                else {
-                        return widget.getFocusIncrement ();
-                }
-        }
+        template <typename T> struct WidgetCountField {
+                static constexpr int value = T::widgetCount;
+        };
+
+        template <typename T> struct WidgetHeightField {
+                static constexpr int value = T::height;
+        };
+
+        template <typename Tuple, template <typename T> typename Field, int n = std::tuple_size_v<Tuple> - 1> struct Sum {
+                static constexpr auto value = Field<std::tuple_element_t<n, Tuple>>::value + Sum<Tuple, Field, n - 1>::value;
+        };
+
+        template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
+                static constexpr int value = Field<std::tuple_element_t<0, Tuple>>::value;
+        };
 
 } // namespace detail
 
 template <typename Decor, typename WidgetsTuple> struct Layout {
 
+        static constexpr int widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
+        static constexpr int height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
+
         Layout (WidgetsTuple w) : widgets (std::move (w)) {}
 
-        bool operator() (auto &d, int focusIndex = 0) const
+        bool operator() (auto &d, int focusIndex = 0, int /* groupIndex */ = 0, int /* groupSelection */ = 0) const
         {
-                if (!detail::heightsOverlap (y, getHeight (), d.currentScroll, d.height)) {
+                if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                         return false;
                 }
 
-                std::apply ([&d, &focusIndex] (auto const &...widgets) { detail::layout<Decor> (d, focusIndex, widgets...); }, widgets);
+                std::apply ([&d, &focusIndex, groupSelection = groupSelection] (
+                                    auto const &...widgets) { detail::layout<Decor> (d, focusIndex, 0, groupSelection, widgets...); },
+                            widgets);
                 return true;
         }
 
@@ -275,42 +372,25 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         widget.reFocus (d, focusIndex);
 
                         if constexpr (sizeof...(widgets)) {
-                                itself (itself, focusIndex + widget.getFocusIncrement (), widgets...);
+                                itself (itself, focusIndex + widget.widgetCount, widgets...);
                         }
                 };
 
                 std::apply ([focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
         }
 
-        void input (auto &d, char c, int focusIndex = 0)
+        void input (auto &d, char c, int focusIndex, int /* groupIndex */, int & /* groupSelection */)
         {
-                auto l = [&d, c] (auto &itself, int focusIndex, auto &widget, auto &...widgets) {
-                        widget.input (d, c, focusIndex);
+                auto &groupSelectionReference = groupSelection;
+                auto l = [&d, c, &groupSelectionReference] (auto &itself, int focusIndex, int groupIndex, auto &widget, auto &...widgets) {
+                        widget.input (d, c, focusIndex, groupIndex, groupSelectionReference);
 
                         if constexpr (sizeof...(widgets)) {
-                                itself (itself, focusIndex + widget.getFocusIncrement (), widgets...);
+                                itself (itself, focusIndex + widget.widgetCount, groupIndex + 1, widgets...);
                         }
                 };
 
-                std::apply ([focusIndex, &l] (auto &...widgets) { l (l, focusIndex, widgets...); }, widgets);
-        }
-
-        constexpr int getFocusIncrement () const
-        {
-                return std::apply ([] (auto const &...widgets) { return detail::getFocusIncrement (widgets...); }, widgets);
-        }
-
-        constexpr int getHeight () const
-        {
-                auto l = [] (auto &itself, auto const &widget, auto const &...widgets) -> int {
-                        if constexpr (sizeof...(widgets) > 0) {
-                                return widget.getHeight () + itself (itself, widgets...);
-                        }
-
-                        return widget.getHeight ();
-                };
-
-                return std::apply ([&l] (auto const &...widgets) { return l (l, widgets...); }, widgets);
+                std::apply ([focusIndex, &l] (auto &...widgets) { l (l, focusIndex, 0, widgets...); }, widgets);
         }
 
         void calculatePositions ()
@@ -320,8 +400,8 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         std::cout << widget.y << std::endl;
 
                         if constexpr (sizeof...(widgets) > 0) {
-                                // Next statements : widget[n].y = widget[n-1].y + widget[n-1].getHeight
-                                itself (itself, widget.y, widget.getHeight (), widgets...);
+                                // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
+                                itself (itself, widget.y, widget.height, widgets...);
                         }
                 };
 
@@ -330,6 +410,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
 
         int getY () const { return y; }
         int y{};
+        int groupSelection{};
 
         WidgetsTuple widgets;
 };
@@ -395,17 +476,16 @@ int main ()
         // vb.calculatePositions ();
 
         // TODO this case has a flaw that empty lines are insered when onbe of the nested vboxes connects with the next.
-        // auto vb = vbox (vbox (check (" A "), check (" B "), check (" C "), check (" d ")), //
-        //                 vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-        //                 vbox (check (" a "), check (" b "), check (" c "), check (" d ")),
-        //                 vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
-        //                 vbox (check (" E "), check (" F "), check (" G "), check (" H "))
+        auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
+                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
+                        vbox (check (" a "), check (" b "), check (" c "), check (" d ")), //
+                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
+                        vbox (check (" E "), check (" F "), check (" G "), check (" H "))  //
+        );                                                                                 //
 
-        // ); //
-
-        auto vb = vbox (check (" 1"), check (" 2"), check (" 3"), check (" 4"), check (" 5"), check (" 6"), check (" 7"), check (" 8"),
-                        check (" 9"), check (" 10"), check (" 11"), check (" 12"), check (" 13"), check (" 14"), check (" 15"),
-                        check (" 16-last"));
+        // auto vb = vbox (check (" 1"), check (" 2"), check (" 3"), check (" 4"), check (" 5"), check (" 6"), check (" 7"), check (" 8"),
+        //                 check (" 9"), check (" 10"), check (" 11"), check (" 12"), check (" 13"), check (" 14"), check (" 15"),
+        //                 check (" 16-last"));
 
         vb.calculatePositions (); // Only once. After composition
 
@@ -432,7 +512,8 @@ int main ()
 
                 default:
                         // d1.input (vb, char (ch));
-                        vb.input (d1, char (ch));
+                        int dummy;                             // TODO ugly
+                        vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
                         break;
                 }
         }
