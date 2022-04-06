@@ -17,6 +17,12 @@
 
 namespace og {
 
+enum class Visibility {
+        visible,    // Widget drawed something on the screen.
+        outside,    // Widget is invisible because is outside the active region.
+        nonDrawable // Widget is does not draw anything by itself.
+};
+
 class Display {
 public:
         uint16_t x{};                         /// Current cursor position [in characters]
@@ -51,28 +57,7 @@ public:
                         mainWidget.reFocus (*this);
                 }
         }
-
-        // screen wide/tall
-        // current focus
-        // text wrapping (without scrolling up - only for showinng bigger chunkgs of text, like logs)
-        // scrolling container
-        // checkboxes
-        // radiobutons (no state)
-        // radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
-        // menu / list
-        // combo - "action" key changes the value (works for numbers as well)
-        // icon aka indicator aka animation (icon with states)
-        // Button (with callback).
-
-        // std::string - like strings??? naah...
-        // callbacks and / or references
 };
-
-// void move (uint16_t x, uint16_t y)
-// {
-//         d1.x = x;
-//         d1.y = y;
-// }
 
 namespace detail {
         void line (auto &d, uint16_t len)
@@ -101,26 +86,36 @@ namespace detail {
 
 /*--------------------------------------------------------------------------*/
 
-struct Line {
-        void operator() (auto &d, int /*focusIndex*/ = 0) const
+struct Widget {
+        void reFocus (auto &d, int focusIndex = 0) const {}
+        void input (auto &d, char c, int focusIndex, int /* groupIndex */, int & /* groupSelection */) {}
+        // TODO remove
+        void calculatePositions (int) {}
+
+        int y;
+};
+
+template <int len> struct Line : public Widget {
+
+        Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
         {
-                // if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                //         return;
-                // }
+                if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
+                        return Visibility::outside;
+                }
 
                 detail::line (d, len);
+                return Visibility::visible;
         }
+
         static constexpr int widgetCount = 0;
         static constexpr int height = 1;
 
-        uint16_t len;
+        // static constexpr uint16_t len;
 };
 
-auto line (uint16_t len = Display::width)
-{
-        // return [len] (auto &d) { detail::line (d, len); };
-        return Line{len};
-}
+// template <int len> constexpr auto line () { return Line<len>{}; }
+
+template <int len> Line<len> line;
 
 /*--------------------------------------------------------------------------*/
 
@@ -157,10 +152,10 @@ struct Check {
 
         // TODO move outside the class.
         // TODO remove groupIndex and groupSelection. Not needed here.
-        bool operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
+        Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
         {
                 if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                        return false;
+                        return Visibility::outside;
                 }
 
                 if (checked) {
@@ -183,7 +178,7 @@ struct Check {
                 }
 
                 d.x += strlen (label);
-                return true;
+                return Visibility::visible;
         }
 
         void reFocus (auto &d, int focusIndex = 0) const
@@ -207,6 +202,9 @@ struct Check {
                 }
         }
 
+        // TODO remove
+        void calculatePositions (int) {}
+
         static constexpr int widgetCount = 1;
         static constexpr int height = 1;
 
@@ -225,9 +223,10 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 struct Radio {
 
         constexpr Radio (const char *l) : label{l} {}
-        bool operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
+        Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
         void reFocus (auto &d, int focusIndex = 0) const;
         void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection);
+        void calculatePositions (int) {}
 
         const char *label;
         static constexpr int widgetCount = 1;
@@ -236,10 +235,10 @@ struct Radio {
         int y{};
 };
 
-bool Radio::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
+Visibility Radio::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
 {
         if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                return false;
+                return Visibility::outside;
         }
 
         if (groupIndex == groupSelection) {
@@ -262,21 +261,21 @@ bool Radio::operator() (auto &d, int focusIndex, int groupIndex, int groupSelect
         }
 
         d.x += strlen (label);
-        return true;
+        return Visibility::visible;
 }
 
 void Radio::reFocus (auto &d, int focusIndex) const
 {
-        // if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-        //         if (d.currentFocus == focusIndex) {
-        //                 if (y < d.currentScroll) {
-        //                         d.currentScroll = y;
-        //                 }
-        //                 else {
-        //                         d.currentScroll = y - d.height + 1;
-        //                 }
-        //         }
-        // }
+        if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
+                if (d.currentFocus == focusIndex) {
+                        if (y < d.currentScroll) {
+                                d.currentScroll = y;
+                        }
+                        else {
+                                d.currentScroll = y - d.height + 1;
+                        }
+                }
+        }
 }
 
 void Radio::input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection)
@@ -287,15 +286,6 @@ void Radio::input (auto &d, char c, int focusIndex, int groupIndex, int &groupSe
 }
 
 constexpr Radio radio (const char *label) { return {label}; }
-
-// template <typename Tuple> struct Group {
-
-//         constexpr Group (Tuple t) : radios{std::move (t)} {}
-
-//         Tuple radios;
-// };
-
-// template <typename... R> constexpr auto group (R const &...r) { return Group{std::tuple{r...}}; }
 
 /*--------------------------------------------------------------------------*/
 
@@ -320,7 +310,7 @@ namespace detail {
         template <typename Layout, typename Disp, typename W, typename... Rst>
         void layout (Disp &d, int focusIndex, int groupIndex, int groupSelection, W const &widget, Rst const &...widgets)
         {
-                if (widget (d, focusIndex, groupIndex, groupSelection)) {
+                if (widget (d, focusIndex, groupIndex, groupSelection) == Visibility::visible) {
                         Layout::after (d);
                 }
 
@@ -354,16 +344,17 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
 
         Layout (WidgetsTuple w) : widgets (std::move (w)) {}
 
-        bool operator() (auto &d, int focusIndex = 0, int /* groupIndex */ = 0, int /* groupSelection */ = 0) const
+        Visibility operator() (auto &d, int focusIndex = 0, int /* groupIndex */ = 0, int /* groupSelection */ = 0) const
         {
                 if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                        return false;
+                        return Visibility::outside;
                 }
 
                 std::apply ([&d, &focusIndex, groupSelection = groupSelection] (
                                     auto const &...widgets) { detail::layout<Decor> (d, focusIndex, 0, groupSelection, widgets...); },
                             widgets);
-                return true;
+
+                return Visibility::nonDrawable;
         }
 
         void reFocus (auto &d, int focusIndex = 0) const
@@ -393,11 +384,12 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([focusIndex, &l] (auto &...widgets) { l (l, focusIndex, 0, widgets...); }, widgets);
         }
 
-        void calculatePositions ()
+        void calculatePositions (int parentY = 0)
         {
-                auto l = [] (auto &itself, int prevY, int prevH, auto &widget, auto &...widgets) {
+                auto l = [this] (auto &itself, int prevY, int prevH, auto &widget, auto &...widgets) {
                         widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
-                        std::cout << widget.y << std::endl;
+                        widget.calculatePositions (y);
+                        // std::cout << widget.y << std::endl;
 
                         if constexpr (sizeof...(widgets) > 0) {
                                 // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
@@ -409,7 +401,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
         }
 
         int getY () const { return y; }
-        int y{};
+        int y{}; // TODO constexpr
         int groupSelection{};
 
         WidgetsTuple widgets;
@@ -475,23 +467,28 @@ int main ()
 
         // vb.calculatePositions ();
 
-        // TODO this case has a flaw that empty lines are insered when onbe of the nested vboxes connects with the next.
         auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
+                        line<10>,                                                          //
                         vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-                        vbox (check (" a "), check (" b "), check (" c "), check (" d ")), //
+                        line<10>,                                                          //
+                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
+                        line<10>,                                                          //
                         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
-                        vbox (check (" E "), check (" F "), check (" G "), check (" H "))  //
+                        line<10>,                                                          //
+                        vbox (radio (" E "), radio (" F "), radio (" G "), radio (" H "))  //
         );                                                                                 //
 
         // auto vb = vbox (check (" 1"), check (" 2"), check (" 3"), check (" 4"), check (" 5"), check (" 6"), check (" 7"), check (" 8"),
         //                 check (" 9"), check (" 10"), check (" 11"), check (" 12"), check (" 13"), check (" 14"), check (" 15"),
         //                 check (" 16-last"));
 
+        // TODO compile time
+        // TODO no additional call
         vb.calculatePositions (); // Only once. After composition
 
         while (true) {
                 wclear (d1.win);
-                d1.x = 0;
+                d1.x = 0; // TODO remove, this should reset on its own.
                 d1.y = 0;
                 vb (d1);
                 wrefresh (d1.win);
