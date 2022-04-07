@@ -86,16 +86,34 @@ namespace detail {
 
 /*--------------------------------------------------------------------------*/
 
-struct Widget {
-        void reFocus (auto &d, int focusIndex = 0) const {}
+template <uint16_t widgetCountV, uint16_t heightV> struct Widget {
+        void reFocus (auto &d, int focusIndex = 0) const;
         void input (auto &d, char c, int focusIndex, int /* groupIndex */, int & /* groupSelection */) {}
         // TODO remove
         void calculatePositions (int) {}
 
-        int y;
+        int y{};
+        static constexpr int widgetCount = widgetCountV;
+        static constexpr int height = heightV;
 };
 
-template <int len> struct Line : public Widget {
+template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, heightV>::reFocus (auto &d, int focusIndex) const
+{
+        if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
+                if (d.currentFocus == focusIndex) {
+                        if (y < d.currentScroll) {
+                                d.currentScroll = y;
+                        }
+                        else {
+                                d.currentScroll = y - d.height + 1;
+                        }
+                }
+        }
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <int len> struct Line : public Widget<0, 1> {
 
         Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
         {
@@ -106,16 +124,38 @@ template <int len> struct Line : public Widget {
                 detail::line (d, len);
                 return Visibility::visible;
         }
-
-        static constexpr int widgetCount = 0;
-        static constexpr int height = 1;
-
-        // static constexpr uint16_t len;
 };
 
 // template <int len> constexpr auto line () { return Line<len>{}; }
 
 template <int len> Line<len> line;
+
+/*--------------------------------------------------------------------------*/
+
+/**
+ *
+ */
+template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child> struct Window : public Widget<0, 0> {
+
+        explicit Window (Child c) : child{std::move (c)} {}
+
+        Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
+
+        uint16_t cursorX{};
+        uint16_t cursorY{};
+        uint16_t currentFocus{};
+        uint16_t currentScroll{};
+        Child child;
+};
+
+template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child>
+Visibility Window<ox, oy, width, height, Child>::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
+{
+        d.x = ox;
+        d.y = oy;
+
+        return child (d, focusIndex, groupIndex, groupSelection);
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -147,7 +187,7 @@ auto dialog (const char *str)
 
 /*--------------------------------------------------------------------------*/
 
-struct Check {
+struct Check : public Widget<1, 1> {
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         // TODO move outside the class.
@@ -156,6 +196,10 @@ struct Check {
         {
                 if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                         return Visibility::outside;
+                }
+
+                if (d.currentFocus == focusIndex) {
+                        wattron (d.win, COLOR_PAIR (1));
                 }
 
                 if (checked) {
@@ -167,10 +211,6 @@ struct Check {
 
                 ++d.x;
 
-                if (d.currentFocus == focusIndex) {
-                        wattron (d.win, COLOR_PAIR (1));
-                }
-
                 mvwprintw (d.win, d.y, d.x, label);
 
                 if (d.currentFocus == focusIndex) {
@@ -181,36 +221,12 @@ struct Check {
                 return Visibility::visible;
         }
 
-        void reFocus (auto &d, int focusIndex = 0) const
-        {
-                if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                        if (d.currentFocus == focusIndex) {
-                                if (y < d.currentScroll) {
-                                        d.currentScroll = y;
-                                }
-                                else {
-                                        d.currentScroll = y - d.height + 1;
-                                }
-                        }
-                }
-        }
-
         void input (auto &d, char c, int focusIndex, int /* groupIndex */, int & /* groupSelection */)
         {
                 if (d.currentFocus == focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
                 }
         }
-
-        // TODO remove
-        void calculatePositions (int) {}
-
-        static constexpr int widgetCount = 1;
-        static constexpr int height = 1;
-
-        // static constexpr int getY () { return 1; }
-        int getY () const { return y; }
-        int y{};
 
         const char *label{};
         bool checked{};
@@ -220,25 +236,23 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 
 /*--------------------------------------------------------------------------*/
 
-struct Radio {
+struct Radio : public Widget<1, 1> {
 
         constexpr Radio (const char *l) : label{l} {}
         Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
-        void reFocus (auto &d, int focusIndex = 0) const;
         void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection);
-        void calculatePositions (int) {}
 
         const char *label;
-        static constexpr int widgetCount = 1;
-        static constexpr int height = 1;
-        int getY () const { return y; }
-        int y{};
 };
 
 Visibility Radio::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
 {
         if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
                 return Visibility::outside;
+        }
+
+        if (d.currentFocus == focusIndex) {
+                wattron (d.win, COLOR_PAIR (1));
         }
 
         if (groupIndex == groupSelection) {
@@ -250,10 +264,6 @@ Visibility Radio::operator() (auto &d, int focusIndex, int groupIndex, int group
 
         ++d.x;
 
-        if (d.currentFocus == focusIndex) {
-                wattron (d.win, COLOR_PAIR (1));
-        }
-
         mvwprintw (d.win, d.y, d.x, label);
 
         if (d.currentFocus == focusIndex) {
@@ -262,20 +272,6 @@ Visibility Radio::operator() (auto &d, int focusIndex, int groupIndex, int group
 
         d.x += strlen (label);
         return Visibility::visible;
-}
-
-void Radio::reFocus (auto &d, int focusIndex) const
-{
-        if (!detail::heightsOverlap (y, height, d.currentScroll, d.height)) {
-                if (d.currentFocus == focusIndex) {
-                        if (y < d.currentScroll) {
-                                d.currentScroll = y;
-                        }
-                        else {
-                                d.currentScroll = y - d.height + 1;
-                        }
-                }
-        }
 }
 
 void Radio::input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection)
@@ -445,9 +441,11 @@ int main ()
         cbreak ();
         use_default_colors ();
         start_color (); /* Start color 			*/
-        init_pair (1, COLOR_RED, -1);
+        init_pair (1, COLOR_BLUE, COLOR_WHITE);
+        init_pair (2, COLOR_WHITE, COLOR_BLUE);
         keypad (stdscr, true);
         d1.win = newwin (d1.height, d1.width, 0, 0);
+        wbkgd (d1.win, COLOR_PAIR (2));
         refresh ();
 
         // hbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);

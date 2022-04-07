@@ -36,3 +36,7 @@ aaa
 * [ ] std::string - like strings??? naah...
 * [ ] callbacks and / or references
 * [ ] bug: empty line after nested container 
+* [ ] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
+  * [ ] Dialog
+* [ ] Prepare for compile time optimization
+  * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
