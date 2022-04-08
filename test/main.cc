@@ -16,30 +16,29 @@
 #include <utility>
 
 namespace og {
-
 enum class Visibility {
         visible,    // Widget drawed something on the screen.
         outside,    // Widget is invisible because is outside the active region.
         nonDrawable // Widget is does not draw anything by itself.
 };
 
-class Display {
+template <uint16_t widthV, uint16_t heightV> class Display {
 public:
-        uint16_t x{};                         /// Current cursor position [in characters]
-        uint16_t y{};                         /// Current cursor position [in characters]
-        static constexpr uint16_t width = 18; // Dimensions in charcters
-        static constexpr uint16_t height = 7; // Dimensions in charcters
+        uint16_t x{};                               /// Current cursor position [in characters]
+        uint16_t y{};                               /// Current cursor position [in characters]
+        static constexpr uint16_t width = widthV;   // Dimensions in charcters
+        static constexpr uint16_t height = heightV; // Dimensions in charcters
         int currentFocus{};
         int currentScroll{};
 
-        WINDOW *win{};
+        void move (uint16_t ox, uint16_t oy)
+        {
+                x += ox;
+                y += oy;
+        }
 
         void incrementFocus (auto const &mainWidget)
         {
-                // ++currentFocus;
-                // currentFocus %= mainWidget..widgetCount;
-                // constexpr int ccc = mainWidget.widgetCount;
-
                 if (currentFocus < mainWidget.widgetCount - 1) {
                         ++currentFocus;
                         mainWidget.reFocus (*this);
@@ -48,10 +47,6 @@ public:
 
         void decrementFocus (auto const &mainWidget)
         {
-                // if (--currentFocus < 0) {
-                //         currentFocus = mainWidget.widgetCount - 1;
-                // }
-
                 if (currentFocus > 0) {
                         --currentFocus;
                         mainWidget.reFocus (*this);
@@ -59,11 +54,79 @@ public:
         }
 };
 
+/*--------------------------------------------------------------------------*/
+
+/**
+ * TODO move Child to the base class since all concrete implementations will own one child.
+ */
+template <uint16_t widthV, uint16_t heightV, typename Child> class NcursesDisplay : public Display<widthV, heightV> {
+public:
+        using Base = Display<widthV, heightV>;
+        using Base::incrementFocus, Base::decrementFocus, Base::x, Base::y;
+
+        NcursesDisplay (Child c);
+
+        Visibility operator() ()
+        {
+                clear ();
+                auto v = child (*this);
+                wrefresh (win);
+                return v;
+        }
+
+        void print (const char *str) { mvwprintw (win, y, x, str); }
+
+        void clear ()
+        {
+                wclear (win);
+                x = 0;
+                y = 0;
+        }
+
+        void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
+
+        void incrementFocus () { incrementFocus (child); }
+        void decrementFocus () { decrementFocus (child); }
+
+        void calculatePositions () { child.calculatePositions (); }
+
+private:
+        WINDOW *win{};
+        Child child;
+};
+
+template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
+{
+        return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
+}
+
+template <uint16_t widthV, uint16_t heightV, typename Child>
+NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : child{std::move (c)}
+{
+        setlocale (LC_ALL, "");
+        initscr ();
+        curs_set (0);
+        noecho ();
+        cbreak ();
+        use_default_colors ();
+        start_color ();
+        init_pair (1, COLOR_WHITE, COLOR_BLUE);
+        init_pair (2, COLOR_BLUE, COLOR_WHITE);
+        keypad (stdscr, true);
+        win = newwin (Display<widthV, heightV>::height, Display<widthV, heightV>::width, 0, 0);
+        wbkgd (win, COLOR_PAIR (1));
+        refresh ();
+}
+
+/****************************************************************************/
+
 namespace detail {
         void line (auto &d, uint16_t len)
         {
                 for (uint16_t i = 0; i < len; ++i) {
-                        mvwprintw (d.win, d.y, d.x++, "─");
+                        // mvwprintw (d.win, d.y, d.x++, "─");
+                        d.print ("-");
+                        d.move (1, 0);
                 }
         }
 
@@ -130,64 +193,12 @@ template <int len> struct Line : public Widget<0, 1> {
 
 template <int len> Line<len> line;
 
-/*--------------------------------------------------------------------------*/
+/****************************************************************************/
+/* Check                                                                    */
+/****************************************************************************/
 
-/**
- *
- */
-template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child> struct Window : public Widget<0, 0> {
-
-        explicit Window (Child c) : child{std::move (c)} {}
-
-        Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
-
-        uint16_t cursorX{};
-        uint16_t cursorY{};
-        uint16_t currentFocus{};
-        uint16_t currentScroll{};
-        Child child;
-};
-
-template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child>
-Visibility Window<ox, oy, width, height, Child>::operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const
-{
-        d.x = ox;
-        d.y = oy;
-
-        return child (d, focusIndex, groupIndex, groupSelection);
-}
-
-/*--------------------------------------------------------------------------*/
-
-auto dialog (const char *str)
-{
-        return [str] (auto &d) {
-                uint16_t len = strlen (str);
-
-                mvwprintw (d.win, d.y, d.x++, "┌");
-                detail::line (d, len);
-                mvwprintw (d.win, d.y, d.x++, "┐");
-                ++d.y;
-                d.x = 0;
-
-                mvwprintw (d.win, d.y, d.x, "│");
-                ++d.x;
-
-                mvwprintw (d.win, d.y, d.x, str);
-                d.x += strlen (str);
-
-                mvwprintw (d.win, d.y++, d.x, "│");
-                d.x = 0;
-
-                mvwprintw (d.win, d.y, d.x++, "└");
-                detail::line (d, len);
-                mvwprintw (d.win, d.y, d.x++, "┘");
-        };
-}
-
-/*--------------------------------------------------------------------------*/
-
-struct Check : public Widget<1, 1> {
+class Check : public Widget<1, 1> {
+public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         // TODO move outside the class.
@@ -199,25 +210,24 @@ struct Check : public Widget<1, 1> {
                 }
 
                 if (d.currentFocus == focusIndex) {
-                        wattron (d.win, COLOR_PAIR (1));
+                        d.color (2);
                 }
 
                 if (checked) {
-                        mvwprintw (d.win, d.y, d.x, "☑");
+                        d.print ("☑");
                 }
                 else {
-                        mvwprintw (d.win, d.y, d.x, "☐");
+                        d.print ("☐");
                 }
 
-                ++d.x;
-
-                mvwprintw (d.win, d.y, d.x, label);
+                d.move (1, 0);
+                d.print (label);
 
                 if (d.currentFocus == focusIndex) {
-                        wattroff (d.win, COLOR_PAIR (1));
+                        d.color (1);
                 }
 
-                d.x += strlen (label);
+                d.move (strlen (label), 0); // TODO this strlen should be constexpr expression
                 return Visibility::visible;
         }
 
@@ -228,20 +238,24 @@ struct Check : public Widget<1, 1> {
                 }
         }
 
+private:
         const char *label{};
         bool checked{};
 };
 
 constexpr Check check (const char *str, bool checked = false) { return {str, checked}; }
 
-/*--------------------------------------------------------------------------*/
+/****************************************************************************/
+/* Radio                                                                    */
+/****************************************************************************/
 
-struct Radio : public Widget<1, 1> {
-
+class Radio : public Widget<1, 1> {
+public:
         constexpr Radio (const char *l) : label{l} {}
         Visibility operator() (auto &d, int focusIndex, int groupIndex, int groupSelection) const;
         void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection);
 
+private:
         const char *label;
 };
 
@@ -252,22 +266,21 @@ Visibility Radio::operator() (auto &d, int focusIndex, int groupIndex, int group
         }
 
         if (d.currentFocus == focusIndex) {
-                wattron (d.win, COLOR_PAIR (1));
+                d.color (2);
         }
 
         if (groupIndex == groupSelection) {
-                mvwprintw (d.win, d.y, d.x, "◉");
+                d.print ("◉");
         }
         else {
-                mvwprintw (d.win, d.y, d.x, "○");
+                d.print ("○");
         }
 
-        ++d.x;
-
-        mvwprintw (d.win, d.y, d.x, label);
+        d.move (1, 0);
+        d.print (label);
 
         if (d.currentFocus == focusIndex) {
-                wattroff (d.win, COLOR_PAIR (1));
+                d.color (1);
         }
 
         d.x += strlen (label);
@@ -396,7 +409,6 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, 0, widgets...); }, widgets);
         }
 
-        int getY () const { return y; }
         int y{}; // TODO constexpr
         int groupSelection{};
 
@@ -417,6 +429,38 @@ template <typename... W> auto hbox (W const &...widgets)
 
 /*--------------------------------------------------------------------------*/
 
+/**
+ *
+ */
+template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child> struct Window : public Widget<0, 0> {
+
+        explicit Window (Child c) : child{std::move (c)} {}
+
+        Visibility operator() (auto &d, int focusIndex = 0, int groupIndex = 0, int groupSelection = 0) const
+        {
+                d.x = ox;
+                d.y = oy;
+                return child (d, focusIndex, groupIndex, groupSelection);
+        }
+
+        void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection)
+        {
+                child.input (d, c, focusIndex, groupIndex, groupSelection);
+        }
+
+        uint16_t cursorX{};
+        uint16_t cursorY{};
+        uint16_t currentFocus{};
+        uint16_t currentScroll{};
+        Child child;
+};
+
+template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height> auto window (auto &&c)
+{
+        return Window<ox, oy, width, height, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
+}
+
+/*--------------------------------------------------------------------------*/
 auto label (const char *str)
 {
         return [str] (auto &d, int focusIndex = 0) {
@@ -424,7 +468,33 @@ auto label (const char *str)
                 d.x += strlen (str);
         };
 }
+/*--------------------------------------------------------------------------*/
 
+auto dialog (const char *str)
+{
+        return [str] (auto &d) {
+                uint16_t len = strlen (str);
+
+                mvwprintw (d.win, d.y, d.x++, "┌");
+                detail::line (d, len);
+                mvwprintw (d.win, d.y, d.x++, "┐");
+                ++d.y;
+                d.x = 0;
+
+                mvwprintw (d.win, d.y, d.x, "│");
+                ++d.x;
+
+                mvwprintw (d.win, d.y, d.x, str);
+                d.x += strlen (str);
+
+                mvwprintw (d.win, d.y++, d.x, "│");
+                d.x = 0;
+
+                mvwprintw (d.win, d.y, d.x++, "└");
+                detail::line (d, len);
+                mvwprintw (d.win, d.y, d.x++, "┘");
+        };
+}
 } // namespace og
 
 int main ()
@@ -432,21 +502,21 @@ int main ()
         // auto p;
 
         using namespace og;
-        Display d1;
+        // NcursesDisplay<18, 7> d1;
 
-        setlocale (LC_ALL, "");
-        initscr (); /* Start curses mode 		  */
-        curs_set (0);
-        noecho ();
-        cbreak ();
-        use_default_colors ();
-        start_color (); /* Start color 			*/
-        init_pair (1, COLOR_BLUE, COLOR_WHITE);
-        init_pair (2, COLOR_WHITE, COLOR_BLUE);
-        keypad (stdscr, true);
-        d1.win = newwin (d1.height, d1.width, 0, 0);
-        wbkgd (d1.win, COLOR_PAIR (2));
-        refresh ();
+        // setlocale (LC_ALL, "");
+        // initscr (); /* Start curses mode 		  */
+        // curs_set (0);
+        // noecho ();
+        // cbreak ();
+        // use_default_colors ();
+        // start_color (); /* Start color 			*/
+        // init_pair (1, COLOR_BLUE, COLOR_WHITE);
+        // init_pair (2, COLOR_WHITE, COLOR_BLUE);
+        // keypad (stdscr, true);
+        // d1.win = newwin (d1.height, d1.width, 0, 0);
+        // wbkgd (d1.win, COLOR_PAIR (2));
+        // refresh ();
 
         // hbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);
         // hbox (dialog (" Pin:668543 "), line (), check (true, " A"), check (true, " B"), check (false, " C")) (d1);
@@ -465,16 +535,22 @@ int main ()
 
         // vb.calculatePositions ();
 
-        auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
-                        line<10>,                                                          //
-                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-                        line<10>,                                                          //
-                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
-                        line<10>,                                                          //
-                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
-                        line<10>,                                                          //
-                        vbox (radio (" E "), radio (" F "), radio (" G "), radio (" H "))  //
-        );                                                                                 //
+        /*
+         * TODO This has the problem that it woud be tedious and wasteful to declare ncurses<18, 7>
+         * with every new window/view. Alas I'm trying to investigate how to commonize Displays and Windows.
+         *
+         * This ncurses method can be left as an option.
+         */
+        auto vb = ncurses<18, 7> (vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
+                                        line<10>,                                                          //
+                                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
+                                        line<10>,                                                          //
+                                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
+                                        line<10>,                                                          //
+                                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
+                                        line<10>,                                                          //
+                                        vbox (radio (" E "), radio (" F "), radio (" G "), radio (" H "))  //
+                                        ));                                                                //
 
         // auto vb = vbox (check (" 1"), check (" 2"), check (" 3"), check (" 4"), check (" 5"), check (" 6"), check (" 7"), check (" 8"),
         //                 check (" 9"), check (" 10"), check (" 11"), check (" 12"), check (" 13"), check (" 14"), check (" 15"),
@@ -484,12 +560,22 @@ int main ()
         // TODO no additional call
         vb.calculatePositions (); // Only once. After composition
 
+        // auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
+        // // dialog.calculatePositions ();
+
+        bool showDialog{};
+
         while (true) {
-                wclear (d1.win);
-                d1.x = 0; // TODO remove, this should reset on its own.
-                d1.y = 0;
-                vb (d1);
-                wrefresh (d1.win);
+                // d1.clear ()
+                // vb (d1);
+
+                vb ();
+
+                // if (showDialog) {
+                //         dialog (d1);
+                // }
+
+                // wrefresh (d1.win);
                 int ch = getch ();
 
                 if (ch == 'q') {
@@ -498,17 +584,22 @@ int main ()
 
                 switch (ch) {
                 case KEY_DOWN:
-                        d1.incrementFocus (vb);
+                        // d1.incrementFocus (vb);
+                        vb.incrementFocus ();
                         break;
 
                 case KEY_UP:
-                        d1.decrementFocus (vb);
+                        vb.decrementFocus ();
+                        break;
+
+                case 'd':
+                        showDialog = true;
                         break;
 
                 default:
                         // d1.input (vb, char (ch));
-                        int dummy;                             // TODO ugly
-                        vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
+                        int dummy; // TODO ugly
+                                   // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
                         break;
                 }
         }
