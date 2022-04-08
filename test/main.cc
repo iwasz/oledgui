@@ -41,7 +41,7 @@ struct Dimensions {
 struct Context {
         Point origin{};
         Dimensions dimensions{};
-        uint16_t currentFocus{};
+        uint16_t currentFocus{}; // TODO uint8_t.
         uint16_t currentScroll{};
 };
 
@@ -172,7 +172,7 @@ namespace detail {
 } // namespace detail
 
 namespace detail {
-        constexpr bool heightsOverlap (int y1, int height1, int y2, int height2)
+        constexpr bool heightsOverlap (int y1, int height1, int y2, int height2) // TODO not int.
         {
                 auto y1d = y1 + height1 - 1;
                 auto y2d = y2 + height2 - 1;
@@ -348,10 +348,10 @@ constexpr Radio radio (const char *label) { return {label}; }
 namespace detail {
 
         struct VBoxDecoration {
-                static void after (auto &d)
+                static void after (auto &d, Context const &ctx)
                 {
                         d.y += 1; // TODO generates empty lines when more than 1 vbox is nested
-                        d.x = 0;
+                        d.x = ctx.origin.x;
                 }
         };
 
@@ -367,7 +367,7 @@ namespace detail {
         void layout (Disp &d, Context const &ctx, int focusIndex, int groupIndex, int groupSelection, W const &widget, Rst const &...widgets)
         {
                 if (widget (d, ctx, focusIndex, groupIndex, groupSelection) == Visibility::visible) {
-                        Layout::after (d);
+                        Layout::after (d, ctx);
                 }
 
                 if constexpr (sizeof...(widgets) > 0) {
@@ -480,7 +480,7 @@ template <typename... W> auto hbox (W const &...widgets)
 /**
  *
  */
-template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Child> struct Window : public Widget<0, 0> {
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window : public Widget<0, 0> {
 
         explicit Window (Child c) : child{std::move (c)} {}
 
@@ -488,7 +488,7 @@ template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Ch
         {
                 d.x = ox;
                 d.y = oy;
-                return child (d, ctx, focusIndex, groupIndex, groupSelection);
+                return child (d, context, focusIndex, groupIndex, groupSelection);
         }
 
         void input (auto &d, char c, int focusIndex, int groupIndex, int &groupSelection)
@@ -496,13 +496,15 @@ template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height, typename Ch
                 child.input (d, c, focusIndex, groupIndex, groupSelection);
         }
 
-        Context context;
+        static constexpr uint16_t width = widthV;   // Dimensions in charcters
+        static constexpr uint16_t height = heightV; // Dimensions in charcters
+        Context context{{ox, oy}, {width, height}};
         Child child;
 };
 
-template <uint16_t ox, uint16_t oy, uint16_t width, uint16_t height> auto window (auto &&c)
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto window (auto &&c)
 {
-        return Window<ox, oy, width, height, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
+        return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
 }
 
 /*--------------------------------------------------------------------------*/
@@ -644,7 +646,7 @@ int test2 ()
         // TODO no additional call
         vb.calculatePositions (); // Only once. After composition
 
-        auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
+        auto dialog = window<2, 2, 10, 10> (vbox (line<10>, line<10>, line<10>, line<10>));
         // dialog.calculatePositions ();
 
         bool showDialog{};
