@@ -205,7 +205,7 @@ namespace detail {
  */
 template <uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
         void reFocus (Context &ctx, int focusIndex = 0) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c, int focusIndex, int /* groupIndex */, uint8_t & /* groupSelection */) {}
+        void input (auto &d, Context const &ctx, Iteration iter, char c) {}
         // TODO remove
         void calculatePositions (int) {}
 
@@ -232,7 +232,7 @@ template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, hei
 
 template <int len> struct Line : public Widget<0, 1> {
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter, int focusIndex, int groupIndex, uint8_t groupSelection) const
+        Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
@@ -257,13 +257,13 @@ public:
 
         // TODO move outside the class.
         // TODO remove groupIndex and groupSelection. Not needed here.
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter, int focusIndex, int groupIndex, uint8_t groupSelection) const
+        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
 
-                if (ctx.currentFocus == focusIndex) {
+                if (ctx.currentFocus == iter.focusIndex) {
                         d.color (2);
                 }
 
@@ -277,7 +277,7 @@ public:
                 d.move (1, 0);
                 d.print (label);
 
-                if (ctx.currentFocus == focusIndex) {
+                if (ctx.currentFocus == iter.focusIndex) {
                         d.color (1);
                 }
 
@@ -285,7 +285,7 @@ public:
                 return Visibility::visible;
         }
 
-        void input (auto &d, Context const &ctx, Iteration iter, char c, int focusIndex, int /* groupIndex */, uint8_t & /* groupSelection */)
+        void input (auto &d, Context const &ctx, Iteration iter, char c)
         {
                 if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
@@ -306,14 +306,14 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 class Radio : public Widget<1, 1> {
 public:
         constexpr Radio (const char *l) : label{l} {}
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter, int focusIndex, int groupIndex, uint8_t groupSelection) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c, int focusIndex, int groupIndex, uint8_t &groupSelection);
+        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        void input (auto &d, Context const &ctx, Iteration iter, char c);
 
 private:
         const char *label;
 };
 
-Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter, int focusIndex, int groupIndex, uint8_t groupSelection) const
+Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                 return Visibility::outside;
@@ -323,7 +323,7 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter, int f
                 d.color (2);
         }
 
-        if (iter.groupIndex == groupSelection) {
+        if (iter.groupIndex == *ctx.radioSelection) {
                 d.print ("◉");
         }
         else {
@@ -341,7 +341,7 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter, int f
         return Visibility::visible;
 }
 
-void Radio::input (auto &d, Context const &ctx, Iteration iter, char c, int focusIndex, int groupIndex, uint8_t &groupSelection)
+void Radio::input (auto &d, Context const &ctx, Iteration iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                 *ctx.radioSelection = iter.groupIndex;
@@ -371,16 +371,14 @@ namespace detail {
         };
 
         template <typename Layout, typename Disp, typename W, typename... Rst>
-        void layout (Disp &d, Context const &ctx, Iteration iter, int focusIndex, int groupIndex, uint8_t groupSelection, W const &widget,
-                     Rst const &...widgets)
+        void layout (Disp &d, Context &ctx, Iteration iter, W const &widget, Rst const &...widgets)
         {
-                if (widget (d, ctx, iter, focusIndex, groupIndex, groupSelection) == Visibility::visible) {
+                if (widget (d, ctx, iter) == Visibility::visible) {
                         Layout::after (d, ctx);
                 }
 
                 if constexpr (sizeof...(widgets) > 0) {
-                        layout<Layout> (d, ctx, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, focusIndex + widget.widgetCount,
-                                        groupIndex + 1, groupSelection, widgets...);
+                        layout<Layout> (d, ctx, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, widgets...);
                 }
         }
 
@@ -413,17 +411,17 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
 
         Layout (WidgetsTuple w) : widgets (std::move (w)) {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter = {}, int focusIndex = 0, int /* groupIndex */ = 0,
-                               int /* groupSelection */ = 0) const
+        Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
                 // TODO move to separate function. Code duplication.
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
+                ctx.radioSelection = &radioSelection;
 
                 std::apply (
-                        [&d, &focusIndex, groupSelection = radioSelection, &ctx, &iter] (auto const &...widgets) {
-                                detail::layout<Decor> (d, ctx, {iter.focusIndex, 0}, focusIndex, 0, groupSelection, widgets...);
+                        [&d, &ctx, &iter] (auto const &...widgets) {
+                                detail::layout<Decor> (d, ctx, {iter.focusIndex, 0}, widgets...);
                         },
                         widgets);
 
@@ -443,21 +441,19 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
         }
 
-        void input (auto &d, Context &ctx, Iteration iter, char c, int focusIndex, int /* groupIndex */, uint8_t & /* groupSelection */)
+        void input (auto &d, Context &ctx, Iteration iter, char c)
         {
-                auto &groupSelectionReference = radioSelection;
                 ctx.radioSelection = &radioSelection;
-                auto l = [&d, c, &groupSelectionReference, &ctx] (auto &itself, Iteration iter, int focusIndex, int groupIndex, auto &widget,
-                                                                  auto &...widgets) {
-                        widget.input (d, ctx, iter, c, focusIndex, groupIndex, groupSelectionReference);
+
+                auto l = [&d, &ctx, c] (auto &itself, Iteration iter, auto &widget, auto &...widgets) {
+                        widget.input (d, ctx, iter, c);
 
                         if constexpr (sizeof...(widgets)) {
-                                itself (itself, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, focusIndex + widget.widgetCount,
-                                        groupIndex + 1, widgets...);
+                                itself (itself, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, widgets...);
                         }
                 };
 
-                std::apply ([focusIndex, &l, &iter] (auto &...widgets) { l (l, {iter.focusIndex, 0}, focusIndex, 0, widgets...); }, widgets);
+                std::apply ([&l, &iter] (auto &...widgets) { l (l, {iter.focusIndex, 0}, widgets...); }, widgets);
         }
 
         void calculatePositions (int parentY = 0)
@@ -477,7 +473,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
         }
 
         int y{}; // TODO constexpr TODO uint16_t
-        uint8_t radioSelection{};
+        mutable uint8_t radioSelection{};
         WidgetsTuple widgets;
 };
 
@@ -502,12 +498,11 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename 
 
         explicit Window (Child c) : child{std::move (c)} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter = {}, int focusIndex = 0, int groupIndex = 0,
-                               uint8_t groupSelection = 0) const
+        Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
                 d.x = ox;
                 d.y = oy;
-                return child (d, context, iter, focusIndex, groupIndex, groupSelection);
+                return child (d, context, iter);
         }
 
         void input (auto &d, char c, int focusIndex, int groupIndex, uint8_t &groupSelection)
@@ -517,7 +512,7 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename 
 
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
-        Context context{{ox, oy}, {width, height}};
+        mutable Context context{{ox, oy}, {width, height}};
         Child child;
 };
 
@@ -700,8 +695,7 @@ int test2 ()
 
                 default:
                         // d1.input (vb, char (ch));
-                        uint8_t dummy;                                         // TODO ugly
-                        vb.input (d1, d1.context, {}, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
+                        vb.input (d1, d1.context, {}, char (ch)); // TODO ugly, should be vb.input (d1, char (ch)) at most
                         break;
                 }
         }
