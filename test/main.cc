@@ -25,14 +25,15 @@ enum class Visibility {
 struct Empty {
 };
 
-using Coordinate = uint16_t;
+using Coordinate = uint16_t; // TODO change uint16_t's in the code to proper types.
+using Dimension = uint16_t;
+using Focus = uint16_t;
+using Selection = uint8_t;
 
 struct Point {
         Coordinate x{};
         Coordinate y{};
 };
-
-using Dimension = uint16_t;
 
 struct Dimensions {
         Dimension width{};
@@ -45,15 +46,15 @@ struct Dimensions {
 struct Context {
         Point origin{};
         Dimensions dimensions{};
-        uint16_t currentFocus{};
-        uint16_t currentScroll{};
-        uint8_t *radioSelection{};
+        Focus currentFocus{};
+        Coordinate currentScroll{};
+        Selection *radioSelection{};
 };
 
 /// These classes are for simplyfying the Widget API. Instead of n function arguments we have those 2 aggreagtes.
 struct Iteration {
         uint16_t focusIndex{};
-        uint16_t groupIndex{};
+        Selection radioIndex{};
 };
 
 template <typename ConcreteClass, uint16_t widthV, uint16_t heightV, typename Child = Empty> class Display {
@@ -73,6 +74,9 @@ public:
                 cursorX += ox;
                 cursorY += oy;
         }
+
+        void setCursorX (Coordinate x) { cursorX = x; }
+        void setCursorY (Coordinate y) { cursorY = y; }
 
         void incrementFocus (auto const &mainWidget)
         {
@@ -96,12 +100,14 @@ public:
 
         void calculatePositions () { child.calculatePositions (); }
 
-        uint16_t cursorX{};                         /// Current cursor position in characters
-        uint16_t cursorY{};                         /// Current cursor position in characters
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
+
+        // protected: // TODO protected
         Context context{{0, 0}, {width, height}};
         Child child;
+        uint16_t cursorX{}; /// Current cursor position in characters
+        uint16_t cursorY{}; /// Current cursor position in characters
 };
 
 /*--------------------------------------------------------------------------*/
@@ -113,12 +119,15 @@ template <uint16_t widthV, uint16_t heightV, typename Child = Empty>
 class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
 public:
         using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
-        using Base::child;
-        using Base::context;
-        using Base::cursorX, Base::cursorY, Base::width, Base::height;
+        using Base::width, Base::height;
 
         NcursesDisplay (Child c = {});
-        ~NcursesDisplay ();
+        ~NcursesDisplay ()
+        {
+                clrtoeol ();
+                refresh ();
+                endwin ();
+        }
 
         void print (const char *str) { mvwprintw (win, cursorY, cursorX, str); }
 
@@ -132,6 +141,11 @@ public:
         void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
 
         void refresh () { wrefresh (win); }
+
+        // private: // TODO private
+        using Base::child;
+        using Base::context;
+        using Base::cursorX, Base::cursorY;
 
 private:
         WINDOW *win{};
@@ -154,13 +168,6 @@ template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widt
         refresh ();
 }
 
-template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::~NcursesDisplay ()
-{
-        clrtoeol ();
-        refresh ();
-        endwin ();
-}
-
 template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
 {
         return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
@@ -169,11 +176,10 @@ template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
 /****************************************************************************/
 
 namespace detail {
-        void line (auto &d, uint16_t len)
+        void line (auto &d, uint16_t len, const char *ch = "─")
         {
                 for (uint16_t i = 0; i < len; ++i) {
-                        // mvwprintw (d.win, d.y, d.x++, "─");
-                        d.print ("-");
+                        d.print (ch);
                         d.move (1, 0);
                 }
         }
@@ -258,7 +264,7 @@ public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         // TODO move outside the class.
-        // TODO remove groupIndex and groupSelection. Not needed here.
+        // TODO remove radioIndex and groupSelection. Not needed here.
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
@@ -325,7 +331,7 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
                 d.color (2);
         }
 
-        if (iter.groupIndex == *ctx.radioSelection) {
+        if (iter.radioIndex == *ctx.radioSelection) {
                 d.print ("◉");
         }
         else {
@@ -346,7 +352,7 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
 void Radio::input (auto &d, Context const &ctx, Iteration iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
-                *ctx.radioSelection = iter.groupIndex;
+                *ctx.radioSelection = iter.radioIndex;
         }
 }
 
@@ -412,7 +418,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
-                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), uint16_t (iter.groupIndex + 1)}, widgets...);
+                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
                         }
                 };
 
@@ -442,7 +448,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         widget.input (d, ctx, iter, c);
 
                         if constexpr (sizeof...(widgets)) {
-                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), uint16_t (iter.groupIndex + 1)}, widgets...);
+                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
                         }
                 };
 
@@ -488,26 +494,56 @@ template <typename... W> auto hbox (W const &...widgets)
 /**
  *
  */
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window : public Widget<0, 0> {
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window : public Widget<> {
 
         explicit Window (Child c) : child{std::move (c)} {}
 
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
+        // Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
+        // {
+        //         d.cursorX = ox;
+        //         d.cursorY = oy;
+        //         return child (d, context, iter);
+        // }
+
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
-                d.cursorX = ox;
-                d.cursorY = oy;
+                d.setCursorX (ox);
+                d.setCursorY (oy);
+
+                d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
+                d.move (1, 0);
+                detail::line (d, width - 2);
+                d.print ("┐");
+
+                for (int i = 0; i < height - 2; ++i) {
+                        d.setCursorX (ox);
+                        d.move (0, 1);
+                        d.print ("│");
+                        // d.move (width - 1, 0);
+                        d.move (1, 0);
+                        detail::line (d, width - 2, " ");
+                        d.print ("│");
+                }
+
+                d.setCursorX (ox);
+                d.move (0, 1);
+                d.print ("└");
+                d.move (1, 0);
+                detail::line (d, width - 2);
+                d.print ("┘");
+
+                d.setCursorX (ox + 1);
+                d.setCursorY (oy + 1);
                 return child (d, context, iter);
         }
 
-        void input (auto &d, char c, uint16_t focusIndex, uint16_t groupIndex, uint8_t &groupSelection)
-        {
-                child.input (d, c, focusIndex, groupIndex, groupSelection);
-        }
+        void input (auto &d, char c) { input (d, d.context, {}, c); }
+        void input (auto &d, Context &ctx, Iteration iter, char c) { child.input (d, ctx, iter, c); }
 
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
-        mutable Context context{{ox, oy}, {width, height}};
+        mutable Context context{{ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
 
@@ -517,10 +553,24 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 }
 
 /*--------------------------------------------------------------------------*/
+
+// template <typename Child> class Frame : public Widget<> {
+// public:
+//         static constexpr uint16_t widgetCount = Child::widgetCount;
+//         static constexpr uint16_t height = Child::height + 2; // Plus top and bottom borders
+
+//         Frame (Child c) : child{std::move (c)} {}
+//         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const {}
+
+// private:
+//         Child child;
+// };
+
+/*--------------------------------------------------------------------------*/
 // auto label (const char *str)
 // {
 //         return [str] (auto &d, uint16_t focusIndex = 0) {
-//                 mvwprintw (d.win, d.y, d.x, str);
+//                 d.print(str);
 //                 d.x += strlen (str);
 //         };
 // }
@@ -531,24 +581,24 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 //         return [str] (auto &d) {
 //                 uint16_t len = strlen (str);
 
-//                 mvwprintw (d.win, d.y, d.x++, "┌");
+//                 d.print(, "┌");
 //                 detail::line (d, len);
-//                 mvwprintw (d.win, d.y, d.x++, "┐");
+//                 d.print(, "┐");
 //                 ++d.y;
 //                 d.x = 0;
 
-//                 mvwprintw (d.win, d.y, d.x, "│");
+//                 d.print("│");
 //                 ++d.x;
 
-//                 mvwprintw (d.win, d.y, d.x, str);
+//                 d.print(str);
 //                 d.x += strlen (str);
 
 //                 mvwprintw (d.win, d.y++, d.x, "│");
 //                 d.x = 0;
 
-//                 mvwprintw (d.win, d.y, d.x++, "└");
+//                 d.print(, "└");
 //                 detail::line (d, len);
-//                 mvwprintw (d.win, d.y, d.x++, "┘");
+//                 d.print(, "┘");
 //         };
 // }
 } // namespace og
@@ -651,7 +701,7 @@ int test2 ()
                               vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł "))) //
         );                                                                                       //
 
-        auto dialog = window<2, 2, 10, 10> (vbox (line<10>, line<10>, line<10>, line<10>));
+        auto dialog = window<4, 1, 10, 5> (vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")));
 
         bool showDialog{};
 
@@ -672,11 +722,21 @@ int test2 ()
 
                 switch (ch) {
                 case KEY_DOWN:
-                        d1.incrementFocus (vb);
+                        if (showDialog) {
+                                d1.incrementFocus (dialog);
+                        }
+                        else {
+                                d1.incrementFocus (vb);
+                        }
                         break;
 
                 case KEY_UP:
-                        d1.decrementFocus (vb);
+                        if (showDialog) {
+                                d1.decrementFocus (dialog);
+                        }
+                        else {
+                                d1.decrementFocus (vb);
+                        }
                         break;
 
                 case 'd':
@@ -685,7 +745,12 @@ int test2 ()
 
                 default:
                         // d1.input (vb, char (ch));
-                        vb.input (d1, char (ch));
+                        if (showDialog) {
+                                dialog.input (d1, char (ch));
+                        }
+                        else {
+                                vb.input (d1, char (ch));
+                        }
                         break;
                 }
         }
