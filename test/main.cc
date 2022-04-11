@@ -25,14 +25,18 @@ enum class Visibility {
 struct Empty {
 };
 
+using Coordinate = uint16_t;
+
 struct Point {
-        uint16_t x{};
-        uint16_t y{};
+        Coordinate x{};
+        Coordinate y{};
 };
 
+using Dimension = uint16_t;
+
 struct Dimensions {
-        uint16_t width{};
-        uint16_t height{};
+        Dimension width{};
+        Dimension height{};
 };
 
 /**
@@ -41,31 +45,33 @@ struct Dimensions {
 struct Context {
         Point origin{};
         Dimensions dimensions{};
-        uint16_t currentFocus{};  // TODO uint8_t.
-        uint16_t currentScroll{}; // TODO uint8_t.
+        uint16_t currentFocus{};
+        uint16_t currentScroll{};
         uint8_t *radioSelection{};
 };
 
 /// These classes are for simplyfying the Widget API. Instead of n function arguments we have those 2 aggreagtes.
 struct Iteration {
-        int focusIndex{};
-        int groupIndex{};
+        uint16_t focusIndex{};
+        uint16_t groupIndex{};
 };
 
-template <uint16_t widthV, uint16_t heightV> class Display {
+template <typename ConcreteClass, uint16_t widthV, uint16_t heightV, typename Child = Empty> class Display {
 public:
-        uint16_t x{};                               /// Current cursor position [in characters] TODO change name
-        uint16_t y{};                               /// Current cursor position [in characters] TODO change type
-        static constexpr uint16_t width = widthV;   // Dimensions in charcters
-        static constexpr uint16_t height = heightV; // Dimensions in charcters
-        // uint16_t currentFocus{};
-        // uint16_t currentScroll{};
-        Context context{{0, 0}, {width, height}};
+        Display (Child c = {}) : child{std::move (c)} {}
+
+        Visibility operator() ()
+        {
+                static_cast<ConcreteClass *> (this)->clear (); // How cool.
+                auto v = child (*static_cast<ConcreteClass *> (this), context);
+                static_cast<ConcreteClass *> (this)->refresh ();
+                return v;
+        }
 
         void move (uint16_t ox, uint16_t oy)
         {
-                x += ox;
-                y += oy;
+                cursorX += ox;
+                cursorY += oy;
         }
 
         void incrementFocus (auto const &mainWidget)
@@ -76,6 +82,8 @@ public:
                 }
         }
 
+        void incrementFocus () { incrementFocus (child); }
+
         void decrementFocus (auto const &mainWidget)
         {
                 if (context.currentFocus > 0) {
@@ -83,64 +91,53 @@ public:
                         mainWidget.reFocus (context);
                 }
         }
+
+        void decrementFocus () { decrementFocus (child); }
+
+        void calculatePositions () { child.calculatePositions (); }
+
+        uint16_t cursorX{};                         /// Current cursor position in characters
+        uint16_t cursorY{};                         /// Current cursor position in characters
+        static constexpr uint16_t width = widthV;   // Dimensions in charcters
+        static constexpr uint16_t height = heightV; // Dimensions in charcters
+        Context context{{0, 0}, {width, height}};
+        Child child;
 };
 
 /*--------------------------------------------------------------------------*/
 
 /**
- * TODO move Child to the base class since all concrete implementations will own one child.
- * TODO move sa much as possble to the base class to ease concrete class implementations.
- *      Ideally leave only the constructor, print, clear and color.
- *
+ * Ncurses backend.
  */
-template <uint16_t widthV, uint16_t heightV, typename Child = Empty> class NcursesDisplay : public Display<widthV, heightV> {
+template <uint16_t widthV, uint16_t heightV, typename Child = Empty>
+class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
 public:
-        using Base = Display<widthV, heightV>;
+        using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base::child;
         using Base::context;
-        using Base::incrementFocus, Base::decrementFocus, Base::x, Base::y;
+        using Base::cursorX, Base::cursorY, Base::width, Base::height;
 
         NcursesDisplay (Child c = {});
         ~NcursesDisplay ();
 
-        Visibility operator() ()
-        {
-                clear ();
-                auto v = child (*this, context);
-                wrefresh (win);
-                return v;
-        }
-
-        void print (const char *str) { mvwprintw (win, y, x, str); }
+        void print (const char *str) { mvwprintw (win, cursorY, cursorX, str); }
 
         void clear ()
         {
                 wclear (win);
-                x = 0;
-                y = 0;
+                cursorX = 0;
+                cursorY = 0;
         }
 
         void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
 
-        // TODO to be moved or removed
-        void incrementFocus () { incrementFocus (child); }
-        void decrementFocus () { decrementFocus (child); }
-        void calculatePositions () { child.calculatePositions (); }
-
-        // TODO to be removed
         void refresh () { wrefresh (win); }
 
 private:
         WINDOW *win{};
-        Child child;
 };
 
-template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
-{
-        return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
-}
-
-template <uint16_t widthV, uint16_t heightV, typename Child>
-NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : child{std::move (c)}
+template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
         setlocale (LC_ALL, "");
         initscr ();
@@ -152,7 +149,7 @@ NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : child{std::mo
         init_pair (1, COLOR_WHITE, COLOR_BLUE);
         init_pair (2, COLOR_BLUE, COLOR_WHITE);
         keypad (stdscr, true);
-        win = newwin (Display<widthV, heightV>::height, Display<widthV, heightV>::width, 0, 0);
+        win = newwin (height, width, 0, 0);
         wbkgd (win, COLOR_PAIR (1));
         refresh ();
 }
@@ -162,6 +159,11 @@ template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widt
         clrtoeol ();
         refresh ();
         endwin ();
+}
+
+template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
+{
+        return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
 }
 
 /****************************************************************************/
@@ -179,7 +181,7 @@ namespace detail {
 } // namespace detail
 
 namespace detail {
-        constexpr bool heightsOverlap (int y1, int height1, int y2, int height2) // TODO not int.
+        template <typename T> constexpr bool heightsOverlap (T y1, T height1, T y2, T height2) // TODO not int.
         {
                 auto y1d = y1 + height1 - 1;
                 auto y2d = y2 + height2 - 1;
@@ -204,17 +206,17 @@ namespace detail {
  *           equal to 1, for a container it would be sum of all children heights.
  */
 template <uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
-        void reFocus (Context &ctx, int focusIndex = 0) const;
+        void reFocus (Context &ctx, uint16_t focusIndex = 0) const;
         void input (auto &d, Context const &ctx, Iteration iter, char c) {}
         // TODO remove
-        void calculatePositions (int) {}
+        void calculatePositions (uint16_t) {}
 
-        int y{};
-        static constexpr int widgetCount = widgetCountV;
-        static constexpr int height = heightV;
+        uint16_t y{};
+        static constexpr uint16_t widgetCount = widgetCountV;
+        static constexpr uint16_t height = heightV;
 };
 
-template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, heightV>::reFocus (Context &ctx, int focusIndex) const
+template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, heightV>::reFocus (Context &ctx, uint16_t focusIndex) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                 if (ctx.currentFocus == focusIndex) {
@@ -230,7 +232,7 @@ template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, hei
 
 /****************************************************************************/
 
-template <int len> struct Line : public Widget<0, 1> {
+template <uint16_t len> struct Line : public Widget<0, 1> {
 
         Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
         {
@@ -243,9 +245,9 @@ template <int len> struct Line : public Widget<0, 1> {
         }
 };
 
-// template <int len> constexpr auto line () { return Line<len>{}; }
+// template <uint16_t len> constexpr auto line () { return Line<len>{}; }
 
-template <int len> Line<len> line;
+template <uint16_t len> Line<len> line;
 
 /****************************************************************************/
 /* Check                                                                    */
@@ -357,8 +359,8 @@ namespace detail {
         struct VBoxDecoration {
                 static void after (auto &d, Context const &ctx)
                 {
-                        d.y += 1; // TODO generates empty lines when more than 1 vbox is nested
-                        d.x = ctx.origin.x;
+                        d.cursorY += 1;
+                        d.cursorX = ctx.origin.x;
                 }
         };
 
@@ -370,47 +372,32 @@ namespace detail {
                 }
         };
 
-        template <typename Layout, typename Disp, typename W, typename... Rst>
-        void layout (Disp &d, Context &ctx, Iteration iter, W const &widget, Rst const &...widgets)
-        {
-                if (widget (d, ctx, iter) == Visibility::visible) {
-                        Layout::after (d, ctx);
-                }
-
-                if constexpr (sizeof...(widgets) > 0) {
-                        layout<Layout> (d, ctx, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, widgets...);
-                }
-        }
-
         template <typename T> struct WidgetCountField {
-                static constexpr int value = T::widgetCount;
+                static constexpr uint16_t value = T::widgetCount;
         };
 
         template <typename T> struct WidgetHeightField {
-                static constexpr int value = T::height;
+                static constexpr uint16_t value = T::height;
         };
 
-        template <typename Tuple, template <typename T> typename Field, int n = std::tuple_size_v<Tuple> - 1> struct Sum {
+        template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Sum {
                 static constexpr auto value = Field<std::tuple_element_t<n, Tuple>>::value + Sum<Tuple, Field, n - 1>::value;
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
-                static constexpr int value = Field<std::tuple_element_t<0, Tuple>>::value;
+                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
-
-        // template <typename Tuple, int focusIndex, int groupIndex, int n = std::tuple_size_v<Tuple> - 1> struct Draw {
-        //         Visibility draw (auto &d, Context const &ctx, uint8_t groupSelection) {}
-        // };
 
 } // namespace detail
 
 template <typename Decor, typename WidgetsTuple> struct Layout {
 
-        static constexpr int widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
-        static constexpr int height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
+        static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
+        static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-        Layout (WidgetsTuple w) : widgets (std::move (w)) {}
+        Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
 
+        Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
                 // TODO move to separate function. Code duplication.
@@ -419,18 +406,23 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 }
                 ctx.radioSelection = &radioSelection;
 
-                std::apply (
-                        [&d, &ctx, &iter] (auto const &...widgets) {
-                                detail::layout<Decor> (d, ctx, {iter.focusIndex, 0}, widgets...);
-                        },
-                        widgets);
+                auto l = [&d, &ctx] (auto &itself, Iteration iter, auto const &widget, auto const &...widgets) {
+                        if (widget (d, ctx, iter) == Visibility::visible) {
+                                Decor::after (d, ctx);
+                        }
 
+                        if constexpr (sizeof...(widgets) > 0) {
+                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), uint16_t (iter.groupIndex + 1)}, widgets...);
+                        }
+                };
+
+                std::apply ([&d, &ctx, &iter, &l] (auto const &...widgets) { l (l, {iter.focusIndex, 0}, widgets...); }, widgets);
                 return Visibility::nonDrawable;
         }
 
-        void reFocus (Context &ctx, int focusIndex = 0) const
+        void reFocus (Context &ctx, uint16_t focusIndex = 0) const
         {
-                auto l = [&ctx] (auto &itself, int focusIndex, auto const &widget, auto const &...widgets) {
+                auto l = [&ctx] (auto &itself, uint16_t focusIndex, auto const &widget, auto const &...widgets) {
                         widget.reFocus (ctx, focusIndex);
 
                         if constexpr (sizeof...(widgets)) {
@@ -441,6 +433,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
         }
 
+        void input (auto &d, char c) { input (d, d.context, {}, c); }
         void input (auto &d, Context &ctx, Iteration iter, char c)
         {
                 ctx.radioSelection = &radioSelection;
@@ -449,19 +442,18 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                         widget.input (d, ctx, iter, c);
 
                         if constexpr (sizeof...(widgets)) {
-                                itself (itself, {iter.focusIndex + widget.widgetCount, iter.groupIndex + 1}, widgets...);
+                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), uint16_t (iter.groupIndex + 1)}, widgets...);
                         }
                 };
 
                 std::apply ([&l, &iter] (auto &...widgets) { l (l, {iter.focusIndex, 0}, widgets...); }, widgets);
         }
 
-        void calculatePositions (int parentY = 0)
+        void calculatePositions (uint16_t /* parentY */ = 0)
         {
-                auto l = [this] (auto &itself, int prevY, int prevH, auto &widget, auto &...widgets) {
+                auto l = [this] (auto &itself, uint16_t prevY, uint16_t prevH, auto &widget, auto &...widgets) {
                         widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
                         widget.calculatePositions (y);
-                        // std::cout << widget.y << std::endl;
 
                         if constexpr (sizeof...(widgets) > 0) {
                                 // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
@@ -472,7 +464,9 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, 0, widgets...); }, widgets);
         }
 
-        int y{}; // TODO constexpr TODO uint16_t
+        uint16_t y{}; // TODO constexpr
+
+private:
         mutable uint8_t radioSelection{};
         WidgetsTuple widgets;
 };
@@ -498,14 +492,15 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename 
 
         explicit Window (Child c) : child{std::move (c)} {}
 
+        Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
-                d.x = ox;
-                d.y = oy;
+                d.cursorX = ox;
+                d.cursorY = oy;
                 return child (d, context, iter);
         }
 
-        void input (auto &d, char c, int focusIndex, int groupIndex, uint8_t &groupSelection)
+        void input (auto &d, char c, uint16_t focusIndex, uint16_t groupIndex, uint8_t &groupSelection)
         {
                 child.input (d, c, focusIndex, groupIndex, groupSelection);
         }
@@ -524,7 +519,7 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 /*--------------------------------------------------------------------------*/
 // auto label (const char *str)
 // {
-//         return [str] (auto &d, int focusIndex = 0) {
+//         return [str] (auto &d, uint16_t focusIndex = 0) {
 //                 mvwprintw (d.win, d.y, d.x, str);
 //                 d.x += strlen (str);
 //         };
@@ -623,8 +618,7 @@ int test1 ()
 
                 default:
                         // d1.input (vb, char (ch));
-                        int dummy; // TODO ugly
-                                   // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
+                        // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
                         break;
                 }
         }
@@ -645,29 +639,25 @@ int test2 ()
          *
          * This ncurses method can be left as an option.
          */
-        auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
-                        line<10>,                                                          //
-                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-                        line<10>,                                                          //
-                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
-                        line<10>,                                                          //
-                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
-                        line<10>,                                                          //
-                        vbox (radio (" E "), radio (" F "), radio (" G "), radio (" H "))  //
-        );                                                                                 //
-
-        // TODO compile time
-        // TODO no additional call
-        vb.calculatePositions (); // Only once. After composition
+        auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")),       //
+                        line<10>,                                                                //
+                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),       //
+                        line<10>,                                                                //
+                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")),       //
+                        line<10>,                                                                //
+                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),       //
+                        line<10>,                                                                //
+                        vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")), //
+                              vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł "))) //
+        );                                                                                       //
 
         auto dialog = window<2, 2, 10, 10> (vbox (line<10>, line<10>, line<10>, line<10>));
-        // dialog.calculatePositions ();
 
         bool showDialog{};
 
         while (true) {
                 d1.clear ();
-                vb (d1, d1.context);
+                vb (d1);
 
                 if (showDialog) {
                         dialog (d1, d1.context);
@@ -695,7 +685,7 @@ int test2 ()
 
                 default:
                         // d1.input (vb, char (ch));
-                        vb.input (d1, d1.context, {}, char (ch)); // TODO ugly, should be vb.input (d1, char (ch)) at most
+                        vb.input (d1, char (ch));
                         break;
                 }
         }
@@ -707,6 +697,7 @@ int test2 ()
 
 int main ()
 {
+
         test2 ();
         test1 ();
 }
