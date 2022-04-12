@@ -78,24 +78,9 @@ public:
         void setCursorX (Coordinate x) { cursorX = x; }
         void setCursorY (Coordinate y) { cursorY = y; }
 
-        void incrementFocus (auto const &mainWidget)
-        {
-                if (context.currentFocus < mainWidget.widgetCount - 1) {
-                        ++context.currentFocus;
-                        mainWidget.reFocus (context);
-                }
-        }
-
+        void incrementFocus (auto const &mainWidget) { mainWidget.incrementFocus (context); }
         void incrementFocus () { incrementFocus (child); }
-
-        void decrementFocus (auto const &mainWidget)
-        {
-                if (context.currentFocus > 0) {
-                        --context.currentFocus;
-                        mainWidget.reFocus (context);
-                }
-        }
-
+        void decrementFocus (auto const &mainWidget) { mainWidget.decrementFocus (context); }
         void decrementFocus () { decrementFocus (child); }
 
         void calculatePositions () { child.calculatePositions (); }
@@ -380,7 +365,81 @@ void Radio::input (auto &d, Context const &ctx, Iteration iter, char c)
 
 constexpr Radio radio (const char *label) { return {label}; }
 
-/*--------------------------------------------------------------------------*/
+/****************************************************************************/
+/* Label                                                                    */
+/****************************************************************************/
+
+/**
+ * Single line (?)
+ */
+class Label : public Widget<Radio, 0, 1> {
+public:
+        constexpr Label (const char *l) : label{l} {}
+        Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
+        {
+                if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
+                        return Visibility::outside;
+                }
+
+                d.print (label);
+                d.move (strlen (label), 0);
+                return Visibility::visible;
+        }
+
+private:
+        const char *label;
+};
+
+auto label (const char *str) { return Label{str}; }
+
+/****************************************************************************/
+/* Button                                                                   */
+/****************************************************************************/
+
+/**
+ *
+ */
+template <typename Callback> class Button : public Widget<Radio, 1, 1> {
+public:
+        constexpr Button (const char *l, Callback c) : label{l}, callback{std::move (c)} {}
+
+        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+
+        void input (auto &d, Context const &ctx, Iteration iter, char c)
+        {
+                if (ctx.currentFocus == iter.focusIndex && c == ' ') {
+                        callback ();
+                }
+        }
+
+private:
+        const char *label;
+        Callback callback;
+};
+
+template <typename Callback> Visibility Button<Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+{
+        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
+                return Visibility::outside;
+        }
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (2);
+        }
+
+        d.print (label);
+        d.move (strlen (label), 0);
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (1);
+        }
+
+        return Visibility::visible;
+}
+
+template <typename Callback> auto button (const char *str, Callback &&c) { return Button{str, std::forward<Callback> (c)}; }
+
+/****************************************************************************/
 
 namespace detail {
 
@@ -424,6 +483,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
         static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
+        // TODO this is westeful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
         explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
 
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
@@ -617,14 +677,6 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 // };
 
 /*--------------------------------------------------------------------------*/
-// auto label (const char *str)
-// {
-//         return [str] (auto &d, uint16_t focusIndex = 0) {
-//                 d.print(str);
-//                 d.x += strlen (str);
-//         };
-// }
-/*--------------------------------------------------------------------------*/
 
 // auto dialog (const char *str)
 // {
@@ -704,7 +756,6 @@ int test1 ()
 
                 switch (ch) {
                 case KEY_DOWN:
-                        // d1.incrementFocus (vb);
                         vb.incrementFocus ();
                         break;
 
@@ -733,28 +784,24 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        /*
-         * TODO This has the problem that it woud be tedious and wasteful to declare ncurses<18, 7>
-         * with every new window/view. Alas I'm trying to investigate how to commonize Displays and Windows.
-         *
-         * This ncurses method can be left as an option.
-         */
-        auto vb = vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")),       //
-                        line<10>,                                                                //
-                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),       //
-                        line<10>,                                                                //
-                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")),       //
-                        line<10>,                                                                //
-                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),       //
-                        line<10>,                                                                //
-                        vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")), //
-                              vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł "))) //
-        );                                                                                       //
-
-        auto dialog = window<4, 1, 10, 5> (vbox (check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+        auto vb = vbox (vbox (label ("group A"), radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
+                        line<10>,                                                                             //
+                        vbox (label ("group B"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
+                        line<10>,                                                                             //
+                        vbox (label ("group C"), radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
+                        line<10>,                                                                             //
+                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                    //
+                        line<10>,                                                                             //
+                        vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")),              //
+                              vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł ")))              //
+        );                                                                                                    //
 
         bool showDialog{};
 
+        auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false; }),
+                                                 check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+
+        // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
                 d1.clear ();
                 vb (d1);
@@ -773,22 +820,18 @@ int test2 ()
                 switch (ch) {
                 case KEY_DOWN:
                         if (showDialog) {
-                                // d1.incrementFocus (dialog);
                                 dialog.incrementFocus (d1.context);
                         }
                         else {
-                                // d1.incrementFocus (vb);
                                 vb.incrementFocus (d1.context);
                         }
                         break;
 
                 case KEY_UP:
                         if (showDialog) {
-                                // d1.decrementFocus (dialog);
                                 dialog.decrementFocus (d1.context);
                         }
                         else {
-                                // d1.decrementFocus (vb);
                                 vb.decrementFocus (d1.context);
                         }
                         break;
