@@ -211,20 +211,40 @@ namespace detail {
  * heightV : height of a widget in characters. For a mere (single line) label it would
  *           equal to 1, for a container it would be sum of all children heights.
  */
-template <uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
+template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
+
         void reFocus (Context &ctx, uint16_t focusIndex = 0) const;
         void input (auto &d, Context const &ctx, Iteration iter, char c) {}
         // TODO remove
         void calculatePositions (uint16_t) {}
+
+        void incrementFocus (Context &ctx) const
+        {
+                if (ctx.currentFocus < ConcreteClass::widgetCount - 1) {
+                        ++ctx.currentFocus;
+                        static_cast<ConcreteClass const *> (this)->reFocus (ctx);
+                }
+        }
+
+        void decrementFocus (Context &ctx) const
+        {
+                if (ctx.currentFocus > 0) {
+                        --ctx.currentFocus;
+                        static_cast<ConcreteClass const *> (this)->reFocus (ctx);
+                }
+        }
 
         uint16_t y{};
         static constexpr uint16_t widgetCount = widgetCountV;
         static constexpr uint16_t height = heightV;
 };
 
-template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, heightV>::reFocus (Context &ctx, uint16_t focusIndex) const
+template <typename ConcreteClass, uint16_t widgetCountV, uint16_t heightV>
+void Widget<ConcreteClass, widgetCountV, heightV>::reFocus (
+        Context &ctx, uint16_t focusIndex) const // TODO the name of tyhis function is misleading. It should be like scrollToFocus otr sth
 {
-        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+        auto h = ConcreteClass::height;
+        if (!detail::heightsOverlap (y, h, ctx.currentScroll, ctx.dimensions.height)) {
                 if (ctx.currentFocus == focusIndex) {
                         if (y < ctx.currentScroll) {
                                 ctx.currentScroll = y;
@@ -238,7 +258,9 @@ template <uint16_t widgetCountV, uint16_t heightV> void Widget<widgetCountV, hei
 
 /****************************************************************************/
 
-template <uint16_t len> struct Line : public Widget<0, 1> {
+template <uint16_t len> struct Line : public Widget<Line<len>, 0, 1> {
+
+        using Widget<Line<len>, 0, 1>::y, Widget<Line<len>, 0, 1>::height;
 
         Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
         {
@@ -259,7 +281,7 @@ template <uint16_t len> Line<len> line;
 /* Check                                                                    */
 /****************************************************************************/
 
-class Check : public Widget<1, 1> {
+class Check : public Widget<Check, 1, 1> {
 public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
@@ -311,7 +333,7 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 /* Radio                                                                    */
 /****************************************************************************/
 
-class Radio : public Widget<1, 1> {
+class Radio : public Widget<Radio, 1, 1> {
 public:
         constexpr Radio (const char *l) : label{l} {}
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
@@ -396,12 +418,13 @@ namespace detail {
 
 } // namespace detail
 
-template <typename Decor, typename WidgetsTuple> struct Layout {
+template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
 
+        using Base = Widget<Layout<Decor, WidgetsTuple>>;
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
         static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-        Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
+        explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
 
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
@@ -470,7 +493,8 @@ template <typename Decor, typename WidgetsTuple> struct Layout {
                 std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, 0, widgets...); }, widgets);
         }
 
-        uint16_t y{}; // TODO constexpr
+        // uint16_t y{}; // TODO constexpr
+        using Base::y;
 
 private:
         mutable uint8_t radioSelection{};
@@ -494,7 +518,10 @@ template <typename... W> auto hbox (W const &...widgets)
 /**
  *
  */
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window : public Widget<> {
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child>
+struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
+
+        using Base = Widget<Window<ox, oy, widthV, heightV, Child>>;
 
         explicit Window (Child c) : child{std::move (c)} {}
 
@@ -508,6 +535,11 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename 
 
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
+                // TODO move to separate function. Code duplication.
+                if (!detail::heightsOverlap (Base::y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                        return Visibility::outside;
+                }
+
                 d.setCursorX (ox);
                 d.setCursorY (oy);
 
@@ -538,11 +570,29 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename 
                 return child (d, context, iter);
         }
 
-        void input (auto &d, char c) { input (d, d.context, {}, c); }
-        void input (auto &d, Context &ctx, Iteration iter, char c) { child.input (d, ctx, iter, c); }
+        void input (auto &d, char c) { input (d, context, {}, c); }
+        void input (auto &d, Context &ctx, Iteration iter, char c) { child.input (d, context, iter, c); }
+        void reFocus (Context &ctx, uint16_t focusIndex = 0) const { child.reFocus (context, focusIndex); }
+
+        void incrementFocus (Context & /* ctx */) const
+        {
+                if (context.currentFocus < widgetCount - 1) {
+                        ++context.currentFocus;
+                        reFocus (context);
+                }
+        }
+
+        void decrementFocus (Context & /* ctx */) const
+        {
+                if (context.currentFocus > 0) {
+                        --context.currentFocus;
+                        reFocus (context);
+                }
+        }
 
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
+        static constexpr uint16_t widgetCount = Child::widgetCount;
         mutable Context context{{ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
@@ -701,7 +751,7 @@ int test2 ()
                               vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł "))) //
         );                                                                                       //
 
-        auto dialog = window<4, 1, 10, 5> (vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")));
+        auto dialog = window<4, 1, 10, 5> (vbox (check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
 
         bool showDialog{};
 
@@ -723,19 +773,23 @@ int test2 ()
                 switch (ch) {
                 case KEY_DOWN:
                         if (showDialog) {
-                                d1.incrementFocus (dialog);
+                                // d1.incrementFocus (dialog);
+                                dialog.incrementFocus (d1.context);
                         }
                         else {
-                                d1.incrementFocus (vb);
+                                // d1.incrementFocus (vb);
+                                vb.incrementFocus (d1.context);
                         }
                         break;
 
                 case KEY_UP:
                         if (showDialog) {
-                                d1.decrementFocus (dialog);
+                                // d1.decrementFocus (dialog);
+                                dialog.decrementFocus (d1.context);
                         }
                         else {
-                                d1.decrementFocus (vb);
+                                // d1.decrementFocus (vb);
+                                vb.decrementFocus (d1.context);
                         }
                         break;
 
