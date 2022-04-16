@@ -445,7 +445,7 @@ template <typename Callback> Visibility Button<Callback>::operator() (auto &d, C
 template <typename Callback> auto button (const char *str, Callback &&c) { return Button{str, std::forward<Callback> (c)}; }
 
 /****************************************************************************/
-/* Combo                                                                   */
+/* Combo                                                                    */
 /****************************************************************************/
 
 template <typename... T> struct First {
@@ -458,9 +458,12 @@ template <typename... T> using First_t = typename First<T...>::type;
  * Single combo option.
  */
 template <std::integral Id> struct Option { // TODO consider other types than std::integrals
+        Option (Id const &i, const char *l) : id{i}, label{l} {}
         Id id;
         const char *label;
 };
+
+template <typename Id> auto option (Id &&id, const char *label) { return Option (std::forward<Id> (id), label); }
 
 /**
  * A container for options.
@@ -539,7 +542,78 @@ void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ct
 }
 
 /****************************************************************************/
+/* Radio group                                                              */
+/****************************************************************************/
 
+/**
+ * Copy & paste from Combo
+ */
+template <typename OptionCollection, typename Callback>
+requires std::invocable<Callback, typename OptionCollection::Id>
+class Radio2 : public Widget<Radio2<OptionCollection, Callback>> {
+public:
+        using Option = typename OptionCollection::OptionType;
+        using Id = typename OptionCollection::Id;
+        using Base = Widget<Radio2<OptionCollection, Callback>>;
+        using Base::y;
+        using SelectionIndex = typename OptionCollection::SelectionIndex;
+
+        static constexpr uint16_t widgetCount = std::tuple_size<typename OptionCollection::ContainerType>::value;
+        static constexpr uint16_t height = widgetCount;
+
+        constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
+
+        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        void input (auto &d, Context const &ctx, Iteration iter, char c);
+
+private:
+        OptionCollection options;
+        SelectionIndex currentSelection{};
+        Callback callback;
+};
+
+/*--------------------------------------------------------------------------*/
+
+template <typename OptionCollection, typename Callback>
+Visibility Radio2<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+{
+        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                return Visibility::outside;
+        }
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (2);
+        }
+
+        for (auto const &o : options.elms) {
+                d.print ("○");
+                d.move (1, 0);
+                d.print (o.label);
+                d.move (0, 1);
+        }
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (1);
+        }
+
+        // d.move (strlen (label), 0);
+        return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename OptionCollection, typename Callback>
+void Radio2<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+{
+        if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+                ++currentSelection;
+                currentSelection %= options.elms.size ();
+        }
+}
+
+/****************************************************************************/
+/* Layouts                                                                  */
+/****************************************************************************/
 namespace detail {
 
         struct VBoxDecoration {
@@ -843,19 +917,22 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        auto ccc = Combo (Options (Option{0, "red"}, Option{1, "green"}, Option{1, "blue"}), [] (auto const &o) {});
-
-        auto vb = vbox (vbox (label ("group A"), check (" 111"), ccc),                                        //
-                        line<10>,                                                                             //
-                        vbox (label ("group B"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-                        line<10>,                                                                             //
-                        vbox (label ("group C"), radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
-                        line<10>,                                                                             //
-                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                    //
-                        line<10>,                                                                             //
-                        vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")),              //
-                              vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł ")))              //
-        );                                                                                                    //
+        auto vb = vbox (
+                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})), //
+                line<10>,                                                                                                                    //
+                vbox (label ("New radio"),
+                      // TODO this has fixed layout - horizontal group is not possible.
+                      Radio2 (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+                line<10>,                                                                               //
+                vbox (label ("Old radio"), radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
+                line<10>,                                                                               //
+                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),  //
+                line<10>,                                                                               //
+                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                      //
+                line<10>,                                                                               //
+                vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")),                //
+                      vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł ")))                //
+        );                                                                                              //
 
         bool showDialog{};
 

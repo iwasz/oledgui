@@ -30,7 +30,9 @@ aaa
 * [x] radiobutons (no state)
 * [x] radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
 * [ ] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
-* [ ] combo - "action" key changes the value (works for numbers as well)
+  * [ ] Demo - menu 
+  * [ ] Navigation between screens - research how to do it the best from the API perspective.
+* [x] combo - "action" key changes the value (works for numbers as well)
   * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
 * [x] Button (with callback).
 * [ ] std::string - like strings??? naah...
@@ -43,5 +45,3 @@ aaa
 * [ ] Console backend (with or even without input)
   * [ ] Styling (external tempolate class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
-* [ ] Demo - menu 
-* [ ] Navigation between screens - research how to do it the best from the API perspective.
