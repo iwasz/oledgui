@@ -29,14 +29,19 @@ aaa
 * [x] checkboxes
 * [x] radiobutons (no state)
 * [x] radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
-* [ ] menu / list
+* [ ] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
 * [ ] combo - "action" key changes the value (works for numbers as well)
-* [ ] icon aka indicator aka animation (icon with states)
-* [ ] Button (with callback).
+  * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
+* [x] Button (with callback).
 * [ ] std::string - like strings??? naah...
-* [ ] callbacks and / or references
-* [ ] bug: empty line after nested container 
-* [ ] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
-  * [ ] Dialog
+* [ ] callbacks and / or references - for all widgets that has input. 
+* [x] bug: empty line after nested container 
+* [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
+  * [x] Dialog
 * [ ] Prepare for compile time optimization
   * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
+* [ ] Console backend (with or even without input)
+  * [ ] Styling (external tempolate class impacting various aspects of the output)
+  * [ ] AND / OR Widget parameters dictating the looks.
+* [ ] Demo - menu 
+* [ ] Navigation between screens - research how to do it the best from the API perspective.

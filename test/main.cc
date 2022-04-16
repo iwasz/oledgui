@@ -8,6 +8,7 @@
 
 #include "ncurses.h"
 #include "oledgui.h"
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -125,7 +126,11 @@ public:
 
         void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
 
-        void refresh () { wrefresh (win); }
+        void refresh ()
+        {
+                ::refresh ();
+                wrefresh (win);
+        }
 
         // private: // TODO private
         using Base::child;
@@ -300,7 +305,7 @@ public:
                 return Visibility::visible;
         }
 
-        void input (auto &d, Context const &ctx, Iteration iter, char c)
+        void input (auto & /* d */, Context const &ctx, Iteration iter, char c)
         {
                 if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
@@ -356,7 +361,7 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
         return Visibility::visible;
 }
 
-void Radio::input (auto &d, Context const &ctx, Iteration iter, char c)
+void Radio::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                 *ctx.radioSelection = iter.radioIndex;
@@ -405,7 +410,7 @@ public:
 
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
 
-        void input (auto &d, Context const &ctx, Iteration iter, char c)
+        void input (auto & /* d */, Context const &ctx, Iteration iter, char c)
         {
                 if (ctx.currentFocus == iter.focusIndex && c == ' ') {
                         callback ();
@@ -438,6 +443,100 @@ template <typename Callback> Visibility Button<Callback>::operator() (auto &d, C
 }
 
 template <typename Callback> auto button (const char *str, Callback &&c) { return Button{str, std::forward<Callback> (c)}; }
+
+/****************************************************************************/
+/* Combo                                                                   */
+/****************************************************************************/
+
+template <typename... T> struct First {
+        using type = std::tuple_element_t<0, std::tuple<T...>>;
+};
+
+template <typename... T> using First_t = typename First<T...>::type;
+
+/**
+ * Single combo option.
+ */
+template <std::integral Id> struct Option { // TODO consider other types than std::integrals
+        Id id;
+        const char *label;
+};
+
+/**
+ * A container for options.
+ */
+template <std::integral I, size_t Num> struct Options {
+
+        using OptionType = Option<I>;
+        using Id = I;
+        using ContainerType = std::array<Option<I>, Num>;
+        using SelectionIndex = typename ContainerType::size_type; // std::array::at accepts this
+
+        template <typename... J> constexpr Options (Option<J> &&...e) : elms{std::forward<Option<J>> (e)...} {}
+
+        ContainerType elms;
+};
+
+template <typename... J> Options (Option<J> &&...e) -> Options<First_t<J...>, sizeof...(J)>;
+
+/**
+ *
+ */
+template <typename OptionCollection, typename Callback>
+requires std::invocable<Callback, typename OptionCollection::Id>
+class Combo : public Widget<Combo<OptionCollection, Callback>, 1, 1> {
+public:
+        using Option = typename OptionCollection::OptionType;
+        using Id = typename OptionCollection::Id;
+        using Base = Widget<Combo<OptionCollection, Callback>, 1, 1>;
+        using Base::y, Base::height;
+        using SelectionIndex = typename OptionCollection::SelectionIndex;
+
+        constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
+
+        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        void input (auto &d, Context const &ctx, Iteration iter, char c);
+
+private:
+        OptionCollection options;
+        SelectionIndex currentSelection{};
+        Callback callback;
+};
+
+/*--------------------------------------------------------------------------*/
+
+template <typename OptionCollection, typename Callback>
+Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+{
+        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                return Visibility::outside;
+        }
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (2);
+        }
+
+        const char *label = options.elms.at (currentSelection).label;
+        d.print (label);
+
+        if (ctx.currentFocus == iter.focusIndex) {
+                d.color (1);
+        }
+
+        d.move (strlen (label), 0);
+        return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename OptionCollection, typename Callback>
+void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+{
+        if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+                ++currentSelection;
+                currentSelection %= options.elms.size ();
+        }
+}
 
 /****************************************************************************/
 
@@ -593,6 +692,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         //         return child (d, context, iter);
         // }
 
+        // TODO This always prints the frame. There should be option for a windows without one.
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
                 // TODO move to separate function. Code duplication.
@@ -631,8 +731,8 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         }
 
         void input (auto &d, char c) { input (d, context, {}, c); }
-        void input (auto &d, Context &ctx, Iteration iter, char c) { child.input (d, context, iter, c); }
-        void reFocus (Context &ctx, uint16_t focusIndex = 0) const { child.reFocus (context, focusIndex); }
+        void input (auto &d, Context & /* ctx */, Iteration iter, char c) { child.input (d, context, iter, c); }
+        void reFocus (Context & /* ctx */, uint16_t focusIndex = 0) const { child.reFocus (context, focusIndex); }
 
         void incrementFocus (Context & /* ctx */) const
         {
@@ -662,47 +762,6 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
         return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
 }
 
-/*--------------------------------------------------------------------------*/
-
-// template <typename Child> class Frame : public Widget<> {
-// public:
-//         static constexpr uint16_t widgetCount = Child::widgetCount;
-//         static constexpr uint16_t height = Child::height + 2; // Plus top and bottom borders
-
-//         Frame (Child c) : child{std::move (c)} {}
-//         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const {}
-
-// private:
-//         Child child;
-// };
-
-/*--------------------------------------------------------------------------*/
-
-// auto dialog (const char *str)
-// {
-//         return [str] (auto &d) {
-//                 uint16_t len = strlen (str);
-
-//                 d.print(, "┌");
-//                 detail::line (d, len);
-//                 d.print(, "┐");
-//                 ++d.y;
-//                 d.x = 0;
-
-//                 d.print("│");
-//                 ++d.x;
-
-//                 d.print(str);
-//                 d.x += strlen (str);
-
-//                 mvwprintw (d.win, d.y++, d.x, "│");
-//                 d.x = 0;
-
-//                 d.print(, "└");
-//                 detail::line (d, len);
-//                 d.print(, "┘");
-//         };
-// }
 } // namespace og
 
 /****************************************************************************/
@@ -784,7 +843,9 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        auto vb = vbox (vbox (label ("group A"), radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
+        auto ccc = Combo (Options (Option{0, "red"}, Option{1, "green"}, Option{1, "blue"}), [] (auto const &o) {});
+
+        auto vb = vbox (vbox (label ("group A"), check (" 111"), ccc),                                        //
                         line<10>,                                                                             //
                         vbox (label ("group B"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
                         line<10>,                                                                             //
