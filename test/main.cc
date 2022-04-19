@@ -41,15 +41,26 @@ struct Dimensions {
         Dimension height{};
 };
 
+struct Context;
+
+namespace detail {
+
+        struct IDecoration {
+                virtual void after (Context const &ctx) const = 0;
+        };
+} // namespace detail
+
 /**
  * Runtime context for all the recursive loops.
  */
 struct Context {
-        Point origin{};
-        Dimensions dimensions{};
+        Point *cursor{};
+        Point origin{};          // TODO const
+        Dimensions dimensions{}; // TODO const
         Focus currentFocus{};
         Coordinate currentScroll{};
-        Selection *radioSelection{};
+        Selection *radioSelection{}; // TODO remove if nre radio proves to be feasible
+        detail::IDecoration const *decoration{};
 };
 
 /// These classes are for simplyfying the Widget API. Instead of n function arguments we have those 2 aggreagtes.
@@ -60,7 +71,7 @@ struct Iteration {
 
 template <typename ConcreteClass, uint16_t widthV, uint16_t heightV, typename Child = Empty> class Display {
 public:
-        Display (Child c = {}) : child{std::move (c)} {}
+        Display (Child const &c = {}) : child{c} {}
 
         Visibility operator() ()
         {
@@ -70,14 +81,14 @@ public:
                 return v;
         }
 
-        void move (uint16_t ox, uint16_t oy)
+        void move (uint16_t ox, uint16_t oy) // TODO make this a Point method
         {
-                cursorX += ox;
-                cursorY += oy;
+                cursor.x += ox;
+                cursor.y += oy;
         }
 
-        void setCursorX (Coordinate x) { cursorX = x; }
-        void setCursorY (Coordinate y) { cursorY = y; }
+        void setCursorX (Coordinate x) { cursor.x = x; }
+        void setCursorY (Coordinate y) { cursor.y = y; }
 
         void incrementFocus (auto const &mainWidget) { mainWidget.incrementFocus (context); }
         void incrementFocus () { incrementFocus (child); }
@@ -90,10 +101,11 @@ public:
         static constexpr uint16_t height = heightV; // Dimensions in charcters
 
         // protected: // TODO protected
-        Context context{{0, 0}, {width, height}};
+        Context context{&cursor, {0, 0}, {width, height}};
         Child child;
-        uint16_t cursorX{}; /// Current cursor position in characters
-        uint16_t cursorY{}; /// Current cursor position in characters
+        // uint16_t cursorX{}; /// Current cursor position in characters
+        // uint16_t cursorY{}; /// Current cursor position in characters
+        Point cursor{};
 };
 
 /*--------------------------------------------------------------------------*/
@@ -115,13 +127,13 @@ public:
                 endwin ();
         }
 
-        void print (const char *str) { mvwprintw (win, cursorY, cursorX, str); }
+        void print (const char *str) { mvwprintw (win, cursor.y, cursor.x, str); }
 
         void clear ()
         {
                 wclear (win);
-                cursorX = 0;
-                cursorY = 0;
+                cursor.x = 0;
+                cursor.y = 0;
         }
 
         void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
@@ -135,7 +147,7 @@ public:
         // private: // TODO private
         using Base::child;
         using Base::context;
-        using Base::cursorX, Base::cursorY;
+        using Base::cursor;
 
 private:
         WINDOW *win{};
@@ -177,7 +189,7 @@ namespace detail {
 } // namespace detail
 
 namespace detail {
-        template <typename T> constexpr bool heightsOverlap (T y1, T height1, T y2, T height2) // TODO not int.
+        template <typename T> constexpr bool heightsOverlap (T y1, T height1, T y2, T height2)
         {
                 auto y1d = y1 + height1 - 1;
                 auto y2d = y2 + height2 - 1;
@@ -406,7 +418,7 @@ auto label (const char *str) { return Label{str}; }
  */
 template <typename Callback> class Button : public Widget<Radio, 1, 1> {
 public:
-        constexpr Button (const char *l, Callback c) : label{l}, callback{std::move (c)} {}
+        constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
 
@@ -581,19 +593,29 @@ Visibility Radio2<OptionCollection, Callback>::operator() (auto &d, Context cons
                 return Visibility::outside;
         }
 
-        if (ctx.currentFocus == iter.focusIndex) {
-                d.color (2);
-        }
+        for (SelectionIndex cnt = 0; auto const &o : options.elms) {
 
-        for (auto const &o : options.elms) {
-                d.print ("○");
+                if (ctx.currentFocus == iter.focusIndex + cnt) {
+                        d.color (2);
+                }
+                if (cnt == currentSelection) {
+                        d.print ("◉");
+                }
+                else {
+                        d.print ("○");
+                }
                 d.move (1, 0);
                 d.print (o.label);
-                d.move (0, 1);
-        }
 
-        if (ctx.currentFocus == iter.focusIndex) {
-                d.color (1);
+                if (ctx.decoration) {
+                        ctx.decoration->after (ctx); // TODO extract method
+                }
+
+                if (ctx.currentFocus == iter.focusIndex + cnt) {
+                        d.color (1);
+                }
+
+                ++cnt;
         }
 
         // d.move (strlen (label), 0);
@@ -616,16 +638,16 @@ void Radio2<OptionCollection, Callback>::input (auto & /* d */, Context const &c
 /****************************************************************************/
 namespace detail {
 
-        struct VBoxDecoration {
-                static void after (auto &d, Context const &ctx)
+        struct VBoxDecoration : public IDecoration {
+                void after (Context const &ctx) const override
                 {
-                        d.cursorY += 1;
-                        d.cursorX = ctx.origin.x;
+                        ctx.cursor->y += 1;
+                        ctx.cursor->x = ctx.origin.x;
                 }
         };
 
-        struct HBoxDecoration {
-                static void after (auto &d)
+        struct HBoxDecoration : public IDecoration {
+                void after (Context const &ctx) const override
                 {
                         // d.y += 1;
                         // d.x = 0;
@@ -662,15 +684,17 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
+                ctx.decoration = &decoration;
+
                 // TODO move to separate function. Code duplication.
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
                 ctx.radioSelection = &radioSelection;
 
-                auto l = [&d, &ctx] (auto &itself, Iteration iter, auto const &widget, auto const &...widgets) {
+                auto l = [&d, &ctx, this] (auto &itself, Iteration iter, auto const &widget, auto const &...widgets) {
                         if (widget (d, ctx, iter) == Visibility::visible) {
-                                Decor::after (d, ctx);
+                                decoration.after (ctx);
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
@@ -732,6 +756,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 private:
         mutable uint8_t radioSelection{};
         WidgetsTuple widgets;
+        Decor decoration{};
 };
 
 template <typename... W> auto vbox (W const &...widgets)
@@ -756,7 +781,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         using Base = Widget<Window<ox, oy, widthV, heightV, Child>>;
 
-        explicit Window (Child c) : child{std::move (c)} {}
+        explicit Window (Child const &c) : child{c} {}
 
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         // Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
@@ -801,6 +826,11 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
                 d.setCursorX (ox + 1);
                 d.setCursorY (oy + 1);
+
+                if (context.cursor == nullptr) { // TODO I don't like this approach
+                        context.cursor = ctx.cursor;
+                }
+
                 return child (d, context, iter);
         }
 
@@ -827,7 +857,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
         static constexpr uint16_t widgetCount = Child::widgetCount;
-        mutable Context context{{ox + 1, oy + 1}, {width - 2, height - 2}};
+        mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
 
@@ -921,8 +951,7 @@ int test2 ()
                 vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})), //
                 line<10>,                                                                                                                    //
                 vbox (label ("New radio"),
-                      // TODO this has fixed layout - horizontal group is not possible.
-                      Radio2 (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+                      Radio2 (Options (option (0, " red"), option (1, " green"), option (1, " blue")), [] (auto const &o) {})),
                 line<10>,                                                                               //
                 vbox (label ("Old radio"), radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
                 line<10>,                                                                               //
