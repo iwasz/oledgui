@@ -77,7 +77,8 @@ public:
         Visibility operator() ()
         {
                 static_cast<ConcreteClass *> (this)->clear (); // How cool.
-                auto v = child (*static_cast<ConcreteClass *> (this), context);
+                Iteration iter{};
+                auto v = child (*static_cast<ConcreteClass *> (this), context, iter);
                 static_cast<ConcreteClass *> (this)->refresh ();
                 return v;
         }
@@ -217,13 +218,14 @@ namespace detail {
 template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
 
         void scrollToFocus (Context &ctx, Iteration const &iter) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c) {}
+        void input (auto &d, Context const &ctx, Iteration const &iter, char c) {}
 
         void incrementFocus (Context &ctx) const
         {
                 if (ctx.currentFocus < ConcreteClass::widgetCount - 1) {
                         ++ctx.currentFocus;
-                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, Iteration{});
+                        Iteration iter{}; // TODO I don't like this
+                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, iter);
                 }
         }
 
@@ -231,12 +233,14 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
         {
                 if (ctx.currentFocus > 0) {
                         --ctx.currentFocus;
-                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, Iteration{});
+                        Iteration iter{};
+                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, iter);
                 }
         }
 
         uint16_t y{};
         static constexpr uint16_t widgetCount = widgetCountV;
+        static constexpr bool canFocus = widgetCount > 0;
         static constexpr uint16_t height = heightV;
 };
 
@@ -262,7 +266,7 @@ template <uint16_t len> struct Line : public Widget<Line<len>, 0, 1> {
 
         using Widget<Line<len>, 0, 1>::y, Widget<Line<len>, 0, 1>::height;
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
+        Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
@@ -287,7 +291,7 @@ public:
 
         // TODO move outside the class.
         // TODO remove radioIndex and groupSelection. Not needed here.
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const
+        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
@@ -315,7 +319,7 @@ public:
                 return Visibility::visible;
         }
 
-        void input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+        void input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
         {
                 if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
@@ -340,15 +344,15 @@ public:
         using Base::y, Base::height;
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c);
+        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
+        void input (auto &d, Context const &ctx, Iteration const &iter, char c);
 
 private:
         Id id;
         const char *label;
 };
 
-template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context const &ctx, Iteration iter) const
+template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                 return Visibility::outside;
@@ -376,7 +380,7 @@ template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context c
         return Visibility::visible;
 }
 
-template <std::integral Id> void Radio<Id>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+template <std::integral Id> void Radio<Id>::input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                 *ctx.radioSelection = iter.radioIndex;
@@ -412,7 +416,7 @@ template <typename... J> OptionsRad (Radio<J> &&...e) -> OptionsRad<First_t<J...
 class Label : public Widget<Label, 0, 1> {
 public:
         constexpr Label (const char *l) : label{l} {}
-        Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
+        Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
         {
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
                         return Visibility::outside;
@@ -443,9 +447,9 @@ public:
 
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
 
-        void input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+        void input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
         {
                 if (ctx.currentFocus == iter.focusIndex && c == ' ') {
                         callback ();
@@ -457,7 +461,7 @@ private:
         Callback callback;
 };
 
-template <typename Callback> Visibility Button<Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+template <typename Callback> Visibility Button<Callback>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
                 return Visibility::outside;
@@ -526,8 +530,8 @@ public:
 
         constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c);
+        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
+        void input (auto &d, Context const &ctx, Iteration const &iter, char c);
 
 private:
         OptionCollection options;
@@ -538,7 +542,7 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                 return Visibility::outside;
@@ -562,7 +566,7 @@ Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                 ++currentSelection;
@@ -592,7 +596,7 @@ public:
 
         constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
-        // Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        // Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
         // void input (auto &d, Context const &ctx, Iteration iter, char c);
 
         auto const &getElements () const { return options.elms; }
@@ -605,55 +609,6 @@ private:
         SelectionIndex currentSelection{};
         Callback callback;
 };
-
-/*--------------------------------------------------------------------------*/
-
-// template <typename OptionCollection, typename Callback>
-// Visibility Radio2<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
-// {
-//         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
-//                 return Visibility::outside;
-//         }
-
-//         for (SelectionIndex cnt = 0; auto const &o : options.elms) {
-
-//                 if (ctx.currentFocus == iter.focusIndex + cnt) {
-//                         d.color (2);
-//                 }
-//                 if (cnt == currentSelection) {
-//                         d.print ("◉");
-//                 }
-//                 else {
-//                         d.print ("○");
-//                 }
-//                 d.move (1, 0);
-//                 d.print (o.label);
-
-//                 // if (ctx.decoration) {
-//                 //         ctx.decoration->after (ctx); // TODO extract method
-//                 // }
-
-//                 if (ctx.currentFocus == iter.focusIndex + cnt) {
-//                         d.color (1);
-//                 }
-
-//                 ++cnt;
-//         }
-
-//         // d.move (strlen (label), 0);
-//         return Visibility::visible;
-// }
-
-// /*--------------------------------------------------------------------------*/
-
-// template <typename OptionCollection, typename Callback>
-// void Radio2<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
-// {
-//         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
-//                 ++currentSelection;
-//                 currentSelection %= options.elms.size ();
-//         }
-// }
 
 /****************************************************************************/
 /* Layouts                                                                  */
@@ -697,7 +652,7 @@ namespace detail {
          * Iterate over Layout's widgets.
          */
         template <typename Callback, typename W, typename... Ws>
-        void iterate (Callback const &callback, Iteration const &iter, W &widget, Ws &...widgets)
+        void iterate (Callback const &callback, Iteration &iter, W &widget, Ws &...widgets)
         {
                 using WidgetType = W;
 
@@ -708,22 +663,29 @@ namespace detail {
                         static_assert (std::is_reference_v<decltype (widget.getElements ())>,
                                        "Ensure that your composite widget type has getElements method that returns a reference.");
 
-                        Iteration iii{iter.focusIndex, 0};
+                        iter.radioIndex = 0;
                         for (auto &o : widget.getElements ()) {
-                                callback (o, iii);
-                                ++iii.focusIndex;
-                                ++iii.radioIndex;
+                                std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
+                                callback (o, iter);
+                                ++iter.focusIndex;
+                                ++iter.radioIndex;
                         }
                 }
                 // This branch is for widgets that don't have getElements method
                 else {
+                        std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
+                                  << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
+
                         callback (widget, iter);
                 }
+                // iter.focusIndex += widget.widgetCount;
 
                 if constexpr (sizeof...(widgets) > 0) {
                         // TODO I don'tlike the fact that the whole Iter POD object is created again ana again even if one of its members is not
                         // used.
-                        iterate (callback, {uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */}, widgets...);
+                        Iteration iii{uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */};
+                        iterate (callback, iii, widgets...);
+                        // iterate (callback, iter, widgets...);
                 }
         }
 
@@ -736,13 +698,19 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
         using Base = Widget<Layout<Decor, WidgetsTuple>>;
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
+        static constexpr bool canFocus = false;
         static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
         // TODO this is wasteful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
         explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
 
-        Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
-        Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
+        Visibility operator() (auto &d) const
+        {
+                Iteration iter{};
+                return operator() (d, d.context, iter);
+        }
+
+        Visibility operator() (auto &d, Context &ctx, Iteration &iter) const
         {
                 // TODO move to separate function. Code duplication.
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
@@ -750,42 +718,53 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 }
                 ctx.radioSelection = &radioSelection;
 
+                std::cerr << "operator ()" << std::endl;
+
                 std::apply (
                         [&d, &ctx, &iter] (auto const &...widgets) {
                                 detail::iterate (
 
                                         // This lambda get called for every widget in tne Layout (whether composite or not).
-                                        [&d, &ctx] (auto const &widget, Iteration const &iter) {
+                                        [&d, &ctx] (auto const &widget, Iteration &iter) {
                                                 // It calls the operator () which is for drawing the widget on the screen.
                                                 if (widget (d, ctx, iter) == Visibility::visible) {
                                                         Decor::after (ctx);
                                                 }
                                         },
-                                        {iter.focusIndex, 0}, widgets...);
+                                        iter, widgets...);
                         },
                         widgets);
 
                 return Visibility::nonDrawable;
         }
 
-        void scrollToFocus (Context &ctx, Iteration const &iter) const
+        void scrollToFocus (Context &ctx, Iteration &iter) const
         {
+                std::cerr << "scrollToFocus ()" << std::endl;
+
                 std::apply (
                         [&ctx, &iter] (auto const &...widgets) {
-                                detail::iterate ([&ctx] (auto const &widget, Iteration const &iter) { widget.scrollToFocus (ctx, iter); }, iter,
+                                detail::iterate ([&ctx] (auto const &widget, Iteration &iter) { widget.scrollToFocus (ctx, iter); }, iter,
                                                  widgets...);
                         },
                         widgets);
         }
 
-        void input (auto &d, char c) { input (d, d.context, {}, c); }
-        void input (auto &d, Context &ctx, Iteration iter, char c)
+        void input (auto &d, char c)
+        {
+                Iteration iter{};
+                input (d, d.context, iter, c);
+        }
+
+        void input (auto &d, Context &ctx, Iteration &iter, char c)
         {
                 ctx.radioSelection = &radioSelection;
 
+                std::cerr << "input ()" << std::endl;
+
                 std::apply (
                         [&d, &ctx, &iter, c] (auto &...widgets) {
-                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration const &iter) { widget.input (d, ctx, iter, c); }, iter,
+                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration &iter) { widget.input (d, ctx, iter, c); }, iter,
                                                  widgets...);
                         },
                         widgets);
@@ -832,7 +811,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
         using Base::y;
 
 private:
-        mutable uint8_t radioSelection{};
+        mutable uint8_t radioSelection{}; // TODO move this to the Radio2
         WidgetsTuple widgets;
 };
 
@@ -860,8 +839,13 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         explicit Window (Child const &c) : child{c} {}
 
-        Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
-        // Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
+        Visibility operator() (auto &d) const
+        {
+                Iteration iter{};
+                return operator() (d, d.context, iter);
+        }
+
+        // Visibility operator() (auto &d, Context &ctx, Iteration const &iter = {}) const
         // {
         //         d.cursorX = ox;
         //         d.cursorY = oy;
@@ -869,7 +853,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         // }
 
         // TODO This always prints the frame. There should be option for a windows without one.
-        Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
+        Visibility operator() (auto &d, Context &ctx, Iteration &iter) const
         {
                 // TODO move to separate function. Code duplication.
                 if (!detail::heightsOverlap (Base::y, height, ctx.currentScroll, ctx.dimensions.height)) {
@@ -911,15 +895,21 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
                 return child (d, context, iter);
         }
 
-        void input (auto &d, char c) { input (d, context, {}, c); }
-        void input (auto &d, Context & /* ctx */, Iteration iter, char c) { child.input (d, context, iter, c); }
-        void scrollToFocus (Context & /* ctx */, Iteration const &iter) const { child.scrollToFocus (context, iter); }
+        void input (auto &d, char c)
+        {
+                Iteration iter{};
+                input (d, context, iter, c);
+        }
+
+        void input (auto &d, Context & /* ctx */, Iteration &iter, char c) { child.input (d, context, iter, c); }
+        void scrollToFocus (Context & /* ctx */, Iteration &iter) const { child.scrollToFocus (context, iter); }
 
         void incrementFocus (Context & /* ctx */) const
         {
                 if (context.currentFocus < widgetCount - 1) {
                         ++context.currentFocus;
-                        scrollToFocus (context, Iteration{});
+                        Iteration iter{};
+                        scrollToFocus (context, iter);
                 }
         }
 
@@ -927,13 +917,15 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         {
                 if (context.currentFocus > 0) {
                         --context.currentFocus;
-                        scrollToFocus (context, Iteration{});
+                        Iteration iter{};
+                        scrollToFocus (context, iter);
                 }
         }
 
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
         static constexpr uint16_t widgetCount = Child::widgetCount;
+        static constexpr bool canFocus = false;
         mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
@@ -1029,6 +1021,8 @@ int test2 ()
                 line<10>, //
                 vbox (label ("New radio"),
                       Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+                line<10>, //
+                hbox (Radio2 (OptionsRad (radio (0, " A1"), radio (1, " B2"), radio (1, " C3")), [] (auto const &o) {})),
                 line<10>,                                                                                           //
                 vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
                 line<10>,                                                                                           //
@@ -1063,7 +1057,8 @@ int test2 ()
                 vb (d1);
 
                 if (showDialog) {
-                        dialog (d1, d1.context);
+                        Iteration iter{}; // TODO mess
+                        dialog (d1, d1.context, iter);
                 }
 
                 d1.refresh ();
