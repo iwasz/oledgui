@@ -43,13 +43,6 @@ struct Dimensions {
 
 struct Context;
 
-namespace detail {
-
-        struct IDecoration {
-                virtual void after (Context const &ctx) const = 0;
-        };
-} // namespace detail
-
 /**
  * Runtime context for all the recursive loops.
  */
@@ -60,7 +53,6 @@ struct Context {
         Focus currentFocus{};
         Coordinate currentScroll{};
         Selection *radioSelection{}; // TODO remove if nre radio proves to be feasible
-        detail::IDecoration const *decoration{};
 };
 
 /// These classes are for simplyfying the Widget API. Instead of n function arguments we have those 2 aggreagtes.
@@ -224,7 +216,7 @@ namespace detail {
  */
 template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
 
-        void reFocus (Context &ctx, uint16_t focusIndex = 0) const;
+        void scrollToFocus (Context &ctx, Iteration const &iter) const;
         void input (auto &d, Context const &ctx, Iteration iter, char c) {}
         // TODO remove
         void calculatePositions (uint16_t) {}
@@ -233,7 +225,7 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
         {
                 if (ctx.currentFocus < ConcreteClass::widgetCount - 1) {
                         ++ctx.currentFocus;
-                        static_cast<ConcreteClass const *> (this)->reFocus (ctx);
+                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, Iteration{});
                 }
         }
 
@@ -241,7 +233,7 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
         {
                 if (ctx.currentFocus > 0) {
                         --ctx.currentFocus;
-                        static_cast<ConcreteClass const *> (this)->reFocus (ctx);
+                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, Iteration{});
                 }
         }
 
@@ -251,12 +243,11 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
 };
 
 template <typename ConcreteClass, uint16_t widgetCountV, uint16_t heightV>
-void Widget<ConcreteClass, widgetCountV, heightV>::reFocus (
-        Context &ctx, uint16_t focusIndex) const // TODO the name of tyhis function is misleading. It should be like scrollToFocus otr sth
+void Widget<ConcreteClass, widgetCountV, heightV>::scrollToFocus (Context &ctx, Iteration const &iter) const
 {
         auto h = ConcreteClass::height;
         if (!detail::heightsOverlap (y, h, ctx.currentScroll, ctx.dimensions.height)) {
-                if (ctx.currentFocus == focusIndex) {
+                if (ctx.currentFocus == iter.focusIndex) {
                         if (y < ctx.currentScroll) {
                                 ctx.currentScroll = y;
                         }
@@ -607,6 +598,7 @@ public:
         // void input (auto &d, Context const &ctx, Iteration iter, char c);
 
         auto const &getElements () const { return options.elms; }
+        auto &getElements () { return options.elms; }
 
 private:
         OptionCollection options;
@@ -666,18 +658,19 @@ private:
 /****************************************************************************/
 /* Layouts                                                                  */
 /****************************************************************************/
+
 namespace detail {
 
-        struct VBoxDecoration : public IDecoration {
-                void after (Context const &ctx) const override
+        struct VBoxDecoration {
+                static void after (Context const &ctx)
                 {
                         ctx.cursor->y += 1;
                         ctx.cursor->x = ctx.origin.x;
                 }
         };
 
-        struct HBoxDecoration : public IDecoration {
-                void after (Context const &ctx) const override
+        struct HBoxDecoration {
+                static void after (Context const &ctx)
                 {
                         // d.y += 1;
                         // d.x = 0;
@@ -700,77 +693,84 @@ namespace detail {
                 static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
 
+        /**
+         * Iterate over Layout's widgets.
+         */
+        template <typename Callback, typename W, typename... Ws>
+        void iterate (Callback const &callback, Iteration const &iter, W &widget, Ws &...widgets)
+        {
+                using WidgetType = W;
+
+                // This tests if a widget has getElements method. Its like a reflection.
+                // Such a widget is called a "composite widget".
+                if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO can it be extracted to a concept/function?
+
+                        static_assert (std::is_reference_v<decltype (widget.getElements ())>,
+                                       "Ensure that your composite widget type has getElements method that returns a reference.");
+
+                        for (auto &o : widget.getElements ()) {
+                                callback (o, iter);
+                        }
+                }
+                // This branch is for widgets that don't have getElements method
+                else {
+                        callback (widget, iter);
+                }
+
+                if constexpr (sizeof...(widgets) > 0) {
+                        iterate (callback, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
+                }
+        }
+
 } // namespace detail
 
+/**
+ * Container for other widgtes.
+ */
 template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
 
         using Base = Widget<Layout<Decor, WidgetsTuple>>;
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
         static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-        // TODO this is westeful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
+        // TODO this is wasteful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
         explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
 
         Visibility operator() (auto &d) const { return operator() (d, d.context, {}); }
         Visibility operator() (auto &d, Context &ctx, Iteration iter = {}) const
         {
-                ctx.decoration = &decoration;
-
                 // TODO move to separate function. Code duplication.
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
                 ctx.radioSelection = &radioSelection;
 
-                auto l = [&d, &ctx, this] (auto &itself, Iteration iter, auto const &widget, auto const &...widgets) {
-                        using WidgetType = std::remove_reference_t<decltype (widget)>;
+                std::apply (
+                        [&d, &ctx, &iter] (auto const &...widgets) {
+                                detail::iterate (
 
-                        // This tests if a widget has getElements method. Its like a reflection.
-                        // Such a widget is called a "composite widget".
-                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO can it be extracted to a concept/function?
+                                        // This lambda get called for every widget in tne Layout (whether composite or not).
+                                        [&d, &ctx] (auto const &widget, Iteration const &iter) {
+                                                // It calls the operator () which is for drawing the widget on the screen.
+                                                if (widget (d, ctx, iter) == Visibility::visible) {
+                                                        Decor::after (ctx);
+                                                }
+                                        },
+                                        {iter.focusIndex, 0}, widgets...);
+                        },
+                        widgets);
 
-                                static_assert (std::is_reference_v<decltype (widget.getElements ())>,
-                                               "Ensure that your composite widget type has getElements method that returns a reference.");
-
-                                for (auto const &o : widget.getElements ()) {
-                                        if (o (d, ctx, iter) == Visibility::visible) {
-                                                decoration.after (ctx);
-                                        }
-                                }
-                        }
-                        // This branch is for widgets that don't have getElements method
-                        else {
-                                if (widget (d, ctx, iter) == Visibility::visible) {
-                                        decoration.after (ctx);
-                                }
-                        }
-
-                        if constexpr (sizeof...(widgets) > 0) {
-                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
-                        }
-                };
-
-                std::apply ([&d, &ctx, &iter, &l] (auto const &...widgets) { l (l, {iter.focusIndex, 0}, widgets...); }, widgets);
                 return Visibility::nonDrawable;
         }
 
-        void reFocus (Context &ctx, uint16_t focusIndex = 0) const
+        void scrollToFocus (Context &ctx, Iteration const &iter) const
         {
-                auto l = [&ctx] (auto &itself, uint16_t focusIndex, auto const &widget, auto const &...widgets) {
-                        using WidgetType = std::remove_reference_t<decltype (widget)>;
-
-                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
-                        }
-                        else {
-                                widget.reFocus (ctx, focusIndex);
-                        }
-
-                        if constexpr (sizeof...(widgets)) {
-                                itself (itself, focusIndex + widget.widgetCount, widgets...);
-                        }
-                };
-
-                std::apply ([focusIndex, &l] (auto const &...widgets) { l (l, focusIndex, widgets...); }, widgets);
+                std::apply (
+                        [&ctx, &iter] (auto const &...widgets) {
+                                detail::iterate ([&ctx] (auto const &widget, Iteration const &iter) { widget.scrollToFocus (ctx, iter); }, iter,
+                                                 widgets...);
+                        },
+                        widgets);
         }
 
         void input (auto &d, char c) { input (d, d.context, {}, c); }
@@ -778,21 +778,12 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
         {
                 ctx.radioSelection = &radioSelection;
 
-                auto l = [&d, &ctx, c] (auto &itself, Iteration iter, auto &widget, auto &...widgets) {
-                        using WidgetType = std::remove_reference_t<decltype (widget)>;
-
-                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
-                        }
-                        else {
-                                widget.input (d, ctx, iter, c);
-                        }
-
-                        if constexpr (sizeof...(widgets)) {
-                                itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
-                        }
-                };
-
-                std::apply ([&l, &iter] (auto &...widgets) { l (l, {iter.focusIndex, 0}, widgets...); }, widgets);
+                std::apply (
+                        [&d, &ctx, &iter, c] (auto &...widgets) {
+                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration const &iter) { widget.input (d, ctx, iter, c); }, iter,
+                                                 widgets...);
+                        },
+                        widgets);
         }
 
         void calculatePositions (uint16_t /* parentY */ = 0)
@@ -801,6 +792,10 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                         using WidgetType = std::remove_reference_t<decltype (widget)>;
 
                         if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
+                                for (auto &o : widget.getElements ()) {
+                                        o.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
+                                        o.calculatePositions (y);
+                                }
                         }
                         else {
                                 widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
@@ -822,7 +817,6 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 private:
         mutable uint8_t radioSelection{};
         WidgetsTuple widgets;
-        Decor decoration{};
 };
 
 template <typename... W> auto vbox (W const &...widgets)
@@ -902,13 +896,13 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         void input (auto &d, char c) { input (d, context, {}, c); }
         void input (auto &d, Context & /* ctx */, Iteration iter, char c) { child.input (d, context, iter, c); }
-        void reFocus (Context & /* ctx */, uint16_t focusIndex = 0) const { child.reFocus (context, focusIndex); }
+        void scrollToFocus (Context & /* ctx */, Iteration const &iter) const { child.scrollToFocus (context, iter); }
 
         void incrementFocus (Context & /* ctx */) const
         {
                 if (context.currentFocus < widgetCount - 1) {
                         ++context.currentFocus;
-                        reFocus (context);
+                        scrollToFocus (context, Iteration{});
                 }
         }
 
@@ -916,7 +910,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         {
                 if (context.currentFocus > 0) {
                         --context.currentFocus;
-                        reFocus (context);
+                        scrollToFocus (context, Iteration{});
                 }
         }
 
