@@ -600,6 +600,8 @@ public:
         auto const &getElements () const { return options.elms; }
         auto &getElements () { return options.elms; }
 
+        Coordinate y{};
+
 private:
         OptionCollection options;
         SelectionIndex currentSelection{};
@@ -708,8 +710,11 @@ namespace detail {
                         static_assert (std::is_reference_v<decltype (widget.getElements ())>,
                                        "Ensure that your composite widget type has getElements method that returns a reference.");
 
+                        Iteration iii{iter.focusIndex, 0};
                         for (auto &o : widget.getElements ()) {
-                                callback (o, iter);
+                                callback (o, iii);
+                                ++iii.focusIndex;
+                                ++iii.radioIndex;
                         }
                 }
                 // This branch is for widgets that don't have getElements method
@@ -718,7 +723,9 @@ namespace detail {
                 }
 
                 if constexpr (sizeof...(widgets) > 0) {
-                        iterate (callback, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
+                        // TODO I don'tlike the fact that the whole Iter POD object is created again ana again even if one of its members is not
+                        // used.
+                        iterate (callback, {uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */}, widgets...);
                 }
         }
 
@@ -791,20 +798,29 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 auto l = [y = y] (auto &itself, uint16_t prevY, uint16_t prevH, auto &widget, auto &...widgets) {
                         using WidgetType = std::remove_reference_t<decltype (widget)>;
 
+                        Coordinate finalY{};
+                        Dimension finalH{};
+
                         if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
-                                for (auto &o : widget.getElements ()) {
-                                        o.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
-                                        o.calculatePositions (y);
+                                for (Coordinate cnt = 0; auto &o : widget.getElements ()) {
+                                        o.y = prevY + prevH + cnt++; // First statement is an equivalent to : widget[0].y = y
+                                        std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
                                 }
+
+                                auto const &finalElem = widget.getElements ().back ();
+                                finalY = finalElem.y;
+                                finalH = finalElem.height;
                         }
                         else {
-                                widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
+                                finalY = widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
+                                finalH = widget.height;
+                                std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
                                 widget.calculatePositions (y);
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
                                 // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
-                                itself (itself, widget.y, widget.height, widgets...);
+                                itself (itself, finalY, finalH, widgets...);
                         }
                 };
 
@@ -1007,21 +1023,33 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        auto vb = vbox (
-                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})), //
-                line<10>,                                                                                                                    //
-                vbox (label ("New radio"),
-                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-                line<10>,                                                                                           //
-                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-                line<10>,                                                                                           //
-                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-                line<10>,                                                                                           //
-                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-                line<10>,                                                                                           //
-                vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
-                      vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
-        );                                                                                                          //
+        // auto vb = vbox (
+        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+        //         line<10>, //
+        //         vbox (label ("New radio"),
+        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+        //         line<10>,                                                                                           //
+        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+        //         line<10>,                                                                                           //
+        //         vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
+        //               vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
+        // );                                                                                                          //
+
+        auto vb = vbox (label ("Combo"),                                                                                         //
+                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
+                        line<10>,                                                                                                //
+                        label ("New radio"),                                                                                     //
+                        Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {}), //
+                        line<10>,                                                                                                //
+                        label ("Old radio"),                                                                                     //
+                        radio (0, " a "),                                                                                        //
+                        radio (0, " b "),                                                                                        //
+                        radio (0, " c "),                                                                                        //
+                        radio (0, " d "));                                                                                       //
 
         bool showDialog{};
 
@@ -1088,5 +1116,5 @@ int main ()
 {
 
         test2 ();
-        test1 ();
+        // test1 ();
 }
