@@ -69,6 +69,15 @@ struct Iteration {
         Selection radioIndex{};
 };
 
+/**
+ * A helper.
+ */
+template <typename... T> struct First {
+        using type = std::tuple_element_t<0, std::tuple<T...>>;
+};
+
+template <typename... T> using First_t = typename First<T...>::type;
+
 template <typename ConcreteClass, uint16_t widthV, uint16_t heightV, typename Child = Empty> class Display {
 public:
         Display (Child const &c = {}) : child{c} {}
@@ -335,17 +344,22 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 /* Radio                                                                    */
 /****************************************************************************/
 
-class Radio : public Widget<Radio, 1, 1> {
+template <std::integral Id> // TODO less restrictive concept for Id
+class Radio : public Widget<Radio<Id>, 1, 1> {
 public:
-        constexpr Radio (const char *l) : label{l} {}
+        using Base = Widget<Radio<Id>, 1, 1>;
+        using Base::y, Base::height;
+
+        constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
         void input (auto &d, Context const &ctx, Iteration iter, char c);
 
 private:
+        Id id;
         const char *label;
 };
 
-Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
+template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context const &ctx, Iteration iter) const
 {
         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                 return Visibility::outside;
@@ -373,14 +387,31 @@ Visibility Radio::operator() (auto &d, Context const &ctx, Iteration iter) const
         return Visibility::visible;
 }
 
-void Radio::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+template <std::integral Id> void Radio<Id>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
 {
         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
                 *ctx.radioSelection = iter.radioIndex;
         }
 }
 
-constexpr Radio radio (const char *label) { return {label}; }
+template <std::integral Id> constexpr auto radio (Id &&id, const char *label) { return Radio<Id> (std::forward<Id> (id), label); }
+
+/**
+ * A container for radios.
+ */
+template <std::integral I, size_t Num> struct OptionsRad {
+
+        using OptionType = Radio<I>;
+        using Id = I;
+        using ContainerType = std::array<Radio<I>, Num>;
+        using SelectionIndex = typename ContainerType::size_type; // std::array::at accepts this
+
+        template <typename... J> constexpr OptionsRad (Radio<J> &&...e) : elms{std::forward<Radio<J>> (e)...} {}
+
+        ContainerType elms;
+};
+
+template <typename... J> OptionsRad (Radio<J> &&...e) -> OptionsRad<First_t<J...>, sizeof...(J)>;
 
 /****************************************************************************/
 /* Label                                                                    */
@@ -389,7 +420,7 @@ constexpr Radio radio (const char *label) { return {label}; }
 /**
  * Single line (?)
  */
-class Label : public Widget<Radio, 0, 1> {
+class Label : public Widget<Label, 0, 1> {
 public:
         constexpr Label (const char *l) : label{l} {}
         Visibility operator() (auto &d, Context const &ctx, Iteration /* iter */) const
@@ -416,8 +447,11 @@ auto label (const char *str) { return Label{str}; }
 /**
  *
  */
-template <typename Callback> class Button : public Widget<Radio, 1, 1> {
+template <typename Callback> class Button : public Widget<Button<Callback>, 1, 1> {
 public:
+        using Base = Widget<Button<Callback>, 1, 1>;
+        using Base::y, Base::height;
+
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
         Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
@@ -459,12 +493,6 @@ template <typename Callback> auto button (const char *str, Callback &&c) { retur
 /****************************************************************************/
 /* Combo                                                                    */
 /****************************************************************************/
-
-template <typename... T> struct First {
-        using type = std::tuple_element_t<0, std::tuple<T...>>;
-};
-
-template <typename... T> using First_t = typename First<T...>::type;
 
 /**
  * Single combo option.
@@ -562,12 +590,12 @@ void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ct
  */
 template <typename OptionCollection, typename Callback>
 requires std::invocable<Callback, typename OptionCollection::Id>
-class Radio2 : public Widget<Radio2<OptionCollection, Callback>> {
+class Radio2 /* : public Widget<Radio2<OptionCollection, Callback>> */ {
 public:
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
         using Base = Widget<Radio2<OptionCollection, Callback>>;
-        using Base::y;
+        // using Base::y;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
         static constexpr uint16_t widgetCount = std::tuple_size<typename OptionCollection::ContainerType>::value;
@@ -575,8 +603,10 @@ public:
 
         constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
-        void input (auto &d, Context const &ctx, Iteration iter, char c);
+        // Visibility operator() (auto &d, Context const &ctx, Iteration iter) const;
+        // void input (auto &d, Context const &ctx, Iteration iter, char c);
+
+        auto const &getElements () const { return options.elms; }
 
 private:
         OptionCollection options;
@@ -586,52 +616,52 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename OptionCollection, typename Callback>
-Visibility Radio2<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
-{
-        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
-                return Visibility::outside;
-        }
+// template <typename OptionCollection, typename Callback>
+// Visibility Radio2<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration iter) const
+// {
+//         if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+//                 return Visibility::outside;
+//         }
 
-        for (SelectionIndex cnt = 0; auto const &o : options.elms) {
+//         for (SelectionIndex cnt = 0; auto const &o : options.elms) {
 
-                if (ctx.currentFocus == iter.focusIndex + cnt) {
-                        d.color (2);
-                }
-                if (cnt == currentSelection) {
-                        d.print ("◉");
-                }
-                else {
-                        d.print ("○");
-                }
-                d.move (1, 0);
-                d.print (o.label);
+//                 if (ctx.currentFocus == iter.focusIndex + cnt) {
+//                         d.color (2);
+//                 }
+//                 if (cnt == currentSelection) {
+//                         d.print ("◉");
+//                 }
+//                 else {
+//                         d.print ("○");
+//                 }
+//                 d.move (1, 0);
+//                 d.print (o.label);
 
-                if (ctx.decoration) {
-                        ctx.decoration->after (ctx); // TODO extract method
-                }
+//                 // if (ctx.decoration) {
+//                 //         ctx.decoration->after (ctx); // TODO extract method
+//                 // }
 
-                if (ctx.currentFocus == iter.focusIndex + cnt) {
-                        d.color (1);
-                }
+//                 if (ctx.currentFocus == iter.focusIndex + cnt) {
+//                         d.color (1);
+//                 }
 
-                ++cnt;
-        }
+//                 ++cnt;
+//         }
 
-        // d.move (strlen (label), 0);
-        return Visibility::visible;
-}
+//         // d.move (strlen (label), 0);
+//         return Visibility::visible;
+// }
 
-/*--------------------------------------------------------------------------*/
+// /*--------------------------------------------------------------------------*/
 
-template <typename OptionCollection, typename Callback>
-void Radio2<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
-{
-        if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
-                ++currentSelection;
-                currentSelection %= options.elms.size ();
-        }
-}
+// template <typename OptionCollection, typename Callback>
+// void Radio2<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration iter, char c)
+// {
+//         if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+//                 ++currentSelection;
+//                 currentSelection %= options.elms.size ();
+//         }
+// }
 
 /****************************************************************************/
 /* Layouts                                                                  */
@@ -693,8 +723,26 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 ctx.radioSelection = &radioSelection;
 
                 auto l = [&d, &ctx, this] (auto &itself, Iteration iter, auto const &widget, auto const &...widgets) {
-                        if (widget (d, ctx, iter) == Visibility::visible) {
-                                decoration.after (ctx);
+                        using WidgetType = std::remove_reference_t<decltype (widget)>;
+
+                        // This tests if a widget has getElements method. Its like a reflection.
+                        // Such a widget is called a "composite widget".
+                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO can it be extracted to a concept/function?
+
+                                static_assert (std::is_reference_v<decltype (widget.getElements ())>,
+                                               "Ensure that your composite widget type has getElements method that returns a reference.");
+
+                                for (auto const &o : widget.getElements ()) {
+                                        if (o (d, ctx, iter) == Visibility::visible) {
+                                                decoration.after (ctx);
+                                        }
+                                }
+                        }
+                        // This branch is for widgets that don't have getElements method
+                        else {
+                                if (widget (d, ctx, iter) == Visibility::visible) {
+                                        decoration.after (ctx);
+                                }
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
@@ -709,7 +757,13 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
         void reFocus (Context &ctx, uint16_t focusIndex = 0) const
         {
                 auto l = [&ctx] (auto &itself, uint16_t focusIndex, auto const &widget, auto const &...widgets) {
-                        widget.reFocus (ctx, focusIndex);
+                        using WidgetType = std::remove_reference_t<decltype (widget)>;
+
+                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
+                        }
+                        else {
+                                widget.reFocus (ctx, focusIndex);
+                        }
 
                         if constexpr (sizeof...(widgets)) {
                                 itself (itself, focusIndex + widget.widgetCount, widgets...);
@@ -725,7 +779,13 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 ctx.radioSelection = &radioSelection;
 
                 auto l = [&d, &ctx, c] (auto &itself, Iteration iter, auto &widget, auto &...widgets) {
-                        widget.input (d, ctx, iter, c);
+                        using WidgetType = std::remove_reference_t<decltype (widget)>;
+
+                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
+                        }
+                        else {
+                                widget.input (d, ctx, iter, c);
+                        }
 
                         if constexpr (sizeof...(widgets)) {
                                 itself (itself, {uint16_t (iter.focusIndex + widget.widgetCount), Selection (iter.radioIndex + 1)}, widgets...);
@@ -737,9 +797,15 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
         void calculatePositions (uint16_t /* parentY */ = 0)
         {
-                auto l = [this] (auto &itself, uint16_t prevY, uint16_t prevH, auto &widget, auto &...widgets) {
-                        widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
-                        widget.calculatePositions (y);
+                auto l = [y = y] (auto &itself, uint16_t prevY, uint16_t prevH, auto &widget, auto &...widgets) {
+                        using WidgetType = std::remove_reference_t<decltype (widget)>;
+
+                        if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
+                        }
+                        else {
+                                widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
+                                widget.calculatePositions (y);
+                        }
 
                         if constexpr (sizeof...(widgets) > 0) {
                                 // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
@@ -880,16 +946,16 @@ int test1 ()
          *
          * This ncurses method can be left as an option.
          */
-        auto vb = ncurses<18, 7> (vbox (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")), //
-                                        line<10>,                                                          //
-                                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")), //
-                                        line<10>,                                                          //
-                                        vbox (radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
-                                        line<10>,                                                          //
-                                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")), //
-                                        line<10>,                                                          //
-                                        vbox (radio (" E "), radio (" F "), radio (" G "), radio (" H "))  //
-                                        ));                                                                //
+        auto vb = ncurses<18, 7> (vbox (vbox (radio (0, " A "), radio (1, " B "), radio (2, " C "), radio (3, " d ")), //
+                                        line<10>,                                                                      //
+                                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),             //
+                                        line<10>,                                                                      //
+                                        vbox (radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+                                        line<10>,                                                                      //
+                                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),             //
+                                        line<10>,                                                                      //
+                                        vbox (radio (0, " E "), radio (0, " F "), radio (0, " G "), radio (0, " H "))  //
+                                        ));                                                                            //
 
         // TODO compile time
         // TODO no additional call
@@ -951,17 +1017,17 @@ int test2 ()
                 vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})), //
                 line<10>,                                                                                                                    //
                 vbox (label ("New radio"),
-                      Radio2 (Options (option (0, " red"), option (1, " green"), option (1, " blue")), [] (auto const &o) {})),
-                line<10>,                                                                               //
-                vbox (label ("Old radio"), radio (" a "), radio (" b "), radio (" c "), radio (" d ")), //
-                line<10>,                                                                               //
-                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),  //
-                line<10>,                                                                               //
-                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                      //
-                line<10>,                                                                               //
-                vbox (vbox (radio (" x "), radio (" y "), radio (" z "), radio (" ź ")),                //
-                      vbox (radio (" ż "), radio (" ą "), radio (" ę "), radio (" ł ")))                //
-        );                                                                                              //
+                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+                line<10>,                                                                                           //
+                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+                line<10>,                                                                                           //
+                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+                line<10>,                                                                                           //
+                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+                line<10>,                                                                                           //
+                vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
+                      vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
+        );                                                                                                          //
 
         bool showDialog{};
 
