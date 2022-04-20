@@ -589,9 +589,10 @@ public:
         using Id = typename OptionCollection::Id;
         using Base = Widget<Radio2<OptionCollection, Callback>>;
         // using Base::y;
-        using SelectionIndex = typename OptionCollection::SelectionIndex;
+        // using SelectionIndex = typename OptionCollection::SelectionIndex;
 
         static constexpr uint16_t widgetCount = std::tuple_size<typename OptionCollection::ContainerType>::value;
+        static_assert (widgetCount <= 255);
         static constexpr uint16_t height = widgetCount;
 
         constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
@@ -604,9 +605,9 @@ public:
 
         Coordinate y{};
 
+        mutable Selection currentSelection{}; // TODO private
 private:
         OptionCollection options;
-        SelectionIndex currentSelection{};
         Callback callback;
 };
 
@@ -652,7 +653,7 @@ namespace detail {
          * Iterate over Layout's widgets.
          */
         template <typename Callback, typename W, typename... Ws>
-        void iterate (Callback const &callback, Iteration &iter, W &widget, Ws &...widgets)
+        void iterate (Callback const &callback, Context &ctx, Iteration &iter, W &widget, Ws &...widgets)
         {
                 using WidgetType = W;
 
@@ -664,6 +665,8 @@ namespace detail {
                                        "Ensure that your composite widget type has getElements method that returns a reference.");
 
                         iter.radioIndex = 0;
+                        ctx.radioSelection = &widget.currentSelection;
+
                         for (auto &o : widget.getElements ()) {
                                 std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
                                 callback (o, iter);
@@ -684,7 +687,7 @@ namespace detail {
                         // TODO I don'tlike the fact that the whole Iter POD object is created again ana again even if one of its members is not
                         // used.
                         Iteration iii{uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */};
-                        iterate (callback, iii, widgets...);
+                        iterate (callback, ctx, iii, widgets...);
                         // iterate (callback, iter, widgets...);
                 }
         }
@@ -716,7 +719,6 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
-                ctx.radioSelection = &radioSelection;
 
                 std::cerr << "operator ()" << std::endl;
 
@@ -731,7 +733,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                                                         Decor::after (ctx);
                                                 }
                                         },
-                                        iter, widgets...);
+                                        ctx, iter, widgets...);
                         },
                         widgets);
 
@@ -744,7 +746,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
                 std::apply (
                         [&ctx, &iter] (auto const &...widgets) {
-                                detail::iterate ([&ctx] (auto const &widget, Iteration &iter) { widget.scrollToFocus (ctx, iter); }, iter,
+                                detail::iterate ([&ctx] (auto const &widget, Iteration &iter) { widget.scrollToFocus (ctx, iter); }, ctx, iter,
                                                  widgets...);
                         },
                         widgets);
@@ -758,13 +760,11 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
         void input (auto &d, Context &ctx, Iteration &iter, char c)
         {
-                ctx.radioSelection = &radioSelection;
-
                 std::cerr << "input ()" << std::endl;
 
                 std::apply (
                         [&d, &ctx, &iter, c] (auto &...widgets) {
-                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration &iter) { widget.input (d, ctx, iter, c); }, iter,
+                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration &iter) { widget.input (d, ctx, iter, c); }, ctx, iter,
                                                  widgets...);
                         },
                         widgets);
@@ -807,11 +807,9 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, 0, widgets...); }, widgets);
         }
 
-        // uint16_t y{}; // TODO constexpr
         using Base::y;
 
 private:
-        mutable uint8_t radioSelection{}; // TODO move this to the Radio2
         WidgetsTuple widgets;
 };
 
@@ -1021,8 +1019,6 @@ int test2 ()
                 line<10>, //
                 vbox (label ("New radio"),
                       Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-                line<10>, //
-                hbox (Radio2 (OptionsRad (radio (0, " A1"), radio (1, " B2"), radio (1, " C3")), [] (auto const &o) {})),
                 line<10>,                                                                                           //
                 vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
                 line<10>,                                                                                           //
@@ -1045,6 +1041,18 @@ int test2 ()
         //                 radio (0, " b "),                                                                                        //
         //                 radio (0, " c "),                                                                                        //
         //                 radio (0, " d "));                                                                                       //
+
+        // auto vb = vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+        //                 hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
+        //                 hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
+        //                 hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
+        //                 hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
+        //                 hbox (check (" L "), check (" Ł "), check (" M "), check (" N ")),
+        //                 hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
+        //                 hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
+        //                 hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
+        //                 hbox (check (" Ą "), check (" Ć "), check (" Ż "), check (" Ź ")),
+        //                 hbox (check (" Ó "), check (" Ś "), check (" Ń "), check (" Ł ")));
 
         bool showDialog{};
 
