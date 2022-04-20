@@ -218,8 +218,6 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
 
         void scrollToFocus (Context &ctx, Iteration const &iter) const;
         void input (auto &d, Context const &ctx, Iteration iter, char c) {}
-        // TODO remove
-        void calculatePositions (uint16_t) {}
 
         void incrementFocus (Context &ctx) const
         {
@@ -804,7 +802,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                         if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
                                 for (Coordinate cnt = 0; auto &o : widget.getElements ()) {
                                         o.y = prevY + prevH + cnt++; // First statement is an equivalent to : widget[0].y = y
-                                        std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
+                                        // std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
                                 }
 
                                 auto const &finalElem = widget.getElements ().back ();
@@ -814,8 +812,11 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                         else {
                                 finalY = widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
                                 finalH = widget.height;
-                                std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
-                                widget.calculatePositions (y);
+                                // std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
+
+                                if constexpr (requires (decltype (widget) w) { widget.calculatePositions (y); }) {
+                                        widget.calculatePositions (y);
+                                }
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
@@ -1023,33 +1024,33 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        // auto vb = vbox (
-        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
-        //         line<10>, //
-        //         vbox (label ("New radio"),
-        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-        //         line<10>,                                                                                           //
-        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-        //         line<10>,                                                                                           //
-        //         vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
-        //               vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
-        // );                                                                                                          //
+        auto vb = vbox (
+                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+                line<10>, //
+                vbox (label ("New radio"),
+                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+                line<10>,                                                                                           //
+                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+                line<10>,                                                                                           //
+                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+                line<10>,                                                                                           //
+                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+                line<10>,                                                                                           //
+                vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
+                      vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
+        );                                                                                                          //
 
-        auto vb = vbox (label ("Combo"),                                                                                         //
-                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
-                        line<10>,                                                                                                //
-                        label ("New radio"),                                                                                     //
-                        Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {}), //
-                        line<10>,                                                                                                //
-                        label ("Old radio"),                                                                                     //
-                        radio (0, " a "),                                                                                        //
-                        radio (0, " b "),                                                                                        //
-                        radio (0, " c "),                                                                                        //
-                        radio (0, " d "));                                                                                       //
+        // auto vb = vbox (label ("Combo"),                                                                                         //
+        //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
+        //                 line<10>,                                                                                                //
+        //                 label ("New radio"),                                                                                     //
+        //                 Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {}), //
+        //                 line<10>,                                                                                                //
+        //                 label ("Old radio"),                                                                                     //
+        //                 radio (0, " a "),                                                                                        //
+        //                 radio (0, " b "),                                                                                        //
+        //                 radio (0, " c "),                                                                                        //
+        //                 radio (0, " d "));                                                                                       //
 
         bool showDialog{};
 
