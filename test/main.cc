@@ -157,6 +157,7 @@ private:
 
 template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
+        // return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -683,7 +684,7 @@ namespace detail {
                         ctx.radioSelection = &widget.currentSelection;
 
                         for (auto const &last = widget.getElements ().back (); auto &o : widget.getElements ()) {
-                                std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
+                                // std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
                                 callback (o, iter, lastWidgetInLayout && &o == &last);
                                 ++iter.focusIndex;
                                 ++iter.radioIndex;
@@ -691,8 +692,8 @@ namespace detail {
                 }
                 // This branch is for widgets that don't have getElements method
                 else {
-                        std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
-                                  << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
+                        // std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
+                        //           << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
 
                         callback (widget, iter, lastWidgetInLayout);
                 }
@@ -720,8 +721,7 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
         // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
         static constexpr Dimension height = Decor<WidgetsTuple>::height;
 
-        // TODO this is wasteful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
-        explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
+        explicit Layout (WidgetsTuple w) : widgets (std::move (w)) {}
 
         Visibility operator() (auto &d) const
         {
@@ -789,7 +789,7 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
 
         void calculatePositions (uint16_t /* parentY */ = 0)
         {
-                auto l = [y = y] (auto &itself, uint16_t prevY, uint16_t prevH, auto &widget, auto &...widgets) {
+                auto l = [y = y] (auto &itself, Coordinate bottomY, auto &widget, auto &...widgets) {
                         using WidgetType = std::remove_reference_t<decltype (widget)>;
 
                         Coordinate finalY{};
@@ -797,17 +797,14 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
 
                         if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO duplicate code!
                                 for (Coordinate cnt = 0; auto &o : widget.getElements ()) {
-                                        o.y = prevY + prevH + cnt++; // First statement is an equivalent to : widget[0].y = y
+                                        o.y = bottomY;
+                                        bottomY += o.height;
                                         // std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
                                 }
-
-                                auto const &finalElem = widget.getElements ().back ();
-                                finalY = finalElem.y;
-                                finalH = finalElem.height;
                         }
                         else {
-                                finalY = widget.y = prevY + prevH; // First statement is an equivalent to : widget[0].y = y
-                                finalH = widget.height;
+                                widget.y = bottomY;
+                                bottomY += widget.height;
                                 // std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
 
                                 if constexpr (requires (decltype (widget) w) { widget.calculatePositions (y); }) {
@@ -816,12 +813,11 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
                         }
 
                         if constexpr (sizeof...(widgets) > 0) {
-                                // Next statements : widget[n].y = widget[n-1].y + widget[n-1].height
-                                itself (itself, finalY, finalH, widgets...);
+                                itself (itself, bottomY, widgets...);
                         }
                 };
 
-                std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, 0, widgets...); }, widgets);
+                std::apply ([&l, y = this->y] (auto &...widgets) { l (l, y, widgets...); }, widgets);
         }
 
         using Base::y;
@@ -1073,10 +1069,12 @@ int test2 ()
         //                 hbox (check (" Ą "), check (" Ć "), check (" Ż "), check (" Ź ")),
         //                 hbox (check (" Ó "), check (" Ś "), check (" Ń "), check (" Ł ")));
 
+        vb.calculatePositions ();
         bool showDialog{};
 
         auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false; }),
                                                  check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+        // dialog.calculatePositions ();
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
