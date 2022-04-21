@@ -618,22 +618,6 @@ private:
 
 namespace detail {
 
-        struct VBoxDecoration {
-                static void after (Context const &ctx)
-                {
-                        ctx.cursor->y += 1;
-                        ctx.cursor->x = ctx.origin.x;
-                }
-        };
-
-        struct HBoxDecoration {
-                static void after (Context const &ctx)
-                {
-                        // d.y += 1;
-                        // d.x = 0;
-                }
-        };
-
         template <typename T> struct WidgetCountField {
                 static constexpr uint16_t value = T::widgetCount;
         };
@@ -648,6 +632,34 @@ namespace detail {
 
         template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
                 static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
+        };
+
+        template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Max {
+                static constexpr auto value = std::max (Field<std::tuple_element_t<n, Tuple>>::value, Max<Tuple, Field, n - 1>::value);
+        };
+
+        template <typename Tuple, template <typename T> typename Field> struct Max<Tuple, Field, 0> {
+                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
+        };
+
+        template <typename WidgetsTuple> struct VBoxDecoration {
+                static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
+
+                static void after (Context const &ctx)
+                {
+                        ctx.cursor->y += 1;
+                        ctx.cursor->x = ctx.origin.x;
+                }
+        };
+
+        template <typename WidgetsTuple> struct HBoxDecoration {
+                static constexpr Dimension height = detail::Max<WidgetsTuple, detail::WidgetHeightField>::value;
+
+                static void after (Context const &ctx)
+                {
+                        // d.y += 1;
+                        // d.x = 0;
+                }
         };
 
         /**
@@ -700,12 +712,13 @@ namespace detail {
 /**
  * Container for other widgtes.
  */
-template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
+template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
 
         using Base = Widget<Layout<Decor, WidgetsTuple>>;
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
         static constexpr bool canFocus = false;
-        static constexpr uint16_t height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
+        // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
+        static constexpr Dimension height = Decor<WidgetsTuple>::height;
 
         // TODO this is wasteful, every Layout in the hierarchy will fire this methiod, while only the most external one should.
         explicit Layout (WidgetsTuple w) : widgets (std::move (w)) { calculatePositions (); }
@@ -733,7 +746,7 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                                                 // It calls the operator () which is for drawing the widget on the screen.
                                                 if (widget (d, ctx, iter) == Visibility::visible) {
                                                         if (!lastWidgetInLayout) {
-                                                                Decor::after (ctx);
+                                                                Decor<WidgetsTuple>::after (ctx);
                                                         }
                                                 }
                                         },
@@ -819,13 +832,15 @@ private:
 
 template <typename... W> auto vbox (W const &...widgets)
 {
-        auto vbox = Layout<detail::VBoxDecoration, decltype (std::tuple (widgets...))>{std::tuple (widgets...)};
+        using WidgetsTuple = decltype (std::tuple (widgets...));
+        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{std::tuple (widgets...)};
         return vbox;
 }
 
 template <typename... W> auto hbox (W const &...widgets)
 {
-        auto hbox = Layout<detail::HBoxDecoration, decltype (std::tuple (widgets...))>{std::tuple (widgets...)};
+        using WidgetsTuple = decltype (std::tuple (widgets...));
+        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{std::tuple (widgets...)};
         return hbox;
 }
 
@@ -1018,21 +1033,21 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        auto vb = vbox (
-                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
-                line<10>, //
-                vbox (label ("New radio"),
-                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-                line<10>,                                                                                           //
-                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-                line<10>,                                                                                           //
-                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-                line<10>,                                                                                           //
-                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-                line<10>,                                                                                           //
-                vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
-                      vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
-        );                                                                                                          //
+        // auto vb = vbox (
+        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+        //         line<10>, //
+        //         vbox (label ("New radio"),
+        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+        //         line<10>,                                                                                           //
+        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+        //         line<10>,                                                                                           //
+        //         vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
+        //               vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
+        // );                                                                                                          //
 
         // auto vb = vbox (label ("Combo"),                                                                                         //
         //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
@@ -1046,17 +1061,17 @@ int test2 ()
         //                 radio (0, " c "),                                                                                        //
         //                 radio (0, " d "));                                                                                       //
 
-        // auto vb = vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-        //                 hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
-        //                 hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
-        //                 hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
-        //                 hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
-        //                 hbox (check (" L "), check (" Ł "), check (" M "), check (" N ")),
-        //                 hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
-        //                 hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
-        //                 hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
-        //                 hbox (check (" Ą "), check (" Ć "), check (" Ż "), check (" Ź ")),
-        //                 hbox (check (" Ó "), check (" Ś "), check (" Ń "), check (" Ł ")));
+        auto vb = vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+                        hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
+                        hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
+                        hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
+                        hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
+                        hbox (check (" L "), check (" Ł "), check (" M "), check (" N ")),
+                        hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
+                        hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
+                        hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
+                        hbox (check (" Ą "), check (" Ć "), check (" Ż "), check (" Ź ")),
+                        hbox (check (" Ó "), check (" Ś "), check (" Ń "), check (" Ł ")));
 
         bool showDialog{};
 
