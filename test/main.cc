@@ -362,7 +362,7 @@ template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context c
                 d.color (2);
         }
 
-        if (iter.radioIndex == *ctx.radioSelection) {
+        if (ctx.radioSelection != nullptr && iter.radioIndex == *ctx.radioSelection) {
                 d.print ("◉");
         }
         else {
@@ -382,7 +382,8 @@ template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context c
 
 template <std::integral Id> void Radio<Id>::input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
 {
-        if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+        // TODO character must be customizable (compile time)
+        if (ctx.radioSelection != nullptr && ctx.currentFocus == iter.focusIndex && c == ' ') {
                 *ctx.radioSelection = iter.radioIndex;
         }
 }
@@ -657,6 +658,8 @@ namespace detail {
         {
                 using WidgetType = W;
 
+                constexpr bool lastWidgetInLayout = (sizeof...(widgets) == 0);
+
                 // This tests if a widget has getElements method. Its like a reflection.
                 // Such a widget is called a "composite widget".
                 if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO can it be extracted to a concept/function?
@@ -667,9 +670,9 @@ namespace detail {
                         iter.radioIndex = 0;
                         ctx.radioSelection = &widget.currentSelection;
 
-                        for (auto &o : widget.getElements ()) {
+                        for (auto const &last = widget.getElements ().back (); auto &o : widget.getElements ()) {
                                 std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
-                                callback (o, iter);
+                                callback (o, iter, lastWidgetInLayout && &o == &last);
                                 ++iter.focusIndex;
                                 ++iter.radioIndex;
                         }
@@ -679,11 +682,11 @@ namespace detail {
                         std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
                                   << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
 
-                        callback (widget, iter);
+                        callback (widget, iter, lastWidgetInLayout);
                 }
                 // iter.focusIndex += widget.widgetCount;
 
-                if constexpr (sizeof...(widgets) > 0) {
+                if constexpr (!lastWidgetInLayout) {
                         // TODO I don'tlike the fact that the whole Iter POD object is created again ana again even if one of its members is not
                         // used.
                         Iteration iii{uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */};
@@ -725,19 +728,20 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
                 std::apply (
                         [&d, &ctx, &iter] (auto const &...widgets) {
                                 detail::iterate (
-
                                         // This lambda get called for every widget in tne Layout (whether composite or not).
-                                        [&d, &ctx] (auto const &widget, Iteration &iter) {
+                                        [&d, &ctx] (auto const &widget, Iteration &iter, bool lastWidgetInLayout) {
                                                 // It calls the operator () which is for drawing the widget on the screen.
                                                 if (widget (d, ctx, iter) == Visibility::visible) {
-                                                        Decor::after (ctx);
+                                                        if (!lastWidgetInLayout) {
+                                                                Decor::after (ctx);
+                                                        }
                                                 }
                                         },
                                         ctx, iter, widgets...);
                         },
                         widgets);
 
-                return Visibility::nonDrawable;
+                return Visibility::visible;
         }
 
         void scrollToFocus (Context &ctx, Iteration &iter) const
@@ -746,8 +750,8 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
                 std::apply (
                         [&ctx, &iter] (auto const &...widgets) {
-                                detail::iterate ([&ctx] (auto const &widget, Iteration &iter) { widget.scrollToFocus (ctx, iter); }, ctx, iter,
-                                                 widgets...);
+                                detail::iterate ([&ctx] (auto const &widget, Iteration &iter, bool) { widget.scrollToFocus (ctx, iter); }, ctx,
+                                                 iter, widgets...);
                         },
                         widgets);
         }
@@ -764,8 +768,8 @@ template <typename Decor, typename WidgetsTuple> struct Layout : public Widget<L
 
                 std::apply (
                         [&d, &ctx, &iter, c] (auto &...widgets) {
-                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration &iter) { widget.input (d, ctx, iter, c); }, ctx, iter,
-                                                 widgets...);
+                                detail::iterate ([&d, &ctx, c] (auto &widget, Iteration &iter, bool) { widget.input (d, ctx, iter, c); }, ctx,
+                                                 iter, widgets...);
                         },
                         widgets);
         }
