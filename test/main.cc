@@ -643,6 +643,36 @@ namespace detail {
                 static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
 
+        /*--------------------------------------------------------------------------*/
+        /* Decorators for vertical and horizontal layouts.                          */
+        /*--------------------------------------------------------------------------*/
+
+        // Common implementation for both
+        // TODO vertical can be a template parameter - but what is the CPU and size impact?
+        template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY, bool vertical)
+        {
+                if constexpr (requires (WidgetType w) { w.getElements (); }) {
+                        for (auto &o : widget.getElements ()) {
+                                o.y = bottomY;
+
+                                if (vertical) {
+                                        bottomY += o.height;
+                                }
+                        }
+                }
+                else {
+                        widget.y = bottomY;
+
+                        if (vertical) {
+                                bottomY += widget.height;
+                        }
+
+                        if constexpr (requires (decltype (widget) w) { widget.calculatePositions (); }) {
+                                widget.calculatePositions (); // We can call it now, since widget.y is already set.
+                        }
+                }
+        }
+
         template <typename WidgetsTuple> struct VBoxDecoration {
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
@@ -654,22 +684,7 @@ namespace detail {
 
                 template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
                 {
-                        if constexpr (requires (WidgetType w) { w.getElements (); }) {
-                                for (auto &o : widget.getElements ()) {
-                                        o.y = bottomY;
-                                        bottomY += o.height;
-                                        // std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
-                                }
-                        }
-                        else {
-                                widget.y = bottomY;
-                                bottomY += widget.height;
-                                // std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
-
-                                if constexpr (requires (decltype (widget) w) { widget.calculatePositions (); }) {
-                                        widget.calculatePositions (); // We can call it now, since widget.y is already set.
-                                }
-                        }
+                        detail::calculatePosition (widget, bottomY, true);
                 }
         };
 
@@ -680,20 +695,7 @@ namespace detail {
 
                 template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
                 {
-                        if constexpr (requires (WidgetType w) { w.getElements (); }) {
-                                for (auto &o : widget.getElements ()) {
-                                        o.y = bottomY;
-                                        // std::cerr << "thisY = " << y << ", o.y = " << o.y << std::endl;
-                                }
-                        }
-                        else {
-                                widget.y = bottomY;
-                                // std::cerr << "thisY = " << y << ", widget.y = " << widget.y << std::endl;
-
-                                if constexpr (requires (decltype (widget) w) { widget.calculatePositions (); }) {
-                                        widget.calculatePositions (); // We can call it now, since widget.y is already set.
-                                }
-                        }
+                        detail::calculatePosition (widget, bottomY, false);
                 }
         };
 
@@ -942,6 +944,8 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
                 }
         }
 
+        void calculatePositions () { child.calculatePositions (); }
+
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
         static constexpr uint16_t widgetCount = Child::widgetCount;
@@ -1036,21 +1040,29 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        // auto vb = vbox (
-        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
-        //         line<10>, //
-        //         vbox (label ("New radio"),
-        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-        //         line<10>,                                                                                           //
-        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-        //         line<10>,                                                                                           //
-        //         vbox (vbox (radio (0, " x "), radio (0, " y "), radio (0, " z "), radio (0, " ź ")),                //
-        //               vbox (radio (0, " ż "), radio (0, " ą "), radio (0, " ę "), radio (0, " ł ")))                //
-        // );                                                                                                          //
+        auto vb = vbox (
+                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+                line<10>, //
+                vbox (label ("New radio"),
+                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+                line<10>,                                                                                           //
+                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+                line<10>,                                                                                           //
+                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+                line<10>,                                                                                           //
+                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+                line<10>,                                                                                           //
+                vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+                      hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
+                      hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
+                      hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
+                      hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
+                      hbox (check (" L "), check (" 1 "), check (" M "), check (" N ")),
+                      hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
+                      hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
+                      hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
+                      hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+                      hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
         // auto vb = vbox (label ("Combo"),                                                                                         //
         //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
@@ -1064,24 +1076,12 @@ int test2 ()
         //                 radio (0, " c "),                                                                                        //
         //                 radio (0, " d "));                                                                                       //
 
-        auto vb = vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-                        hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
-                        hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
-                        hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
-                        hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
-                        hbox (check (" L "), check (" 1 "), check (" M "), check (" N ")),
-                        hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
-                        hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
-                        hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
-                        hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-                        hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")));
-
-        vb.calculatePositions ();
+        vb.calculatePositions (); // TODO get rid of this additional call
         bool showDialog{};
 
         auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false; }),
                                                  check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
-        // dialog.calculatePositions ();
+        dialog.calculatePositions ();
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {

@@ -45,3 +45,5 @@ aaa
 * [ ] Console backend (with or even without input)
   * [ ] Styling (external tempolate class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
+* [ ] Implement a test widget which is more than 1 character tall.
+  * [ ] Test this widget in the vertical and horizontal layouts.
