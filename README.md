@@ -21,7 +21,7 @@ Modern C++ GUI library for small displays. Developed with microcontrollers in mi
 aaa
 
 # TODO
-* [ ] vbox (hbox, hbox) works OK, but hbox (vbox, vbox) does not (at least not when the nesting structure is complicated).
+* [x] vbox (hbox, hbox) works OK, but hbox (vbox, vbox) does not (at least not when the nesting structure is complicated).
 * [x] screen wide/tall
 * [x] current focus
 * [ ] text wrapping widget (without scrolling up - only for showinng bigger chunkgs of text, like logs)
@@ -47,3 +47,4 @@ aaa
   * [ ] AND / OR Widget parameters dictating the looks.
 * [ ] Implement a test widget which is more than 1 character tall.
   * [ ] Test this widget in the vertical and horizontal layouts.
+* [ ] vbox(); (no parameters) results in an error.

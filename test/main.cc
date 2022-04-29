@@ -595,7 +595,7 @@ public:
 
         static constexpr uint16_t widgetCount = std::tuple_size<typename OptionCollection::ContainerType>::value;
         static_assert (widgetCount <= 255);
-        static constexpr uint16_t height = widgetCount;
+        // static constexpr uint16_t height = widgetCount; // TODO assumes that all radiobuttons are 1 in height (which is correct)
 
         constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
@@ -620,27 +620,50 @@ private:
 namespace detail {
 
         template <typename T> struct WidgetCountField {
-                static constexpr uint16_t value = T::widgetCount;
+                static constexpr auto value = T::widgetCount;
         };
 
         template <typename T> struct WidgetHeightField {
-                static constexpr uint16_t value = T::height;
+
+                static constexpr auto value = T::height;
         };
 
+        /*--------------------------------------------------------------------------*/
+
+        template <typename E, template <typename T> typename Field> constexpr auto getValue ()
+        {
+                if constexpr (requires (E t) { t.getElements (); }) {
+                        return Field<typename E::Option>::value * E::widgetCount;
+                }
+                else {
+                        return Field<E>::value;
+                }
+        }
+
+        template <typename E, template <typename T> typename Field> constexpr auto getValueMax ()
+        {
+                if constexpr (requires (E t) { t.getElements (); }) {
+                        return Field<typename E::Option>::value; // All radios in a group have the same type which which imples same height
+                }
+                else {
+                        return Field<E>::value;
+                }
+        }
+
         template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Sum {
-                static constexpr auto value = Field<std::tuple_element_t<n, Tuple>>::value + Sum<Tuple, Field, n - 1>::value;
+                static constexpr auto value = getValue<std::tuple_element_t<n, Tuple>, Field> () + Sum<Tuple, Field, n - 1>::value;
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
-                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
+                static constexpr auto value = getValue<std::tuple_element_t<0, Tuple>, Field> ();
         };
 
         template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Max {
-                static constexpr auto value = std::max (Field<std::tuple_element_t<n, Tuple>>::value, Max<Tuple, Field, n - 1>::value);
+                static constexpr auto value = std::max (getValueMax<std::tuple_element_t<n, Tuple>, Field> (), Max<Tuple, Field, n - 1>::value);
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Max<Tuple, Field, 0> {
-                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
+                static constexpr auto value = getValueMax<std::tuple_element_t<0, Tuple>, Field> ();
         };
 
         /*--------------------------------------------------------------------------*/
@@ -648,7 +671,7 @@ namespace detail {
         /*--------------------------------------------------------------------------*/
 
         // Common implementation for both
-        // TODO vertical can be a template parameter - but what is the CPU and size impact?
+        // TODO vertical can be a template parameter - but what is the CPU and size impact? Make a decision after tests.
         template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY, bool vertical)
         {
                 if constexpr (requires (WidgetType w) { w.getElements (); }) {
@@ -658,6 +681,8 @@ namespace detail {
                                 if (vertical) {
                                         bottomY += o.height;
                                 }
+
+                                // std::cerr << "o.y = " << o.y << ", o.height = " << o.height << std::endl;
                         }
                 }
                 else {
@@ -667,8 +692,11 @@ namespace detail {
                                 bottomY += widget.height;
                         }
 
+                        // std::cerr << "w.y = " << widget.y << ", w.height = " << widget.height << ", typeid = " << typeid (widget).name ()
+                        //           << std::endl;
+
                         if constexpr (requires (decltype (widget) w) { widget.calculatePositions (); }) {
-                                widget.calculatePositions (); // We can call it now, since widget.y is already set.
+                                widget.calculatePositions (); // widget.y is already set and Layout::calculatePositions() uses it.
                         }
                 }
         }
@@ -720,16 +748,18 @@ namespace detail {
                         ctx.radioSelection = &widget.currentSelection;
 
                         for (auto const &last = widget.getElements ().back (); auto &o : widget.getElements ()) {
-                                // std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
+                                std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
                                 callback (o, iter, lastWidgetInLayout && &o == &last);
                                 ++iter.focusIndex;
                                 ++iter.radioIndex;
                         }
+
+                        iter.focusIndex -= widget.widgetCount; // TODO absolute mess
                 }
                 // This branch is for widgets that don't have getElements method
                 else {
-                        // std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
-                        //           << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
+                        std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
+                                  << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
 
                         callback (widget, iter, lastWidgetInLayout);
                 }
@@ -1040,29 +1070,44 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
+        // auto vb = vbox (
+        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
+        //         line<10>, //
+        //         vbox (label ("New radio"),
+        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
+        //         line<10>, //
+        //         hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})),
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+        //         line<10>,                                                                                           //
+        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
+        //         line<10>,                                                                                           //
+        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
+        //         line<10>,                                                                                           //
+        //         vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+        //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
+        //               hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
+        //               hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
+        //               hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
+        //               hbox (check (" L "), check (" 1 "), check (" M "), check (" N ")),
+        //               hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
+        //               hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
+        //               hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
+        //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
+        //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
+
         auto vb = vbox (
-                vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
-                line<10>, //
-                vbox (label ("New radio"),
-                      Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-                line<10>,                                                                                           //
-                vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-                line<10>,                                                                                           //
-                vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-                line<10>,                                                                                           //
-                vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-                line<10>,                                                                                           //
-                vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-                      hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
-                      hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
-                      hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
-                      hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
-                      hbox (check (" L "), check (" 1 "), check (" M "), check (" N ")),
-                      hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
-                      hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
-                      hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
-                      hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-                      hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
+                vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), [] (auto const &o) {})),
+                vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
+
+        // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
+        //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
+        //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
         // auto vb = vbox (label ("Combo"),                                                                                         //
         //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),     //
