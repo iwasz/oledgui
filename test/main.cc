@@ -790,6 +790,8 @@ public:
         static constexpr Dimension height = 0; // TODO implement
         Coordinate y{};                        // TODO remove or implement
 
+        using Children = WidgetTuple;
+
         // TODO input, scrollToFocus and operator() have to be re-implemented or deleted here
         Visibility operator() (auto &d, Context &ctx, Iteration &iter) const { return {}; }
 
@@ -905,7 +907,7 @@ namespace detail {
 
                         // Layout::height == Parent::Decor<Parent::WidgetsTuple>::height
                         return augument::Group<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f, 0,
-                                               Parent::template Decorator<typename Parent::Children>::height>{
+                                               Parent::template Decorator<typename WidgetType::Children>::height>{
                                 t, transform<f, WidgetType> (t.widgets)};
                 }
         };
