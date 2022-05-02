@@ -111,8 +111,6 @@ public:
         Point cursor{};
 };
 
-/*--------------------------------------------------------------------------*/
-
 /**
  * Ncurses backend.
  */
@@ -634,7 +632,7 @@ namespace detail {
         template <typename E, template <typename T> typename Field> constexpr auto getValue ()
         {
                 if constexpr (requires (E t) { t.getElements (); }) {
-                        return Field<typename E::Option>::value * E::widgetCount;
+                        return Field<typename E::Option>::value * E::widgetCount; // TODO remove if Radio2 not needed
                 }
                 else {
                         return Field<E>::value;
@@ -779,6 +777,35 @@ namespace detail {
 
 /****************************************************************************/
 
+/**
+ * Radio group. Take 3.
+ */
+template <typename Callback, typename WidgetTuple> class Group : public Widget<Group<Callback, WidgetTuple>> {
+public:
+        Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
+        static constexpr uint16_t widgetCount = detail::Sum<WidgetTuple, detail::WidgetCountField>::value;
+
+        static constexpr bool canFocus = false;
+        static constexpr Dimension height = 0; // TODO implement
+
+        Coordinate y{}; // TODO remove or implement
+
+        // TODO input, scrollToFocus and operator() have to be re-implemented or deleted here
+        Visibility operator() (auto &d, Context &ctx, Iteration &iter) const { return {}; }
+
+        WidgetTuple widgets;
+
+private:
+        Callback callback;
+};
+
+template <typename Callback, typename... W> auto group (Callback const &c, W const &...widgets)
+{
+        return Group{c, std::make_tuple (widgets...)};
+}
+
+/****************************************************************************/
+
 // Forward declaration for is_layout
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout;
 
@@ -828,6 +855,17 @@ namespace detail {
                         static constexpr Dimension y = yV;
                 };
 
+                // template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Dimension yV = 0> struct Group {
+
+                //         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
+
+                //         T &widget;
+                //         WidgetTuple children;
+
+                //         static constexpr Focus focusIndex = focusIndexV;
+                //         static constexpr Dimension y = yV;
+                // };
+
         } // namespace augument
 
         template <Focus f, typename Tuple> constexpr auto transform (Tuple &tuple);
@@ -841,6 +879,15 @@ namespace detail {
         // Wrapper for layouts
         template <Focus f, template <typename Wtu> typename Decor, typename WidgetsTuple> struct Wrap<Layout<Decor, WidgetsTuple>, f> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
+                static auto wrap (WidgetType &t)
+                {
+                        return augument::Layout<WidgetType, decltype (transform<f> (t.widgets)), f>{t, transform<f> (t.widgets)};
+                }
+        };
+
+        // Wrapper for groups
+        template <Focus f, typename Callback, typename WidgetsTuple> struct Wrap<Group<Callback, WidgetsTuple>, f> {
+                using WidgetType = Group<Callback, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
                         return augument::Layout<WidgetType, decltype (transform<f> (t.widgets)), f>{t, transform<f> (t.widgets)};
@@ -886,7 +933,8 @@ template <typename T> void print (T const &t, int indent = 0)
         auto l = [indent] (auto &itself, auto const &w, auto const &...ws) {
                 // std::string used only for debug.
                 // TODO consider removing std::string
-                std::cout << std::string (indent, ' ') << "focusIndex: " << w.focusIndex << ", " << typeid (w.widget).name () << std::endl;
+                std::cout << std::string (indent, ' ') << "focusIndex: " << w.focusIndex << ", y: " << w.y << ", " << typeid (w.widget).name ()
+                          << std::endl;
 
                 if constexpr (requires (decltype (w) x) { x.children; }) {
                         print (w.children, indent + 2);
@@ -1223,21 +1271,20 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        // auto vb = vbox (
-        //         vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //         hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), [] (auto const &o) {})),
-        //         vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //         hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //         vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //         hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //         vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
+        auto vb = vbox (vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
+                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                        hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                        hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
         //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
-        auto vb = vbox (hbox (label (""), check (" 1 "), check (" 2 ")),  //
-                        hbox (label (""), check (" 5 "), check (" 6 "))); //
+        // auto vb = vbox (hbox (label (""), check (" 1 "), check (" 2 ")),  //
+        //                 hbox (label (""), check (" 5 "), check (" 6 "))); //
         // vb.print ();
 
         auto x = detail::wrap (vb);
