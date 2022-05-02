@@ -783,12 +783,12 @@ namespace detail {
 template <typename Callback, typename WidgetTuple> class Group : public Widget<Group<Callback, WidgetTuple>> {
 public:
         Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
+
         static constexpr uint16_t widgetCount = detail::Sum<WidgetTuple, detail::WidgetCountField>::value;
-
         static constexpr bool canFocus = false;
-        static constexpr Dimension height = 0; // TODO implement
 
-        Coordinate y{}; // TODO remove or implement
+        static constexpr Dimension height = 0; // TODO implement
+        Coordinate y{};                        // TODO remove or implement
 
         // TODO input, scrollToFocus and operator() have to be re-implemented or deleted here
         Visibility operator() (auto &d, Context &ctx, Iteration &iter) const { return {}; }
@@ -835,6 +835,8 @@ namespace detail {
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
 
+                        constexpr Dimension getHeight () const { return T::height; }
+
                         // Wrapped widget
                         T &widget;
                         // Consecutive number (starting from 0) assigned for every focusable widget.
@@ -844,82 +846,97 @@ namespace detail {
                         static constexpr Dimension y = yV;
                 };
 
-                template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Dimension yV = 0> struct Layout {
+                template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Layout {
 
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
+
+                        constexpr Dimension getHeight () const { return T::height; }
 
                         T &widget;
                         WidgetTuple children;
 
                         static constexpr Focus focusIndex = focusIndexV;
-                        static constexpr Dimension y = yV;
+                        static constexpr Coordinate y = yV;
                 };
 
-                // template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Dimension yV = 0> struct Group {
+                template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Group {
 
-                //         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
+                        constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                //         T &widget;
-                //         WidgetTuple children;
+                        constexpr Dimension getHeight () const { return height; }
 
-                //         static constexpr Focus focusIndex = focusIndexV;
-                //         static constexpr Dimension y = yV;
-                // };
+                        T &widget;
+                        WidgetTuple children;
+
+                        static constexpr Focus focusIndex = focusIndexV;
+                        static constexpr Coordinate y = yV;
+                        static constexpr Dimension height = heightV;
+                };
 
         } // namespace augument
 
-        template <Focus f, typename Tuple> constexpr auto transform (Tuple &tuple);
+        template <Focus f, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, Focus f, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty> struct Wrap {
+        template <typename T, typename Parent, Focus f, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
+        struct Wrap {
                 using WidgetType = T;
                 static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f>{t}; }
         };
 
         // Wrapper for layouts
-        template <Focus f, template <typename Wtu> typename Decor, typename WidgetsTuple> struct Wrap<Layout<Decor, WidgetsTuple>, f> {
+        template <typename Parent, Focus f, template <typename Wtu> typename Decor, typename WidgetsTuple>
+        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f> (t.widgets)), f>{t, transform<f> (t.widgets)};
+                        return augument::Layout<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f>{
+                                t, transform<f, WidgetType> (t.widgets)};
                 }
         };
 
         // Wrapper for groups
-        template <Focus f, typename Callback, typename WidgetsTuple> struct Wrap<Group<Callback, WidgetsTuple>, f> {
+        template <typename Parent, Focus f, typename Callback, typename WidgetsTuple> struct Wrap<Group<Callback, WidgetsTuple>, Parent, f> {
                 using WidgetType = Group<Callback, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f> (t.widgets)), f>{t, transform<f> (t.widgets)};
+                        // using Children = typename Parent::Children;
+                        // using Decorator = typename Parent::template Decorator<Children>;
+
+                        // Layout::height == Parent::Decor<Parent::WidgetsTuple>::height
+                        return augument::Group<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f, 0,
+                                               Parent::template Decorator<typename Parent::Children>::height>{
+                                t, transform<f, WidgetType> (t.widgets)};
                 }
         };
 
         template <typename T, Focus f = 0> auto wrap (T &t)
         {
                 using WidgetType = T;
-                return Wrap<WidgetType, f>::wrap (t);
+                return Wrap<WidgetType, void, f>::wrap (t);
         }
 
-        template <Focus f, typename Tuple, typename T, typename... Ts> constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
+        template <Focus f, typename Parent, typename Tuple, typename T, typename... Ts>
+        constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
                 using WidgetType = std::remove_cvref_t<T>;
-                auto a = std::make_tuple (Wrap<WidgetType, f>::wrap (t));
+                auto a = std::make_tuple (Wrap<WidgetType, Parent, f>::wrap (t));
 
                 if constexpr (sizeof...(Ts) > 0) {
-                        // return transformImpl<f + int (WidgetType::canFocus)> (std::tuple_cat (prev, a), ts...);
-                        return transformImpl<f + WidgetType::widgetCount> (std::tuple_cat (prev, a), ts...);
+                        return transformImpl<f + WidgetType::widgetCount, Parent> (std::tuple_cat (prev, a), ts...);
                 }
                 else {
                         return std::tuple_cat (prev, a);
                 }
         }
 
-        template <Focus f, typename Tuple> constexpr auto transform (Tuple &tuple)
+        template <Focus f, typename Parent, typename ChildrenTuple>
+        constexpr auto transform (ChildrenTuple &tuple) // TODO use concept instead of "Children" prefix.
         {
                 return std::apply (
                         [] (auto &...element) {
                                 std::tuple dummy{};
-                                return transformImpl<f> (dummy, element...);
+                                return transformImpl<f, Parent> (dummy, element...);
                         },
                         tuple);
         }
@@ -933,8 +950,8 @@ template <typename T> void print (T const &t, int indent = 0)
         auto l = [indent] (auto &itself, auto const &w, auto const &...ws) {
                 // std::string used only for debug.
                 // TODO consider removing std::string
-                std::cout << std::string (indent, ' ') << "focusIndex: " << w.focusIndex << ", y: " << w.y << ", " << typeid (w.widget).name ()
-                          << std::endl;
+                std::cout << std::string (indent, ' ') << "focusIndex: " << w.focusIndex << ", y: " << w.y << ", height: " << w.getHeight ()
+                          << ", " << typeid (w.widget).name () << std::endl;
 
                 if constexpr (requires (decltype (w) x) { x.children; }) {
                         print (w.children, indent + 2);
@@ -958,6 +975,9 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
         static constexpr bool canFocus = false;
         // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
         static constexpr Dimension height = Decor<WidgetsTuple>::height;
+
+        template <typename Wtu> using Decorator = Decor<Wtu>;
+        using Children = WidgetsTuple;
 
         explicit Layout (WidgetsTuple w) : widgets{std::move (w)} /* , augumentedWidgets{detail::transform (widgets)} */ {}
 
@@ -1271,13 +1291,15 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        auto vb = vbox (vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
-                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-                        hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-                        hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-                        vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
+        // auto vb = vbox (vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
+        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
+
+        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5

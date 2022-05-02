@@ -48,3 +48,4 @@ aaa
 * [ ] Implement a test widget which is more than 1 character tall.
   * [ ] Test this widget in the vertical and horizontal layouts.
 * [ ] vbox(); (no parameters) results in an error.
+* [ ] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
