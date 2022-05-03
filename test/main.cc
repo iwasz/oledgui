@@ -899,6 +899,7 @@ namespace detail {
         template <typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor, typename WidgetsTuple>
         struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f, r, y> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
+
                 static auto wrap (WidgetType &t)
                 {
                         return augument::Layout<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), Decor, f, y>{
@@ -910,6 +911,7 @@ namespace detail {
         template <typename Parent, Focus f, Selection r, Coordinate y, typename Callback, typename WidgetsTuple>
         struct Wrap<Group<Callback, WidgetsTuple>, Parent, f, r, y> {
                 using WidgetType = Group<Callback, WidgetsTuple>;
+
                 static auto wrap (WidgetType &t)
                 {
                         return augument::Group<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), f, y,
@@ -932,7 +934,7 @@ namespace detail {
                 using Wrapped = decltype (Wrapper::wrap (t));
                 auto a = std::make_tuple (Wrapper::wrap (t));
 
-                if constexpr (sizeof...(Ts) > 0) {
+                if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
                         return transformImpl<f + WidgetType::widgetCount, r + 1, y + Wrapped::getHeight (), Parent> (std::tuple_cat (prev, a),
                                                                                                                      ts...);
                 }
@@ -1302,17 +1304,16 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        // auto vb = vbox (hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //                 vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
-        //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
-        //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
-        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
+        // auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
+        //                 check (" A"),                                    //
+        //                 check (" B"),                                    //
+        //                 check (" C"));
 
-        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
-                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
-                        check (" 1"), check (" 2"), check (" 3"), check (" 4"));
+        auto vb = hbox (check (" A"), check (" B"), check (" C"));
+
+        // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
+        //                 group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
+        //                 check (" 1"), check (" 2"), check (" 3"), check (" 4"));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
