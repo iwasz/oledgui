@@ -849,10 +849,11 @@ namespace detail {
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
 
+                        /// Position starting from the top.
+                        static constexpr Coordinate getY () { return yV; }
+
                         // Wrapped widget
                         T &widget;
-                        // Height at which the widget is.
-                        static constexpr Coordinate y = yV;
                 };
 
                 template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV = 0, Coordinate yV = 0>
@@ -860,30 +861,26 @@ namespace detail {
 
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        static constexpr Dimension getHeight () { return height; }
+                        static constexpr Dimension getHeight () { return Decor<WidgetTuple>::height; }
                         static constexpr Selection getRadioIndex () { return 0; }
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
+                        static constexpr Coordinate getY () { return yV; }
 
                         T &widget;
                         WidgetTuple children;
-
-                        static constexpr Coordinate y = yV;
-                        static constexpr Dimension height = Decor<WidgetTuple>::height;
                 };
 
                 template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Group {
 
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        static constexpr Dimension getHeight () { return height; }
+                        static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Selection getRadioIndex () { return 0; }
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
+                        static constexpr Coordinate getY () { return yV; }
 
                         T &widget;
                         WidgetTuple children;
-
-                        static constexpr Coordinate y = yV;
-                        static constexpr Dimension height = heightV;
                 };
 
         } // namespace augument
@@ -962,7 +959,7 @@ template <typename T> void log (T const &t, int indent = 0)
                 // std::string used only for debug.
                 // TODO consider removing std::string
                 std::cout << std::string (indent, ' ') << "focusIndex: " << w.getFocusIndex () << ", radioIndex: " << int (w.getRadioIndex ())
-                          << ", y: " << w.y << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
+                          << ", y: " << w.getY () << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
 
                 if constexpr (requires (decltype (w) x) { x.children; }) {
                         log (w.children, indent + 2);
