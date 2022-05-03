@@ -711,6 +711,7 @@ namespace detail {
                         ctx.cursor->y += 1;
                         ctx.cursor->x = ctx.origin.x;
                 }
+                static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
 
                 template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
                 {
@@ -722,6 +723,7 @@ namespace detail {
                 static constexpr Dimension height = detail::Max<WidgetsTuple, detail::WidgetHeightField>::value;
 
                 static void after (Context const &ctx) {}
+                static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
 
                 template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
                 {
@@ -818,24 +820,27 @@ namespace detail {
         template <typename Wtu> class DefaultDecor {
         };
 
-        // /// Type trait for discovering Layouts
-        // template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
-        // struct is_layout : public std::bool_constant<false> {
-        // };
+        /// Type trait for discovering Layouts
+        template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
+        struct is_layout : public std::bool_constant<false> {
+        };
 
-        // template <template <typename Wtu> typename Decor, typename WidgetsTuple>
-        // struct is_layout<Layout<Decor, WidgetsTuple>> : public std::bool_constant<true> {
-        // };
+        template <template <typename Wtu> typename Decor, typename WidgetsTuple>
+        struct is_layout<Layout<Decor, WidgetsTuple>> : public std::bool_constant<true> {
+        };
 
-        // /// Quick "unit test"
-        // static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
-        // static_assert (!is_layout<decltype (check (""))>::value);
+        /// Quick "unit test"
+        static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
+        static_assert (!is_layout<decltype (check (""))>::value);
 
         namespace augument {
                 /**
                  * Additional information for all the widgetc contained in the Layout.
+                 * TODO use concepts for ensuring that T is a widget and Parent is Layout or Group
                  */
-                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
+                template <typename T, typename ParentT, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
+
+                        using Parent = ParentT;
 
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
@@ -856,12 +861,13 @@ namespace detail {
                         T &widget;
                 };
 
-                template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV, Coordinate yV = 0>
-                struct Layout {
+                // TODO Parent has to be another Layout or void (use concept for ensuring that)
+                template <typename T, typename ParentT, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0> struct Layout {
 
+                        using Parent = ParentT;
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        static constexpr Dimension getHeight () { return Decor<WidgetTuple>::height; }
+                        static constexpr Dimension getHeight () { return T::template Decorator<WidgetTuple>::height; }
                         static constexpr Selection getRadioIndex () { return 0; }
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
@@ -870,8 +876,11 @@ namespace detail {
                         WidgetTuple children;
                 };
 
-                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0> struct Group {
+                // TODO Parent has to be a Layout (use concept for ensuring that)
+                template <typename T, typename ParentT, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0>
+                struct Group {
 
+                        using Parent = ParentT;
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
@@ -883,6 +892,19 @@ namespace detail {
                         WidgetTuple children;
                 };
 
+                template <typename T> constexpr Dimension getHeightIncrement ()
+                {
+                        using Parent = typename T::Parent;
+
+                        if constexpr (is_layout<Parent>::value) {
+                                constexpr auto height = T::getHeight ();
+                                return Parent::DecoratorType::getHeightIncrement (height);
+                        }
+                        else { // Group
+                                return 0;
+                        }
+                }
+
         } // namespace augument
 
         template <Focus f, Coordinate y, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
@@ -892,7 +914,7 @@ namespace detail {
                   typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r, y>{t}; }
+                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, Parent, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
@@ -902,7 +924,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), Decor, f, y>{
+                        return augument::Layout<WidgetType, Parent, decltype (transform<f, y, WidgetType> (t.widgets)), f, y>{
                                 t, transform<f, y, WidgetType> (t.widgets)};
                 }
         };
@@ -914,7 +936,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), f, y,
+                        return augument::Group<WidgetType, Parent, decltype (transform<f, y, WidgetType> (t.widgets)), f, y,
                                                Parent::template Decorator<typename WidgetType::Children>::height>{
                                 t, transform<f, y, WidgetType> (t.widgets)};
                 }
@@ -935,8 +957,8 @@ namespace detail {
                 auto a = std::make_tuple (Wrapper::wrap (t));
 
                 if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
-                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + Wrapped::getHeight (), Parent> (std::tuple_cat (prev, a),
-                                                                                                                     ts...);
+                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + augument::getHeightIncrement<Wrapped> (), Parent> (
+                                std::tuple_cat (prev, a), ts...);
                 }
                 else {
                         return std::tuple_cat (prev, a);
@@ -991,6 +1013,8 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
 
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using Children = WidgetsTuple;
+
+        using DecoratorType = Decor<WidgetsTuple>;
 
         explicit Layout (WidgetsTuple w) : widgets{std::move (w)} /* , augumentedWidgets{detail::transform (widgets)} */ {}
 
@@ -1304,12 +1328,12 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        // auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
-        //                 check (" A"),                                    //
-        //                 check (" B"),                                    //
-        //                 check (" C"));
+        auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
+                        check (" A"),                                    //
+                        check (" B"),                                    //
+                        check (" C"));
 
-        auto vb = hbox (check (" A"), check (" B"), check (" C"));
+        // auto vb = hbox (check (" A"), check (" B"), check (" C"));
 
         // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
         //                 group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
