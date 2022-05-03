@@ -238,16 +238,18 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
                 }
         }
 
+        static constexpr Dimension getHeight () { return heightV; }
+
         uint16_t y{};
         static constexpr uint16_t widgetCount = widgetCountV;
         static constexpr bool canFocus = widgetCount > 0;
-        static constexpr uint16_t height = heightV;
+        // static constexpr uint16_t height = heightV;
 };
 
 template <typename ConcreteClass, uint16_t widgetCountV, uint16_t heightV>
 void Widget<ConcreteClass, widgetCountV, heightV>::scrollToFocus (Context &ctx, Iteration const &iter) const
 {
-        auto h = ConcreteClass::height;
+        auto h = ConcreteClass::getHeight ();
         if (!detail::heightsOverlap (y, h, ctx.currentScroll, ctx.dimensions.height)) {
                 if (ctx.currentFocus == iter.focusIndex) {
                         if (y < ctx.currentScroll) {
@@ -264,11 +266,12 @@ void Widget<ConcreteClass, widgetCountV, heightV>::scrollToFocus (Context &ctx, 
 
 template <uint16_t len> struct Line : public Widget<Line<len>, 0, 1> {
 
-        using Widget<Line<len>, 0, 1>::y, Widget<Line<len>, 0, 1>::height;
+        using Base = Widget<Line<len>, 0, 1>;
+        using Base::y, Base::getHeight;
 
         Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
         {
-                if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
 
@@ -293,7 +296,7 @@ public:
         // TODO remove radioIndex and groupSelection. Not needed here.
         Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const
         {
-                if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
                         return Visibility::outside;
                 }
 
@@ -341,7 +344,7 @@ template <std::integral Id> // TODO less restrictive concept for Id
 class Radio : public Widget<Radio<Id>, 1, 1> {
 public:
         using Base = Widget<Radio<Id>, 1, 1>;
-        using Base::y, Base::height;
+        using Base::y, Base::getHeight;
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
         Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
@@ -354,7 +357,7 @@ private:
 
 template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
 {
-        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+        if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
                 return Visibility::outside;
         }
 
@@ -419,7 +422,7 @@ public:
         constexpr Label (const char *l) : label{l} {}
         Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
         {
-                if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
+                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
                         return Visibility::outside;
                 }
 
@@ -444,7 +447,7 @@ auto label (const char *str) { return Label{str}; }
 template <typename Callback> class Button : public Widget<Button<Callback>, 1, 1> {
 public:
         using Base = Widget<Button<Callback>, 1, 1>;
-        using Base::y, Base::height;
+        using Base::y, Base::getHeight;
 
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
@@ -464,7 +467,7 @@ private:
 
 template <typename Callback> Visibility Button<Callback>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
 {
-        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
+        if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
                 return Visibility::outside;
         }
 
@@ -624,7 +627,7 @@ namespace detail {
 
         template <typename T> struct WidgetHeightField {
 
-                static constexpr auto value = T::height;
+                static constexpr auto value = T::getHeight ();
         };
 
         /*--------------------------------------------------------------------------*/
@@ -688,7 +691,7 @@ namespace detail {
                         widget.y = bottomY;
 
                         if (vertical) {
-                                bottomY += widget.height;
+                                bottomY += widget.getHeight ();
                         }
 
                         // std::cerr << "w.y = " << widget.y << ", w.height = " << widget.height << ", typeid = " << typeid (widget).name ()
@@ -837,7 +840,7 @@ namespace detail {
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
 
-                        constexpr Dimension getHeight () const { return T::height; }
+                        static constexpr Dimension getHeight () { return T::getHeight (); }
 
                         // Wrapped widget
                         T &widget;
@@ -848,24 +851,26 @@ namespace detail {
                         static constexpr Dimension y = yV;
                 };
 
-                template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Layout {
+                template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV = 0, Coordinate yV = 0>
+                struct Layout {
 
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        constexpr Dimension getHeight () const { return T::height; }
+                        static constexpr Dimension getHeight () { return height; }
 
                         T &widget;
                         WidgetTuple children;
 
                         static constexpr Focus focusIndex = focusIndexV;
                         static constexpr Coordinate y = yV;
+                        static constexpr Dimension height = Decor<WidgetTuple>::height;
                 };
 
                 template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Group {
 
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        constexpr Dimension getHeight () const { return height; }
+                        static constexpr Dimension getHeight () { return height; }
 
                         T &widget;
                         WidgetTuple children;
@@ -892,7 +897,7 @@ namespace detail {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f>{
+                        return augument::Layout<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), Decor, f>{
                                 t, transform<f, WidgetType> (t.widgets)};
                 }
         };
@@ -902,10 +907,6 @@ namespace detail {
                 using WidgetType = Group<Callback, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        // using Children = typename Parent::Children;
-                        // using Decorator = typename Parent::template Decorator<Children>;
-
-                        // Layout::height == Parent::Decor<Parent::WidgetsTuple>::height
                         return augument::Group<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f, 0,
                                                Parent::template Decorator<typename WidgetType::Children>::height>{
                                 t, transform<f, WidgetType> (t.widgets)};
@@ -976,7 +977,7 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
         static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
         static constexpr bool canFocus = false;
         // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
-        static constexpr Dimension height = Decor<WidgetsTuple>::height;
+        // static constexpr Dimension height = Decor<WidgetsTuple>::height;
 
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using Children = WidgetsTuple;
@@ -992,9 +993,9 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
         Visibility operator() (auto &d, Context &ctx, Iteration &iter) const
         {
                 // TODO move to separate function. Code duplication.
-                if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
-                        return Visibility::outside;
-                }
+                // if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                //         return Visibility::outside;
+                // }
 
                 std::cerr << "operator ()" << std::endl;
 
@@ -1293,15 +1294,16 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        // auto vb = vbox (vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        // auto vb = vbox (hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
+        //                 vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
         //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))),
-        //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
         //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
         //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
         //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
         //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
 
-        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")));
+        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), check (" 1"),
+                        check (" 2"), check (" 3"), check (" 4"));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
