@@ -892,72 +892,75 @@ namespace detail {
                         WidgetTuple children;
                 };
 
-                template <typename T> constexpr Dimension getHeightIncrement ()
+                template <typename GrandParent, typename Parent> constexpr Dimension getHeightIncrement (Dimension d)
                 {
-                        using Parent = typename T::Parent;
-
+                        // Parent : og::Layout or og::Group
                         if constexpr (is_layout<Parent>::value) {
-                                constexpr auto height = T::getHeight ();
-                                return Parent::DecoratorType::getHeightIncrement (height);
+                                return Parent::DecoratorType::getHeightIncrement (d);
                         }
-                        else { // Group
-                                return 0;
+                        else {
+                                return GrandParent::DecoratorType::getHeightIncrement (d);
                         }
                 }
 
         } // namespace augument
 
-        template <Focus f, Coordinate y, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
+        template <Focus f, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
+        constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor = DefaultDecor,
-                  typename WidgetsTuple = Empty>
+        template <typename T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y,
+                  template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
                 static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, Parent, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
-        template <typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor, typename WidgetsTuple>
-        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f, r, y> {
+        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor,
+                  typename WidgetsTuple>
+        struct Wrap<Layout<Decor, WidgetsTuple>, GrandParent, Parent, f, r, y> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, Parent, decltype (transform<f, y, WidgetType> (t.widgets)), f, y>{
-                                t, transform<f, y, WidgetType> (t.widgets)};
+                        return augument::Layout<WidgetType, Parent, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y>{
+                                t, transform<f, y, Parent, WidgetType> (t.widgets)};
                 }
         };
 
         // Wrapper for groups
-        template <typename Parent, Focus f, Selection r, Coordinate y, typename Callback, typename WidgetsTuple>
-        struct Wrap<Group<Callback, WidgetsTuple>, Parent, f, r, y> {
+        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, typename Callback, typename WidgetsTuple>
+        struct Wrap<Group<Callback, WidgetsTuple>, GrandParent, Parent, f, r, y> {
                 using WidgetType = Group<Callback, WidgetsTuple>;
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, Parent, decltype (transform<f, y, WidgetType> (t.widgets)), f, y,
+                        return augument::Group<WidgetType, Parent, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y,
                                                Parent::template Decorator<typename WidgetType::Children>::height>{
-                                t, transform<f, y, WidgetType> (t.widgets)};
+                                t, transform<f, y, Parent, WidgetType> (t.widgets)};
                 }
         };
 
         template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &t)
         {
                 using WidgetType = T;
-                return Wrap<WidgetType, void, f, r, y>::wrap (t);
+                return Wrap<WidgetType, void, void, f, r, y>::wrap (t);
         }
 
-        template <Focus f, Selection r, Coordinate y, typename Parent, typename Tuple, typename T, typename... Ts>
+        template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
                 using WidgetType = std::remove_cvref_t<T>;
-                using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
+                using Wrapper = Wrap<WidgetType, GrandParent, Parent, f, r, y>;
                 using Wrapped = decltype (Wrapper::wrap (t));
                 auto a = std::make_tuple (Wrapper::wrap (t));
 
                 if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
-                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + augument::getHeightIncrement<Wrapped> (), Parent> (
+                        constexpr auto childHeight = Wrapped::getHeight ();
+                        constexpr auto childHeightIncrement = augument::getHeightIncrement<GrandParent, Parent> (childHeight);
+
+                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + childHeightIncrement, GrandParent, Parent> (
                                 std::tuple_cat (prev, a), ts...);
                 }
                 else {
@@ -965,13 +968,13 @@ namespace detail {
                 }
         }
 
-        template <Focus f, Coordinate y, typename Parent, typename ChildrenTuple>
+        template <Focus f, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple) // TODO use concept instead of "Children" prefix.
         {
                 return std::apply (
                         [] (auto &...element) {
                                 std::tuple dummy{};
-                                return transformImpl<f, 0, y, Parent> (dummy, element...);
+                                return transformImpl<f, 0, y, GrandParent, Parent> (dummy, element...);
                         },
                         tuple);
         }
@@ -1328,16 +1331,16 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
-                        check (" A"),                                    //
-                        check (" B"),                                    //
-                        check (" C"));
+        // auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
+        //                 check (" A"),                                    //
+        //                 check (" B"),                                    //
+        //                 check (" C"));
 
         // auto vb = hbox (check (" A"), check (" B"), check (" C"));
 
-        // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
-        //                 group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
-        //                 check (" 1"), check (" 2"), check (" 3"), check (" 4"));
+        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                        check (" 1"), check (" 2"), check (" 3"), check (" 4"));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
