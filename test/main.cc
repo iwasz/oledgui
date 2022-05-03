@@ -835,7 +835,7 @@ namespace detail {
                 /**
                  * Additional information for all the widgetc contained in the Layout.
                  */
-                template <typename T, Focus focusIndexV = 0, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
+                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
 
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
@@ -856,7 +856,7 @@ namespace detail {
                         T &widget;
                 };
 
-                template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV = 0, Coordinate yV = 0>
+                template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV, Coordinate yV = 0>
                 struct Layout {
 
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
@@ -870,7 +870,7 @@ namespace detail {
                         WidgetTuple children;
                 };
 
-                template <typename T, typename WidgetTuple, Focus focusIndexV = 0, Coordinate yV = 0, Dimension heightV = 0> struct Group {
+                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0> struct Group {
 
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
@@ -885,66 +885,69 @@ namespace detail {
 
         } // namespace augument
 
-        template <Focus f, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
+        template <Focus f, Coordinate y, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename Parent, Focus f, Selection r, template <typename Wtu> typename Decor = DefaultDecor,
+        template <typename T, typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor = DefaultDecor,
                   typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r>{t}; }
+                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
-        template <typename Parent, Focus f, Selection r, template <typename Wtu> typename Decor, typename WidgetsTuple>
-        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f, r> {
+        template <typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor, typename WidgetsTuple>
+        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f, r, y> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), Decor, f>{
-                                t, transform<f, WidgetType> (t.widgets)};
+                        return augument::Layout<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), Decor, f, y>{
+                                t, transform<f, y, WidgetType> (t.widgets)};
                 }
         };
 
         // Wrapper for groups
-        template <typename Parent, Focus f, Selection r, typename Callback, typename WidgetsTuple>
-        struct Wrap<Group<Callback, WidgetsTuple>, Parent, f, r> {
+        template <typename Parent, Focus f, Selection r, Coordinate y, typename Callback, typename WidgetsTuple>
+        struct Wrap<Group<Callback, WidgetsTuple>, Parent, f, r, y> {
                 using WidgetType = Group<Callback, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, decltype (transform<f, WidgetType> (t.widgets)), f, 0,
+                        return augument::Group<WidgetType, decltype (transform<f, y, WidgetType> (t.widgets)), f, y,
                                                Parent::template Decorator<typename WidgetType::Children>::height>{
-                                t, transform<f, WidgetType> (t.widgets)};
+                                t, transform<f, y, WidgetType> (t.widgets)};
                 }
         };
 
-        template <typename T, Focus f = 0, Selection r = 0> auto wrap (T &t)
+        template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &t)
         {
                 using WidgetType = T;
-                return Wrap<WidgetType, void, f, r>::wrap (t);
+                return Wrap<WidgetType, void, f, r, y>::wrap (t);
         }
 
-        template <Focus f, Selection r, typename Parent, typename Tuple, typename T, typename... Ts>
+        template <Focus f, Selection r, Coordinate y, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
                 using WidgetType = std::remove_cvref_t<T>;
-                auto a = std::make_tuple (Wrap<WidgetType, Parent, f, r>::wrap (t));
+                using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
+                using Wrapped = decltype (Wrapper::wrap (t));
+                auto a = std::make_tuple (Wrapper::wrap (t));
 
                 if constexpr (sizeof...(Ts) > 0) {
-                        return transformImpl<f + WidgetType::widgetCount, r + 1, Parent> (std::tuple_cat (prev, a), ts...);
+                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + Wrapped::getHeight (), Parent> (std::tuple_cat (prev, a),
+                                                                                                                     ts...);
                 }
                 else {
                         return std::tuple_cat (prev, a);
                 }
         }
 
-        template <Focus f, typename Parent, typename ChildrenTuple>
+        template <Focus f, Coordinate y, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple) // TODO use concept instead of "Children" prefix.
         {
                 return std::apply (
                         [] (auto &...element) {
                                 std::tuple dummy{};
-                                return transformImpl<f, 0, Parent> (dummy, element...);
+                                return transformImpl<f, 0, y, Parent> (dummy, element...);
                         },
                         tuple);
         }
