@@ -835,20 +835,24 @@ namespace detail {
                 /**
                  * Additional information for all the widgetc contained in the Layout.
                  */
-                template <typename T, Focus focusIndexV = 0, Dimension yV = 0> struct Widget {
+                template <typename T, Focus focusIndexV = 0, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
 
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
 
+                        /// Height in characters.
                         static constexpr Dimension getHeight () { return T::getHeight (); }
+
+                        /// Consecutiive number in a radio group.
+                        static constexpr Selection getRadioIndex () { return radioIndexV; }
+
+                        /// Consecutive number (starting from 0) assigned for every focusable widget.
+                        static constexpr Focus getFocusIndex () { return focusIndexV; }
 
                         // Wrapped widget
                         T &widget;
-                        // Consecutive number (starting from 0) assigned for every focusable widget.
-                        static constexpr Focus focusIndex = focusIndexV;
-                        // const Selection radioIndex;
                         // Height at which the widget is.
-                        static constexpr Dimension y = yV;
+                        static constexpr Coordinate y = yV;
                 };
 
                 template <typename T, typename WidgetTuple, template <typename Wgts> typename Decor, Focus focusIndexV = 0, Coordinate yV = 0>
@@ -857,11 +861,12 @@ namespace detail {
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return height; }
+                        static constexpr Selection getRadioIndex () { return 0; }
+                        static constexpr Focus getFocusIndex () { return focusIndexV; }
 
                         T &widget;
                         WidgetTuple children;
 
-                        static constexpr Focus focusIndex = focusIndexV;
                         static constexpr Coordinate y = yV;
                         static constexpr Dimension height = Decor<WidgetTuple>::height;
                 };
@@ -871,11 +876,12 @@ namespace detail {
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return height; }
+                        static constexpr Selection getRadioIndex () { return 0; }
+                        static constexpr Focus getFocusIndex () { return focusIndexV; }
 
                         T &widget;
                         WidgetTuple children;
 
-                        static constexpr Focus focusIndex = focusIndexV;
                         static constexpr Coordinate y = yV;
                         static constexpr Dimension height = heightV;
                 };
@@ -885,15 +891,16 @@ namespace detail {
         template <Focus f, typename Parent, typename ChildrenTuple> constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename Parent, Focus f, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
+        template <typename T, typename Parent, Focus f, Selection r, template <typename Wtu> typename Decor = DefaultDecor,
+                  typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f>{t}; }
+                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r>{t}; }
         };
 
         // Wrapper for layouts
-        template <typename Parent, Focus f, template <typename Wtu> typename Decor, typename WidgetsTuple>
-        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f> {
+        template <typename Parent, Focus f, Selection r, template <typename Wtu> typename Decor, typename WidgetsTuple>
+        struct Wrap<Layout<Decor, WidgetsTuple>, Parent, f, r> {
                 using WidgetType = Layout<Decor, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
@@ -903,7 +910,8 @@ namespace detail {
         };
 
         // Wrapper for groups
-        template <typename Parent, Focus f, typename Callback, typename WidgetsTuple> struct Wrap<Group<Callback, WidgetsTuple>, Parent, f> {
+        template <typename Parent, Focus f, Selection r, typename Callback, typename WidgetsTuple>
+        struct Wrap<Group<Callback, WidgetsTuple>, Parent, f, r> {
                 using WidgetType = Group<Callback, WidgetsTuple>;
                 static auto wrap (WidgetType &t)
                 {
@@ -913,20 +921,20 @@ namespace detail {
                 }
         };
 
-        template <typename T, Focus f = 0> auto wrap (T &t)
+        template <typename T, Focus f = 0, Selection r = 0> auto wrap (T &t)
         {
                 using WidgetType = T;
-                return Wrap<WidgetType, void, f>::wrap (t);
+                return Wrap<WidgetType, void, f, r>::wrap (t);
         }
 
-        template <Focus f, typename Parent, typename Tuple, typename T, typename... Ts>
+        template <Focus f, Selection r, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
                 using WidgetType = std::remove_cvref_t<T>;
-                auto a = std::make_tuple (Wrap<WidgetType, Parent, f>::wrap (t));
+                auto a = std::make_tuple (Wrap<WidgetType, Parent, f, r>::wrap (t));
 
                 if constexpr (sizeof...(Ts) > 0) {
-                        return transformImpl<f + WidgetType::widgetCount, Parent> (std::tuple_cat (prev, a), ts...);
+                        return transformImpl<f + WidgetType::widgetCount, r + 1, Parent> (std::tuple_cat (prev, a), ts...);
                 }
                 else {
                         return std::tuple_cat (prev, a);
@@ -939,7 +947,7 @@ namespace detail {
                 return std::apply (
                         [] (auto &...element) {
                                 std::tuple dummy{};
-                                return transformImpl<f, Parent> (dummy, element...);
+                                return transformImpl<f, 0, Parent> (dummy, element...);
                         },
                         tuple);
         }
@@ -948,16 +956,16 @@ namespace detail {
 
 /*--------------------------------------------------------------------------*/
 
-template <typename T> void print (T const &t, int indent = 0)
+template <typename T> void log (T const &t, int indent = 0)
 {
         auto l = [indent] (auto &itself, auto const &w, auto const &...ws) {
                 // std::string used only for debug.
                 // TODO consider removing std::string
-                std::cout << std::string (indent, ' ') << "focusIndex: " << w.focusIndex << ", y: " << w.y << ", height: " << w.getHeight ()
-                          << ", " << typeid (w.widget).name () << std::endl;
+                std::cout << std::string (indent, ' ') << "focusIndex: " << w.getFocusIndex () << ", radioIndex: " << int (w.getRadioIndex ())
+                          << ", y: " << w.y << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
 
                 if constexpr (requires (decltype (w) x) { x.children; }) {
-                        print (w.children, indent + 2);
+                        log (w.children, indent + 2);
                 }
 
                 if constexpr (sizeof...(ws) > 0) {
@@ -1302,8 +1310,9 @@ int test2 ()
         //                 hbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")),
         //                 vbox (radio (0, " 1 "), radio (0, " 2 "), radio (0, " 3 "), radio (0, " 4 ")));
 
-        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), check (" 1"),
-                        check (" 2"), check (" 3"), check (" 4"));
+        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
+                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
+                        check (" 1"), check (" 2"), check (" 3"), check (" 4"));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
@@ -1314,7 +1323,7 @@ int test2 ()
         // vb.print ();
 
         auto x = detail::wrap (vb);
-        print (x);
+        log (x);
 
         vb.calculatePositions (); // TODO get rid of this additional call
         bool showDialog{};
