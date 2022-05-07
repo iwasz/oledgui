@@ -6,13 +6,13 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
-#include "ncurses.h"
 #include "oledgui.h"
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <iomanip>
 #include <iostream>
+#include <ncurses.h>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -838,9 +838,7 @@ namespace detail {
                  * Additional information for all the widgetc contained in the Layout.
                  * TODO use concepts for ensuring that T is a widget and Parent is Layout or Group
                  */
-                template <typename T, typename ParentT, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
-
-                        using Parent = ParentT;
+                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
 
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
@@ -862,9 +860,8 @@ namespace detail {
                 };
 
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
-                template <typename T, typename ParentT, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0> struct Layout {
+                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0> struct Layout {
 
-                        using Parent = ParentT;
                         constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return T::template Decorator<WidgetTuple>::height; }
@@ -877,10 +874,8 @@ namespace detail {
                 };
 
                 // TODO Parent has to be a Layout (use concept for ensuring that)
-                template <typename T, typename ParentT, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0>
-                struct Group {
+                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0> struct Group {
 
-                        using Parent = ParentT;
                         constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
@@ -913,7 +908,7 @@ namespace detail {
                   template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, Parent, f, r, y>{t}; }
+                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
@@ -924,7 +919,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, Parent, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y>{
+                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y>{
                                 t, transform<f, y, Parent, WidgetType> (t.widgets)};
                 }
         };
@@ -936,7 +931,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, Parent, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y,
+                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y,
                                                Parent::template Decorator<typename WidgetType::Children>::height>{
                                 t, transform<f, y, Parent, WidgetType> (t.widgets)};
                 }
@@ -987,7 +982,6 @@ template <typename T> void log (T const &t, int indent = 0)
 {
         auto l = [indent] (auto &itself, auto const &w, auto const &...ws) {
                 // std::string used only for debug.
-                // TODO consider removing std::string
                 std::cout << std::string (indent, ' ') << "focusIndex: " << w.getFocusIndex () << ", radioIndex: " << int (w.getRadioIndex ())
                           << ", y: " << w.getY () << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
 
