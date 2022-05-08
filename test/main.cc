@@ -156,7 +156,7 @@ private:
 
 template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
-        return;
+        // return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -217,27 +217,6 @@ namespace detail {
  */
 template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
 
-        void scrollToFocus (Context &ctx, Iteration const &iter) const;
-        void input (auto &d, Context const &ctx, Iteration const &iter, char c) {}
-
-        void incrementFocus (Context &ctx) const
-        {
-                if (ctx.currentFocus < ConcreteClass::widgetCount - 1) {
-                        ++ctx.currentFocus;
-                        Iteration iter{}; // TODO I don't like this
-                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, iter);
-                }
-        }
-
-        void decrementFocus (Context &ctx) const
-        {
-                if (ctx.currentFocus > 0) {
-                        --ctx.currentFocus;
-                        Iteration iter{};
-                        static_cast<ConcreteClass const *> (this)->scrollToFocus (ctx, iter);
-                }
-        }
-
         static constexpr Dimension getHeight () { return heightV; }
 
         uint16_t y{};
@@ -245,22 +224,6 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
         static constexpr bool canFocus = widgetCount > 0;
         // static constexpr uint16_t height = heightV;
 };
-
-template <typename ConcreteClass, uint16_t widgetCountV, uint16_t heightV>
-void Widget<ConcreteClass, widgetCountV, heightV>::scrollToFocus (Context &ctx, Iteration const &iter) const
-{
-        auto h = ConcreteClass::getHeight ();
-        if (!detail::heightsOverlap (y, h, ctx.currentScroll, ctx.dimensions.height)) {
-                if (ctx.currentFocus == iter.focusIndex) {
-                        if (y < ctx.currentScroll) {
-                                ctx.currentScroll = y;
-                        }
-                        else {
-                                ctx.currentScroll = y - ctx.dimensions.height + 1;
-                        }
-                }
-        }
-}
 
 /****************************************************************************/
 
@@ -292,39 +255,10 @@ class Check : public Widget<Check, 1, 1> {
 public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
-        // TODO move outside the class.
-        // TODO remove radioIndex and groupSelection. Not needed here.
-        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const
+        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx, Wrapper const &au) const;
+        template <typename Wrapper> void input (auto & /* d */, Context const &ctx, char c, Wrapper const &au)
         {
-                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
-                        return Visibility::outside;
-                }
-
-                if (ctx.currentFocus == iter.focusIndex) {
-                        d.color (2);
-                }
-
-                if (checked) {
-                        d.print ("☑");
-                }
-                else {
-                        d.print ("☐");
-                }
-
-                d.move (1, 0);
-                d.print (label);
-
-                if (ctx.currentFocus == iter.focusIndex) {
-                        d.color (1);
-                }
-
-                d.move (strlen (label), 0); // TODO this strlen should be constexpr expression
-                return Visibility::visible;
-        }
-
-        void input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
-        {
-                if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+                if (c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
                 }
         }
@@ -333,6 +267,35 @@ private:
         const char *label{};
         bool checked{};
 };
+
+/*--------------------------------------------------------------------------*/
+
+template <typename Wrapper>
+Visibility Check::operator() (auto &d, Context const &ctx, Wrapper const &au) const // TODO this def. cannot be in a header file!
+{
+        if (ctx.currentFocus == au.getFocusIndex ()) {
+                d.color (2);
+        }
+
+        if (checked) {
+                d.print ("☑");
+        }
+        else {
+                d.print ("☐");
+        }
+
+        d.move (1, 0);
+        d.print (label);
+
+        if (ctx.currentFocus == au.getFocusIndex ()) {
+                d.color (1);
+        }
+
+        d.move (strlen (label), 0); // TODO this strlen should be constexpr expression
+        return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
 
 constexpr Check check (const char *str, bool checked = false) { return {str, checked}; }
 
@@ -420,12 +383,9 @@ template <typename... J> OptionsRad (Radio<J> &&...e) -> OptionsRad<First_t<J...
 class Label : public Widget<Label, 0, 1> {
 public:
         constexpr Label (const char *l) : label{l} {}
-        Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
-        {
-                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
-                        return Visibility::outside;
-                }
 
+        Visibility operator() (auto &d, Context const & /* ctx */, auto const & /* wrapper */) const
+        {
                 d.print (label);
                 d.move (strlen (label), 0);
                 return Visibility::visible;
@@ -834,12 +794,13 @@ namespace detail {
         static_assert (!is_layout<decltype (check (""))>::value);
 
         namespace augument {
+
                 /**
                  * Additional information for all the widgetc contained in the Layout.
                  * TODO use concepts for ensuring that T is a widget and Parent is Layout or Group
                  */
-                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> struct Widget {
-
+                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> class Widget {
+                public:
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
 
@@ -855,35 +816,157 @@ namespace detail {
                         /// Position starting from the top.
                         static constexpr Coordinate getY () { return yV; }
 
-                        // Wrapped widget
-                        T &widget;
+                        Visibility operator() (auto &d, Context const &ctx) const
+                        {
+                                if (!detail::heightsOverlap (getY (), getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
+                                        return Visibility::outside;
+                                }
+
+                                return widget.operator() (d, ctx, *this);
+                        }
+
+                        void input (auto &d, Context const &ctx, char c)
+                        {
+                                if (ctx.currentFocus == getFocusIndex ()) {
+                                        if constexpr (requires { widget.input (d, ctx, c, *this); }) {
+                                                widget.input (d, ctx, c, *this);
+                                        }
+                                }
+                        }
+
+                        void scrollToFocus (Context &ctx) const;
+
+                private:
+                        T &widget; // Wrapped widget
+                };
+
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                void Widget<T, focusIndexV, radioIndexV, yV>::scrollToFocus (Context &ctx) const
+                {
+                        auto h = getHeight ();
+                        if (!detail::heightsOverlap (getY (), getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
+                                if (ctx.currentFocus == getFocusIndex ()) {
+                                        if (getY () < ctx.currentScroll) {
+                                                ctx.currentScroll = getY ();
+                                        }
+                                        else {
+                                                ctx.currentScroll = getY () - ctx.dimensions.height + 1;
+                                        }
+                                }
+                        }
+                }
+
+                /**
+                 * Base for widgets in the augument:: namespace that can contain other widgets.
+                 */
+                template <typename ConcreteClass, typename Decor> struct ContainerWidget {
+                        Visibility operator() (auto &d, Context const &ctx) const
+                        {
+                                if (!detail::heightsOverlap (ConcreteClass::getY (), ConcreteClass::getHeight (), ctx.currentScroll,
+                                                             ctx.dimensions.height)) {
+                                        return Visibility::outside;
+                                }
+
+                                auto l = [&d, &ctx] (auto &itself, auto const &child, auto const &...children) {
+                                        if (child (d, ctx) == Visibility::visible) {
+                                                // if (!lastWidgetInLayout) { // TODO implement
+                                                Decor::after (ctx);
+                                                // }
+                                        }
+
+                                        if constexpr (sizeof...(children) > 0) {
+                                                itself (itself, children...);
+                                        }
+                                };
+
+                                std::apply ([&l] (auto const &...children) { l (l, children...); },
+                                            static_cast<ConcreteClass const *> (this)->children);
+
+                                return Visibility::visible;
+                        }
+
+                        Visibility operator() (auto &d) const
+                        {
+                                Iteration iter{};
+                                return operator() (d, d.context);
+                        }
+
+                        void input (auto &d, Context const &ctx, char c)
+                        {
+                                auto l = [&d, &ctx, c] (auto &itself, auto &child, auto &...children) {
+                                        child.input (d, ctx, c);
+
+                                        if constexpr (sizeof...(children) > 0) {
+                                                itself (itself, children...);
+                                        }
+                                };
+
+                                std::apply ([&l] (auto &...children) { l (l, children...); }, static_cast<ConcreteClass *> (this)->children);
+                        }
+
+                        void input (auto &d, char c) { input (d, d.context, c); }
+
+                        void incrementFocus (Context &ctx) const
+                        {
+                                if (ctx.currentFocus < ConcreteClass::Wrapped::widgetCount - 1) {
+                                        ++ctx.currentFocus;
+                                        scrollToFocus (ctx);
+                                }
+                        }
+
+                        void decrementFocus (Context &ctx) const
+                        {
+                                if (ctx.currentFocus > 0) {
+                                        --ctx.currentFocus;
+                                        scrollToFocus (ctx);
+                                }
+                        }
+
+                        void scrollToFocus (Context &ctx) const
+                        {
+                                auto l = [&ctx] (auto &itself, auto const &child, auto const &...children) {
+                                        child.scrollToFocus (ctx);
+
+                                        if constexpr (sizeof...(children) > 0) {
+                                                itself (itself, children...);
+                                        }
+                                };
+
+                                std::apply ([&l] (auto const &...children) { l (l, children...); },
+                                            static_cast<ConcreteClass const *> (this)->children);
+                        }
                 };
 
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0> struct Layout {
+                template <typename T, typename WidgetTuple, Focus focusIndexV,
+                          Coordinate yV = 0> // TODO remove default parameter initializers if possible
+                struct Layout : public ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType> {
 
-                        constexpr Layout (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
+                        using Wrapped = T;
+                        constexpr Layout (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
-                        static constexpr Dimension getHeight () { return T::template Decorator<WidgetTuple>::height; }
+                        static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
                         static constexpr Selection getRadioIndex () { return 0; }
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        T &widget;
+                        Wrapped &widget;
                         WidgetTuple children;
                 };
 
                 // TODO Parent has to be a Layout (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0> struct Group {
+                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0>
+                struct Group /* : public ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV>> */ {
 
-                        constexpr Group (T &t, WidgetTuple const &c) : widget{t}, children{c} {}
+                        using Wrapped = T;
+                        constexpr Group (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Selection getRadioIndex () { return 0; }
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        T &widget;
+                        Wrapped &widget;
                         WidgetTuple children;
                 };
 
@@ -1089,7 +1172,6 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
 
         // private:
         WidgetsTuple widgets;
-        // decltype (detail::transform (widgets)) augumentedWidgets; // TODO Can I ommit the widgets field, and leave only augumentedWidgets?
 };
 
 /*--------------------------------------------------------------------------*/
@@ -1222,75 +1304,75 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 
 /****************************************************************************/
 
-int test1 ()
-{
-        using namespace og;
+// int test1 ()
+// {
+//         using namespace og;
 
-        /*
-         * TODO This has the problem that it woud be tedious and wasteful to declare ncurses<18, 7>
-         * with every new window/view. Alas I'm trying to investigate how to commonize Displays and Windows.
-         *
-         * This ncurses method can be left as an option.
-         */
-        auto vb = ncurses<18, 7> (vbox (vbox (radio (0, " A "), radio (1, " B "), radio (2, " C "), radio (3, " d ")), //
-                                        line<10>,                                                                      //
-                                        vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),             //
-                                        line<10>,                                                                      //
-                                        vbox (radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-                                        line<10>,                                                                      //
-                                        vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),             //
-                                        line<10>,                                                                      //
-                                        vbox (radio (0, " E "), radio (0, " F "), radio (0, " G "), radio (0, " H "))  //
-                                        ));                                                                            //
+//         /*
+//          * TODO This has the problem that it woud be tedious and wasteful to declare ncurses<18, 7>
+//          * with every new window/view. Alas I'm trying to investigate how to commonize Displays and Windows.
+//          *
+//          * This ncurses method can be left as an option.
+//          */
+//         auto vb = ncurses<18, 7> (vbox (vbox (radio (0, " A "), radio (1, " B "), radio (2, " C "), radio (3, " d ")), //
+//                                         line<10>,                                                                      //
+//                                         vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),             //
+//                                         line<10>,                                                                      //
+//                                         vbox (radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
+//                                         line<10>,                                                                      //
+//                                         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),             //
+//                                         line<10>,                                                                      //
+//                                         vbox (radio (0, " E "), radio (0, " F "), radio (0, " G "), radio (0, " H "))  //
+//                                         ));                                                                            //
 
-        // TODO compile time
-        // TODO no additional call
-        vb.calculatePositions (); // Only once. After composition
+//         // TODO compile time
+//         // TODO no additional call
+//         vb.calculatePositions (); // Only once. After composition
 
-        // auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
-        // // dialog.calculatePositions ();
+//         // auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
+//         // // dialog.calculatePositions ();
 
-        bool showDialog{};
+//         bool showDialog{};
 
-        while (true) {
-                // d1.clear ()
-                // vb (d1);
+//         while (true) {
+//                 // d1.clear ()
+//                 // vb (d1);
 
-                vb ();
+//                 vb ();
 
-                // if (showDialog) {
-                //         dialog (d1);
-                // }
+//                 // if (showDialog) {
+//                 //         dialog (d1);
+//                 // }
 
-                // wrefresh (d1.win);
-                int ch = getch ();
+//                 // wrefresh (d1.win);
+//                 int ch = getch ();
 
-                if (ch == 'q') {
-                        break;
-                }
+//                 if (ch == 'q') {
+//                         break;
+//                 }
 
-                switch (ch) {
-                case KEY_DOWN:
-                        vb.incrementFocus ();
-                        break;
+//                 switch (ch) {
+//                 case KEY_DOWN:
+//                         vb.incrementFocus ();
+//                         break;
 
-                case KEY_UP:
-                        vb.decrementFocus ();
-                        break;
+//                 case KEY_UP:
+//                         vb.decrementFocus ();
+//                         break;
 
-                case 'd':
-                        showDialog = true;
-                        break;
+//                 case 'd':
+//                         showDialog = true;
+//                         break;
 
-                default:
-                        // d1.input (vb, char (ch));
-                        // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
-                        break;
-                }
-        }
+//                 default:
+//                         // d1.input (vb, char (ch));
+//                         // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
+//                         break;
+//                 }
+//         }
 
-        return 0;
-}
+//         return 0;
+// }
 
 /****************************************************************************/
 
@@ -1332,37 +1414,38 @@ int test2 ()
 
         // auto vb = hbox (check (" A"), check (" B"), check (" C"));
 
-        auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                        check (" 1"), check (" 2"), check (" 3"), check (" 4"));
+        // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+        //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+        //                 check (" 1"), check (" 2"), check (" 3"), check (" 4"));
 
         // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
         //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
-        // auto vb = vbox (hbox (label (""), check (" 1 "), check (" 2 ")),  //
-        //                 hbox (label (""), check (" 5 "), check (" 6 "))); //
-        // vb.print ();
+        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),  //
+                        hbox (label ("ho  "), check (" 5 "), check (" 6 "))); //
 
         auto x = detail::wrap (vb);
-        log (x);
+        // log (x);
 
-        vb.calculatePositions (); // TODO get rid of this additional call
+        // vb.calculatePositions (); // TODO get rid of this additional call
         bool showDialog{};
 
-        auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false; }),
-                                                 check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
-        dialog.calculatePositions ();
+        // auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false;
+        // }),
+        //                                          check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+        // dialog.calculatePositions ();
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
                 d1.clear ();
-                vb (d1);
+                // vb (d1);
+                x (d1);
 
-                if (showDialog) {
-                        Iteration iter{}; // TODO mess
-                        dialog (d1, d1.context, iter);
-                }
+                // if (showDialog) {
+                //         Iteration iter{}; // TODO mess
+                //         dialog (d1, d1.context, iter);
+                // }
 
                 d1.refresh ();
                 int ch = getch ();
@@ -1374,19 +1457,19 @@ int test2 ()
                 switch (ch) {
                 case KEY_DOWN:
                         if (showDialog) {
-                                dialog.incrementFocus (d1.context);
+                                // dialog.incrementFocus (d1.context);
                         }
                         else {
-                                vb.incrementFocus (d1.context);
+                                x.incrementFocus (d1.context);
                         }
                         break;
 
                 case KEY_UP:
                         if (showDialog) {
-                                dialog.decrementFocus (d1.context);
+                                // dialog.decrementFocus (d1.context);
                         }
                         else {
-                                vb.decrementFocus (d1.context);
+                                x.decrementFocus (d1.context);
                         }
                         break;
 
@@ -1397,10 +1480,10 @@ int test2 ()
                 default:
                         // d1.input (vb, char (ch));
                         if (showDialog) {
-                                dialog.input (d1, char (ch));
+                                // dialog.input (d1, char (ch));
                         }
                         else {
-                                vb.input (d1, char (ch));
+                                x.input (d1, char (ch));
                         }
                         break;
                 }
