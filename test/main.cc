@@ -180,6 +180,7 @@ template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
 /****************************************************************************/
 
 namespace detail {
+
         void line (auto &d, uint16_t len, const char *ch = "─")
         {
                 for (uint16_t i = 0; i < len; ++i) {
@@ -227,25 +228,21 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
 
 /****************************************************************************/
 
-template <uint16_t len> struct Line : public Widget<Line<len>, 0, 1> {
+template <uint16_t len, char c> struct Line : public Widget<Line<len, c>, 0, 1> {
 
-        using Base = Widget<Line<len>, 0, 1>;
+        using Base = Widget<Line<len, c>, 0, 1>;
         using Base::y, Base::getHeight;
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration const & /* iter */) const
+        template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
-                if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
-                        return Visibility::outside;
-                }
-
-                detail::line (d, len);
+                char cc = c; // TODO I don't like this
+                detail::line (d, len, &cc);
                 return Visibility::visible;
         }
 };
 
-// template <uint16_t len> constexpr auto line () { return Line<len>{}; }
-
-template <uint16_t len> Line<len> line;
+template <uint16_t len> Line<len, '-'> line;
+template <uint16_t len = 1> Line<len, ' '> hspace;
 
 /****************************************************************************/
 /* Check                                                                    */
@@ -406,11 +403,11 @@ public:
 
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
+        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
 
-        void input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
+        template <typename> void input (auto & /* d */, Context const & /* ctx */, char c)
         {
-                if (ctx.currentFocus == iter.focusIndex && c == ' ') {
+                if (c == ' ') {
                         callback ();
                 }
         }
@@ -420,20 +417,16 @@ private:
         Callback callback;
 };
 
-template <typename Callback> Visibility Button<Callback>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
+template <typename Callback> template <typename Wrapper> Visibility Button<Callback>::operator() (auto &d, Context const &ctx) const
 {
-        if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) { // TODO Move from here, duplication.
-                return Visibility::outside;
-        }
-
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
         }
 
         d.print (label);
         d.move (strlen (label), 0);
 
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
@@ -484,13 +477,13 @@ public:
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
         using Base = Widget<Combo<OptionCollection, Callback>, 1, 1>;
-        using Base::y, Base::height;
+        using Base::y /* , Base::height */;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
         constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
-        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
-        void input (auto &d, Context const &ctx, Iteration const &iter, char c);
+        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
+        template <typename Wrapper> void input (auto &d, Context const &ctx, char c);
 
 private:
         OptionCollection options;
@@ -501,20 +494,17 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
+template <typename Wrapper>
+Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx) const
 {
-        if (!detail::heightsOverlap (y, height, ctx.currentScroll, ctx.dimensions.height)) {
-                return Visibility::outside;
-        }
-
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
         }
 
         const char *label = options.elms.at (currentSelection).label;
         d.print (label);
 
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
@@ -525,9 +515,10 @@ Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
+template <typename Wrapper>
+void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, char c)
 {
-        if (ctx.currentFocus == iter.focusIndex && c == ' ') { // TODO character must be customizable (compile time)
+        if (ctx.currentFocus == Wrapper::getFocusIndex () && c == ' ') { // TODO character must be customizable (compile time)
                 ++currentSelection;
                 currentSelection %= options.elms.size ();
         }
@@ -935,8 +926,8 @@ namespace detail {
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
                 template <typename T, typename WidgetTuple, Focus focusIndexV,
                           Coordinate yV = 0> // TODO remove default parameter initializers if possible
-                struct Layout : public ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType> {
-
+                class Layout : public ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType> {
+                public:
                         using Wrapped = T;
                         constexpr Layout (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
@@ -945,14 +936,16 @@ namespace detail {
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
+                private:
+                        friend ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType>;
                         Wrapped &widget;
                         WidgetTuple children;
                 };
 
                 // TODO Parent has to be a Layout (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV = 0, Dimension heightV = 0>
-                struct Group /* : public ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV>> */ {
-
+                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV, Dimension heightV, typename Decor>
+                class Group : public ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV, Decor>, Decor> {
+                public:
                         using Wrapped = T;
                         constexpr Group (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
@@ -961,6 +954,8 @@ namespace detail {
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
+                private:
+                        friend ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV, Decor>, Decor>;
                         Wrapped &widget;
                         WidgetTuple children;
                 };
@@ -1010,8 +1005,8 @@ namespace detail {
                 static auto wrap (WidgetType &t)
                 {
                         return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y,
-                                               Parent::template Decorator<typename WidgetType::Children>::height>{
-                                t, transform<f, y, Parent, WidgetType> (t.widgets)};
+                                               Parent::template Decorator<typename WidgetType::Children>::height,
+                                               typename Parent::DecoratorType>{t, transform<f, y, Parent, WidgetType> (t.widgets)};
                 }
         };
 
@@ -1402,13 +1397,6 @@ int test2 ()
         //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
         //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
 
-        // auto vb = vbox (hbox (check (" A"), check (" B"), check (" C")), //
-        //                 check (" A"),                                    //
-        //                 check (" B"),                                    //
-        //                 check (" C"));
-
-        // auto vb = hbox (check (" A"), check (" B"), check (" C"));
-
         // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
         //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
         //                 check (" 1"), check (" 2"), check (" 3"), check (" 4"));
@@ -1417,12 +1405,19 @@ int test2 ()
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
         //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
-        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")), //
-                        hbox (label ("ho  "), check (" 5 "), check (" 6 ")),
-                        vbox (radio (0, " R "), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "),
-                              check (" 7 "), check (" 8 "), check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "),
-                              check (" 14 "),
-                              check (" 15 "))); //
+        // auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")), //
+        //                 hbox (label ("ho  "), check (" 5 "), check (" 6 ")), line<18>,
+        //                 group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), line<18>,
+        //                 radio (0, " R "), line<18>,
+        //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}), line<18>,
+        //                 hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})), line<18>,
+        //                 check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8
+        //                 "), check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
+
+        auto vb = vbox (check (" 1 "), check (" 2 "), check (" 5 "), check (" 6 "),
+                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), check (" 1 "),
+                        check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 9 "),
+                        check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
 
         auto x = detail::wrap (vb);
         // log (x);
