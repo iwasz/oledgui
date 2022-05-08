@@ -255,8 +255,8 @@ class Check : public Widget<Check, 1, 1> {
 public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
-        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx, Wrapper const &au) const;
-        template <typename Wrapper> void input (auto & /* d */, Context const &ctx, char c, Wrapper const &au)
+        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
+        template <typename Wrapper> void input (auto & /* d */, Context const &ctx, char c)
         {
                 if (c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
@@ -270,10 +270,9 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Wrapper>
-Visibility Check::operator() (auto &d, Context const &ctx, Wrapper const &au) const // TODO this def. cannot be in a header file!
+template <typename Wrapper> Visibility Check::operator() (auto &d, Context const &ctx) const // TODO this def. cannot be in a header file!
 {
-        if (ctx.currentFocus == au.getFocusIndex ()) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
         }
 
@@ -287,7 +286,7 @@ Visibility Check::operator() (auto &d, Context const &ctx, Wrapper const &au) co
         d.move (1, 0);
         d.print (label);
 
-        if (ctx.currentFocus == au.getFocusIndex ()) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
@@ -310,25 +309,21 @@ public:
         using Base::y, Base::getHeight;
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
-        Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
-        void input (auto &d, Context const &ctx, Iteration const &iter, char c);
+        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
+        template <typename Wrapper> void input (auto &d, Context const &ctx, char c);
 
 private:
         Id id;
         const char *label;
 };
 
-template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context const &ctx, Iteration const &iter) const
+template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::operator() (auto &d, Context const &ctx) const
 {
-        if (!detail::heightsOverlap (y, getHeight (), ctx.currentScroll, ctx.dimensions.height)) {
-                return Visibility::outside;
-        }
-
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
         }
 
-        if (ctx.radioSelection != nullptr && iter.radioIndex == *ctx.radioSelection) {
+        if (ctx.radioSelection != nullptr && Wrapper::getRadioIndex () == *ctx.radioSelection) {
                 d.print ("◉");
         }
         else {
@@ -338,7 +333,7 @@ template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context c
         d.move (1, 0);
         d.print (label);
 
-        if (ctx.currentFocus == iter.focusIndex) {
+        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
@@ -346,11 +341,11 @@ template <std::integral Id> Visibility Radio<Id>::operator() (auto &d, Context c
         return Visibility::visible;
 }
 
-template <std::integral Id> void Radio<Id>::input (auto & /* d */, Context const &ctx, Iteration const &iter, char c)
+template <std::integral Id> template <typename Wrapper> void Radio<Id>::input (auto & /* d */, Context const &ctx, char c)
 {
         // TODO character must be customizable (compile time)
-        if (ctx.radioSelection != nullptr && ctx.currentFocus == iter.focusIndex && c == ' ') {
-                *ctx.radioSelection = iter.radioIndex;
+        if (ctx.radioSelection != nullptr && c == ' ') {
+                *ctx.radioSelection = Wrapper::getRadioIndex ();
         }
 }
 
@@ -384,7 +379,7 @@ class Label : public Widget<Label, 0, 1> {
 public:
         constexpr Label (const char *l) : label{l} {}
 
-        Visibility operator() (auto &d, Context const & /* ctx */, auto const & /* wrapper */) const
+        template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
                 d.print (label);
                 d.move (strlen (label), 0);
@@ -822,14 +817,14 @@ namespace detail {
                                         return Visibility::outside;
                                 }
 
-                                return widget.operator() (d, ctx, *this);
+                                return widget.template operator()<Widget> (d, ctx);
                         }
 
                         void input (auto &d, Context const &ctx, char c)
                         {
                                 if (ctx.currentFocus == getFocusIndex ()) {
-                                        if constexpr (requires { widget.input (d, ctx, c, *this); }) {
-                                                widget.input (d, ctx, c, *this);
+                                        if constexpr (requires { widget.template input<Widget> (d, ctx, c); }) {
+                                                widget.template input<Widget> (d, ctx, c);
                                         }
                                 }
                         }
@@ -1422,8 +1417,12 @@ int test2 ()
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
         //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
-        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),  //
-                        hbox (label ("ho  "), check (" 5 "), check (" 6 "))); //
+        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")), //
+                        hbox (label ("ho  "), check (" 5 "), check (" 6 ")),
+                        vbox (radio (0, " R "), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "),
+                              check (" 7 "), check (" 8 "), check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "),
+                              check (" 14 "),
+                              check (" 15 "))); //
 
         auto x = detail::wrap (vb);
         // log (x);
