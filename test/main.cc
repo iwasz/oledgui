@@ -210,17 +210,17 @@ namespace detail {
 
 /**
  * Base class.
- * widgetCountV : number of focusable widgets. Some examples : for a label whihc is
+ * focusableWidgetCountV : number of focusable widgets. Some examples : for a label whihc is
  *                not focusable, use 0. For a button use 1. For containers return the
  *                number of focusable children insdide.
  * heightV : height of a widget in characters. For a mere (single line) label it would
  *           equal to 1, for a container it would be sum of all children heights.
  */
-template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
+template <typename ConcreteClass, uint16_t focusableWidgetCountV = 0, uint16_t heightV = 0> struct Widget {
 
         static constexpr Dimension getHeight () { return heightV; }
-        static constexpr uint16_t widgetCount = widgetCountV;
-        static constexpr bool canFocus = widgetCount > 0;
+        // static constexpr uint16_t focusableWidgetCount = focusableWidgetCountV;
+        // static constexpr bool canFocus = focusableWidgetCount > 0;
 };
 
 /****************************************************************************/
@@ -247,6 +247,8 @@ template <uint16_t len = 1> Line<len, ' '> hspace;
 
 class Check : public Widget<Check, 1, 1> {
 public:
+        static constexpr bool canFocus = true;
+
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
@@ -299,6 +301,7 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 template <std::integral Id> // TODO less restrictive concept for Id
 class Radio : public Widget<Radio<Id>, 1, 1> {
 public:
+        static constexpr bool canFocus = true;
         using Base = Widget<Radio<Id>, 1, 1>;
         using Base::getHeight;
 
@@ -378,6 +381,7 @@ auto label (const char *str) { return Label{str}; }
  */
 template <typename Callback> class Button : public Widget<Button<Callback>, 1, 1> {
 public:
+        static constexpr bool canFocus = true;
         using Base = Widget<Button<Callback>, 1, 1>;
         using Base::getHeight;
 
@@ -454,6 +458,7 @@ template <typename OptionCollection, typename Callback>
 requires std::invocable<Callback, typename OptionCollection::Id>
 class Combo : public Widget<Combo<OptionCollection, Callback>, 1, 1> {
 public:
+        static constexpr bool canFocus = true;
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
@@ -508,8 +513,21 @@ void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ct
 
 namespace detail {
 
-        template <typename T> struct WidgetCountField {
-                static constexpr auto value = T::widgetCount;
+        template <typename T> constexpr uint16_t getFocusableWidgetCount ()
+        {
+                if constexpr (requires { T::focusableWidgetCount; }) { // TODO how to check for T::focusableWidgetCount type!?
+                        return T::focusableWidgetCount;
+                }
+                else if constexpr (requires { T::canFocus; }) {
+                        return uint16_t (T::canFocus);
+                }
+                else {
+                        return 0;
+                }
+        }
+
+        template <typename T> struct FocusableWidgetCountField {
+                static constexpr auto value = getFocusableWidgetCount<T> ();
         };
 
         template <typename T> struct WidgetHeightField {
@@ -567,7 +585,7 @@ template <typename Callback, typename WidgetTuple> class Group : public Widget<G
 public:
         Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
 
-        static constexpr uint16_t widgetCount = detail::Sum<WidgetTuple, detail::WidgetCountField>::value;
+        static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
         static constexpr bool canFocus = false;
 
         static constexpr Dimension height = 0; // TODO implement
@@ -728,7 +746,7 @@ namespace detail {
 
                         void incrementFocus (Context &ctx) const
                         {
-                                if (ctx.currentFocus < ConcreteClass::Wrapped::widgetCount - 1) {
+                                if (ctx.currentFocus < ConcreteClass::Wrapped::focusableWidgetCount - 1) {
                                         ++ctx.currentFocus;
                                         scrollToFocus (ctx);
                                 }
@@ -862,7 +880,7 @@ namespace detail {
                         constexpr auto childHeight = Wrapped::getHeight ();
                         constexpr auto childHeightIncrement = augument::getHeightIncrement<GrandParent, Parent> (childHeight);
 
-                        return transformImpl<f + WidgetType::widgetCount, r + 1, y + childHeightIncrement, GrandParent, Parent> (
+                        return transformImpl<f + getFocusableWidgetCount<WidgetType> (), r + 1, y + childHeightIncrement, GrandParent, Parent> (
                                 std::tuple_cat (prev, a), ts...);
                 }
                 else {
@@ -910,7 +928,7 @@ template <typename T> void log (T const &t, int indent = 0)
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
 
         using Base = Widget<Layout<Decor, WidgetsTuple>>;
-        static constexpr uint16_t widgetCount = detail::Sum<WidgetsTuple, detail::WidgetCountField>::value;
+        static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
         static constexpr bool canFocus = false;
         // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
         // static constexpr Dimension height = Decor<WidgetsTuple>::height;
@@ -1021,7 +1039,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         void incrementFocus (Context & /* ctx */) const
         {
-                if (context.currentFocus < widgetCount - 1) {
+                if (context.currentFocus < focusableWidgetCount - 1) {
                         ++context.currentFocus;
                         Iteration iter{};
                         scrollToFocus (context, iter);
@@ -1041,7 +1059,7 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         static constexpr uint16_t width = widthV;   // Dimensions in charcters
         static constexpr uint16_t height = heightV; // Dimensions in charcters
-        static constexpr uint16_t widgetCount = Child::widgetCount;
+        static constexpr uint16_t focusableWidgetCount = Child::focusableWidgetCount;
         static constexpr bool canFocus = false;
         mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
