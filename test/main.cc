@@ -580,7 +580,7 @@ namespace detail {
 /****************************************************************************/
 
 /**
- * Radio group. Take 3.
+ * Radio group.
  */
 template <typename Callback, typename WidgetTuple> class Group {
 public:
@@ -588,17 +588,11 @@ public:
 
         static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
 
-        static constexpr Dimension height = 0; // TODO implement
-        Coordinate y{};                        // TODO remove or implement
-
         using Children = WidgetTuple;
-
-        // TODO input, scrollToFocus and operator() have to be re-implemented or deleted here
-        Visibility operator() (auto &d, Context &ctx, Iteration &iter) const { return {}; }
-
-        WidgetTuple widgets;
+        Children &getWidgets () { return widgets; }
 
 private:
+        WidgetTuple widgets;
         Callback callback;
 };
 
@@ -611,6 +605,7 @@ template <typename Callback, typename... W> auto group (Callback const &c, W con
 
 // Forward declaration for is_layout
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout;
+// template <typename T> void log (T const &t, int indent);
 
 namespace detail {
         template <typename Wtu> class DefaultDecor {
@@ -672,8 +667,8 @@ namespace detail {
 
                         void scrollToFocus (Context &ctx) const;
 
-                private:
                         T &widget; // Wrapped widget
+                private:
                 };
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
@@ -696,11 +691,15 @@ namespace detail {
                  * Base for widgets in the augument:: namespace that can contain other widgets.
                  */
                 template <typename ConcreteClass, typename Decor> struct ContainerWidget {
-                        Visibility operator() (auto &d, Context const &ctx) const
+                        Visibility operator() (auto &d, Context &ctx) const
                         {
                                 if (!detail::heightsOverlap (ConcreteClass::getY (), ConcreteClass::getHeight (), ctx.currentScroll,
                                                              ctx.dimensions.height)) {
                                         return Visibility::outside;
+                                }
+
+                                if constexpr (requires { ConcreteClass::radioSelection; }) {
+                                        ctx.radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
                                 }
 
                                 auto l = [&d, &ctx] (auto &itself, auto const &child, auto const &...children) {
@@ -729,8 +728,12 @@ namespace detail {
                                 return operator() (d, d.context);
                         }
 
-                        void input (auto &d, Context const &ctx, char c)
+                        void input (auto &d, Context &ctx, char c)
                         {
+                                if constexpr (requires { ConcreteClass::radioSelection; }) {
+                                        ctx.radioSelection = &static_cast<ConcreteClass *> (this)->radioSelection;
+                                }
+
                                 auto l = [&d, &ctx, c] (auto &itself, auto &child, auto &...children) {
                                         child.input (d, ctx, c);
 
@@ -788,9 +791,11 @@ namespace detail {
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
+                        Wrapped &widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of template
+                                         // error giberish.
+
                 private:
-                        friend ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType>;
-                        Wrapped &widget;
+                        friend ContainerWidget<Layout, typename T::DecoratorType>;
                         WidgetTuple children;
                 };
 
@@ -806,10 +811,12 @@ namespace detail {
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                private:
-                        friend ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV, Decor>, Decor>;
                         Wrapped &widget;
+
+                private:
+                        friend ContainerWidget<Group, Decor>;
                         WidgetTuple children;
+                        mutable Selection radioSelection{};
                 };
 
                 template <typename GrandParent, typename Parent> constexpr Dimension getHeightIncrement (Dimension d)
@@ -844,8 +851,8 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y>{
-                                t, transform<f, y, Parent, WidgetType> (t.widgets)};
+                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), f, y>{
+                                t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
 
@@ -856,9 +863,9 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.widgets)), f, y,
+                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), f, y,
                                                Parent::template Decorator<typename WidgetType::Children>::height,
-                                               typename Parent::DecoratorType>{t, transform<f, y, Parent, WidgetType> (t.widgets)};
+                                               typename Parent::DecoratorType>{t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
 
@@ -925,17 +932,16 @@ template <typename T> void log (T const &t, int indent = 0)
 /**
  * Container for other widgtes.
  */
-template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout {
-
+template <template <typename Wtu> typename Decor, typename WidgetsTuple> class Layout {
+public:
         static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
-
         template <typename Wtu> using Decorator = Decor<Wtu>;
-        using Children = WidgetsTuple;
         using DecoratorType = Decor<WidgetsTuple>;
 
-        explicit Layout (WidgetsTuple w) : widgets{std::move (w)} /* , augumentedWidgets{detail::transform (widgets)} */ {}
+        explicit Layout (WidgetsTuple w) : widgets{std::move (w)} {}
+        WidgetsTuple &getWidgets () { return widgets; }
 
-        // private:
+private:
         WidgetsTuple widgets;
 };
 
@@ -1138,52 +1144,32 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        // auto vb = vbox (
-        //         vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {})),
-        //         line<10>, //
-        //         vbox (label ("New radio"),
-        //               Radio2 (OptionsRad (radio (0, " red"), radio (1, " green"), radio (1, " blue")), [] (auto const &o) {})),
-        //         line<10>, //
-        //         hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})),
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Old radio"), radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-        //         line<10>,                                                                                           //
-        //         vbox (label ("Checkbox"), check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),              //
-        //         line<10>,                                                                                           //
-        //         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),                                  //
-        //         line<10>,                                                                                           //
-        //         vbox (hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-        //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),
-        //               hbox (check (" 9 "), check (" A "), check (" B "), check (" C ")),
-        //               hbox (check (" D "), check (" E "), check (" F "), check (" G ")),
-        //               hbox (check (" H "), check (" I "), check (" J "), check (" K ")),
-        //               hbox (check (" L "), check (" 1 "), check (" M "), check (" N ")),
-        //               hbox (check (" O "), check (" P "), check (" Q "), check (" R ")),
-        //               hbox (check (" S "), check (" T "), check (" U "), check (" V ")),
-        //               hbox (check (" W "), check (" X "), check (" Y "), check (" Z ")),
-        //               hbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),
-        //               hbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "))));
-
-        // auto vb = vbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-        //                 hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-        //                 check (" 1"), check (" 2"), check (" 3"), check (" 4"));
-
-        // auto vb = vbox (label ("Combo"), Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),
-        //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
-        //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
-
-        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),                                                   //
-                        hbox (label ("ho  "), check (" 5 "), check (" 6 ")),                                                   //
-                        line<18>,                                                                                              //
-                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
-                        line<18>,                                                                                              //
-                        radio (0, " R "), line<18>,                                                                            //
-                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),   //
-                        line<18>,                                                                                              //
-                        hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),      //
-                        line<18>,                                                                                              //
-                        check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "),
-                        check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
+        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),                                                          //
+                        hbox (label ("ho  "), check (" 5 "), check (" 6 ")),                                                          //
+                        line<18>,                                                                                                     //
+                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                        line<18>,                                                                                                     //
+                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                        line<18>,                                                                                                     //
+                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                        line<18>,                                                                                                     //
+                        hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                        line<18>,                                                                                                     //
+                        check (" 1 "),                                                                                                //
+                        check (" 2 "),                                                                                                //
+                        check (" 3 "),                                                                                                //
+                        check (" 4 "),                                                                                                //
+                        check (" 5 "),                                                                                                //
+                        check (" 6 "),                                                                                                //
+                        check (" 7 "),                                                                                                //
+                        check (" 8 "),                                                                                                //
+                        check (" 9 "),                                                                                                //
+                        check (" 10 "),                                                                                               //
+                        check (" 11 "),                                                                                               //
+                        check (" 12 "),                                                                                               //
+                        check (" 13 "),                                                                                               //
+                        check (" 14 "),                                                                                               //
+                        check (" 15 "));
 
         auto x = detail::wrap (vb);
         // log (x);
