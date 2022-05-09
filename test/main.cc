@@ -206,29 +206,14 @@ namespace detail {
 
 } // namespace detail
 
-/*--------------------------------------------------------------------------*/
-
-/**
- * Base class.
- * focusableWidgetCountV : number of focusable widgets. Some examples : for a label whihc is
- *                not focusable, use 0. For a button use 1. For containers return the
- *                number of focusable children insdide.
- * heightV : height of a widget in characters. For a mere (single line) label it would
- *           equal to 1, for a container it would be sum of all children heights.
- */
-template <typename ConcreteClass, uint16_t focusableWidgetCountV = 0, uint16_t heightV = 0> struct Widget {
-
-        static constexpr Dimension getHeight () { return heightV; }
-        // static constexpr uint16_t focusableWidgetCount = focusableWidgetCountV;
-        // static constexpr bool canFocus = focusableWidgetCount > 0;
+struct Focusable {
+        static constexpr bool canFocus = true;
 };
 
 /****************************************************************************/
 
-template <uint16_t len, char c> struct Line : public Widget<Line<len, c>, 0, 1> {
-
-        using Base = Widget<Line<len, c>, 0, 1>;
-        using Base::getHeight;
+template <uint16_t len, char c> struct Line {
+        static constexpr Dimension height = 1;
 
         template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
@@ -245,9 +230,9 @@ template <uint16_t len = 1> Line<len, ' '> hspace;
 /* Check                                                                    */
 /****************************************************************************/
 
-class Check : public Widget<Check, 1, 1> {
+class Check : public Focusable {
 public:
-        static constexpr bool canFocus = true;
+        static constexpr Dimension height = 1;
 
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
@@ -299,11 +284,9 @@ constexpr Check check (const char *str, bool checked = false) { return {str, che
 /****************************************************************************/
 
 template <std::integral Id> // TODO less restrictive concept for Id
-class Radio : public Widget<Radio<Id>, 1, 1> {
+class Radio : public Focusable {
 public:
-        static constexpr bool canFocus = true;
-        using Base = Widget<Radio<Id>, 1, 1>;
-        using Base::getHeight;
+        static constexpr Dimension height = 1;
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
@@ -313,6 +296,8 @@ private:
         Id id;
         const char *label;
 };
+
+/*--------------------------------------------------------------------------*/
 
 template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::operator() (auto &d, Context const &ctx) const
 {
@@ -355,8 +340,10 @@ template <std::integral Id> constexpr auto radio (Id &&id, const char *label) { 
 /**
  * Single line (?)
  */
-class Label : public Widget<Label, 0, 1> {
+class Label {
 public:
+        static constexpr Dimension height = 1;
+
         constexpr Label (const char *l) : label{l} {}
 
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const
@@ -379,11 +366,9 @@ auto label (const char *str) { return Label{str}; }
 /**
  *
  */
-template <typename Callback> class Button : public Widget<Button<Callback>, 1, 1> {
+template <typename Callback> class Button : public Focusable {
 public:
-        static constexpr bool canFocus = true;
-        using Base = Widget<Button<Callback>, 1, 1>;
-        using Base::getHeight;
+        static constexpr Dimension height = 1;
 
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
@@ -456,9 +441,9 @@ template <typename... J> Options (Option<J> &&...e) -> Options<First_t<J...>, si
  */
 template <typename OptionCollection, typename Callback>
 requires std::invocable<Callback, typename OptionCollection::Id>
-class Combo : public Widget<Combo<OptionCollection, Callback>, 1, 1> {
+class Combo : public Focusable {
 public:
-        static constexpr bool canFocus = true;
+        static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
@@ -515,10 +500,13 @@ namespace detail {
 
         template <typename T> constexpr uint16_t getFocusableWidgetCount ()
         {
+                // This introspection is for widget API simplification.
                 if constexpr (requires { T::focusableWidgetCount; }) { // TODO how to check for T::focusableWidgetCount type!?
+                        // focusableWidgetCount field is used in composite widgets like Layout and Group.
                         return T::focusableWidgetCount;
                 }
                 else if constexpr (requires { T::canFocus; }) {
+                        // This field is optional and is used in regular widgets. Its absence is treated as it were declared false.
                         return uint16_t (T::canFocus);
                 }
                 else {
@@ -526,12 +514,25 @@ namespace detail {
                 }
         }
 
+        template <typename T> constexpr Dimension getHeight ()
+        {
+                // Again this introspection is for sake of simplifying the API.
+                // User defined widgets ought to define the Dimension height field,
+                // while augument:: wrappers implement getHeight methods.
+                if constexpr (requires { T::getHeight (); }) {
+                        return T::getHeight ();
+                }
+                else {
+                        return T::height;
+                }
+        };
+
         template <typename T> struct FocusableWidgetCountField {
                 static constexpr auto value = getFocusableWidgetCount<T> ();
         };
 
         template <typename T> struct WidgetHeightField {
-                static constexpr auto value = T::getHeight ();
+                static constexpr auto value = getHeight<T> ();
         };
 
         /*--------------------------------------------------------------------------*/
@@ -581,12 +582,11 @@ namespace detail {
 /**
  * Radio group. Take 3.
  */
-template <typename Callback, typename WidgetTuple> class Group : public Widget<Group<Callback, WidgetTuple>> {
+template <typename Callback, typename WidgetTuple> class Group {
 public:
         Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
 
         static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
-        static constexpr bool canFocus = false;
 
         static constexpr Dimension height = 0; // TODO implement
         Coordinate y{};                        // TODO remove or implement
@@ -641,7 +641,7 @@ namespace detail {
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
 
                         /// Height in characters.
-                        static constexpr Dimension getHeight () { return T::getHeight (); }
+                        static constexpr Dimension getHeight () { return T::height; }
 
                         /// Consecutiive number in a radio group.
                         static constexpr Selection getRadioIndex () { return radioIndexV; }
@@ -925,17 +925,12 @@ template <typename T> void log (T const &t, int indent = 0)
 /**
  * Container for other widgtes.
  */
-template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout : public Widget<Layout<Decor, WidgetsTuple>> {
+template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout {
 
-        using Base = Widget<Layout<Decor, WidgetsTuple>>;
         static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
-        static constexpr bool canFocus = false;
-        // static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
-        // static constexpr Dimension height = Decor<WidgetsTuple>::height;
 
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using Children = WidgetsTuple;
-
         using DecoratorType = Decor<WidgetsTuple>;
 
         explicit Layout (WidgetsTuple w) : widgets{std::move (w)} /* , augumentedWidgets{detail::transform (widgets)} */ {}
@@ -965,10 +960,7 @@ template <typename... W> auto hbox (W const &...widgets)
 /**
  *
  */
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child>
-struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
-
-        using Base = Widget<Window<ox, oy, widthV, heightV, Child>>;
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window {
 
         explicit Window (Child const &c) : child{c} {}
 
@@ -989,9 +981,9 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
         Visibility operator() (auto &d, Context &ctx, Iteration &iter) const
         {
                 // TODO move to separate function. Code duplication.
-                if (!detail::heightsOverlap (Base::y, height, ctx.currentScroll, ctx.dimensions.height)) {
-                        return Visibility::outside;
-                }
+                // if (!detail::heightsOverlap (Base::y, height, ctx.currentScroll, ctx.dimensions.height)) {
+                //         return Visibility::outside;
+                // }
 
                 d.setCursorX (ox);
                 d.setCursorY (oy);
@@ -1057,10 +1049,9 @@ struct Window : public Widget<Window<ox, oy, widthV, heightV, Child>> {
 
         void calculatePositions () { child.calculatePositions (); }
 
-        static constexpr uint16_t width = widthV;   // Dimensions in charcters
-        static constexpr uint16_t height = heightV; // Dimensions in charcters
+        static constexpr Dimension width = widthV;   // Dimensions in charcters
+        static constexpr Dimension height = heightV; // Dimensions in charcters
         static constexpr uint16_t focusableWidgetCount = Child::focusableWidgetCount;
-        static constexpr bool canFocus = false;
         mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
