@@ -345,23 +345,6 @@ template <std::integral Id> template <typename Wrapper> void Radio<Id>::input (a
 
 template <std::integral Id> constexpr auto radio (Id &&id, const char *label) { return Radio<Id> (std::forward<Id> (id), label); }
 
-/**
- * A container for radios.
- */
-template <std::integral I, size_t Num> struct OptionsRad {
-
-        using OptionType = Radio<I>;
-        using Id = I;
-        using ContainerType = std::array<Radio<I>, Num>;
-        using SelectionIndex = typename ContainerType::size_type; // std::array::at accepts this
-
-        template <typename... J> constexpr OptionsRad (Radio<J> &&...e) : elms{std::forward<Radio<J>> (e)...} {}
-
-        ContainerType elms;
-};
-
-template <typename... J> OptionsRad (Radio<J> &&...e) -> OptionsRad<First_t<J...>, sizeof...(J)>;
-
 /****************************************************************************/
 /* Label                                                                    */
 /****************************************************************************/
@@ -520,43 +503,6 @@ void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ct
 }
 
 /****************************************************************************/
-/* Radio group                                                              */
-/****************************************************************************/
-
-/**
- * Copy & paste from Combo
- */
-template <typename OptionCollection, typename Callback>
-requires std::invocable<Callback, typename OptionCollection::Id>
-class Radio2 /* : public Widget<Radio2<OptionCollection, Callback>> */ {
-public:
-        using Option = typename OptionCollection::OptionType;
-        using Id = typename OptionCollection::Id;
-        using Base = Widget<Radio2<OptionCollection, Callback>>;
-        // using Base::y;
-        // using SelectionIndex = typename OptionCollection::SelectionIndex;
-
-        static constexpr uint16_t widgetCount = std::tuple_size<typename OptionCollection::ContainerType>::value;
-        static_assert (widgetCount <= 255);
-        // static constexpr uint16_t height = widgetCount; // TODO assumes that all radiobuttons are 1 in height (which is correct)
-
-        constexpr Radio2 (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
-
-        // Visibility operator() (auto &d, Context const &ctx, Iteration const &iter) const;
-        // void input (auto &d, Context const &ctx, Iteration iter, char c);
-
-        auto const &getElements () const { return options.elms; }
-        auto &getElements () { return options.elms; }
-
-        Coordinate y{};
-
-        mutable Selection currentSelection{}; // TODO private
-private:
-        OptionCollection options;
-        Callback callback;
-};
-
-/****************************************************************************/
 /* Layouts                                                                  */
 /****************************************************************************/
 
@@ -613,37 +559,6 @@ namespace detail {
         /* Decorators for vertical and horizontal layouts.                          */
         /*--------------------------------------------------------------------------*/
 
-        // Common implementation for both
-        // TODO vertical can be a template parameter - but what is the CPU and size impact? Make a decision after tests.
-        template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY, bool vertical)
-        {
-                if constexpr (requires (WidgetType w) { w.getElements (); }) {
-                        for (auto &o : widget.getElements ()) {
-                                o.y = bottomY;
-
-                                if (vertical) {
-                                        bottomY += o.height;
-                                }
-
-                                // std::cerr << "o.y = " << o.y << ", o.height = " << o.height << std::endl;
-                        }
-                }
-                else {
-                        widget.y = bottomY;
-
-                        if (vertical) {
-                                bottomY += widget.getHeight ();
-                        }
-
-                        // std::cerr << "w.y = " << widget.y << ", w.height = " << widget.height << ", typeid = " << typeid (widget).name ()
-                        //           << std::endl;
-
-                        if constexpr (requires (decltype (widget) w) { widget.calculatePositions (); }) {
-                                widget.calculatePositions (); // widget.y is already set and Layout::calculatePositions() uses it.
-                        }
-                }
-        }
-
         template <typename WidgetsTuple> struct VBoxDecoration {
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
@@ -653,11 +568,6 @@ namespace detail {
                         ctx.cursor->x = ctx.origin.x;
                 }
                 static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
-
-                template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
-                {
-                        detail::calculatePosition (widget, bottomY, true);
-                }
         };
 
         template <typename WidgetsTuple> struct HBoxDecoration {
@@ -665,59 +575,7 @@ namespace detail {
 
                 static void after (Context const &ctx) {}
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
-
-                template <typename WidgetType> static void calculatePosition (WidgetType &widget, Coordinate &bottomY)
-                {
-                        detail::calculatePosition (widget, bottomY, false);
-                }
         };
-
-        /**
-         * Iterate over Layout's widgets.
-         */
-        template <typename Callback, typename W, typename... Ws>
-        void iterate (Callback const &callback, Context &ctx, Iteration &iter, W &widget, Ws &...widgets)
-        {
-                using WidgetType = W;
-
-                constexpr bool lastWidgetInLayout = (sizeof...(widgets) == 0);
-
-                // This tests if a widget has getElements method. Its like a reflection.
-                // Such a widget is called a "composite widget".
-                if constexpr (requires (WidgetType w) { w.getElements (); }) { // TODO can it be extracted to a concept/function?
-
-                        static_assert (std::is_reference_v<decltype (widget.getElements ())>,
-                                       "Ensure that your composite widget type has getElements method that returns a reference.");
-
-                        iter.radioIndex = 0;
-                        ctx.radioSelection = &widget.currentSelection;
-
-                        for (auto const &last = widget.getElements ().back (); auto &o : widget.getElements ()) {
-                                std::cerr << "O. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex) << std::endl;
-                                callback (o, iter, lastWidgetInLayout && &o == &last);
-                                ++iter.focusIndex;
-                                ++iter.radioIndex;
-                        }
-
-                        iter.focusIndex -= widget.widgetCount; // TODO absolute mess
-                }
-                // This branch is for widgets that don't have getElements method
-                else {
-                        std::cerr << "W. focusIndex: " << iter.focusIndex << ", radioIndex: " << int (iter.radioIndex)
-                                  << ", name: " << typeid (widget).name () << ", wc: " << widget.widgetCount << std::endl;
-
-                        callback (widget, iter, lastWidgetInLayout);
-                }
-                // iter.focusIndex += widget.widgetCount;
-
-                if constexpr (!lastWidgetInLayout) {
-                        // TODO I don'tlike the fact that the whole Iter POD object is created again ana again even if one of its members is not
-                        // used.
-                        Iteration iii{uint16_t (iter.focusIndex + widget.widgetCount), 0 /* TODO not used */};
-                        iterate (callback, ctx, iii, widgets...);
-                        // iterate (callback, iter, widgets...);
-                }
-        }
 
 } // namespace detail
 
