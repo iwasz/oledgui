@@ -6,8 +6,8 @@ Modern C++ GUI library for small displays. Developed with microcontrollers in mi
 * Cursor (x,y).
 * Many screens at once. **????** **???????!!!!!!**
 * Input handling hooks for easy integration.
-* Minimal (no?) dependencies.
-* No dynamic allocation
+* C++20, no dependencies.
+* No dynamic allocation (apart of std::string used only for optional debug).
 
 # Hooks
 * print at cursor's possition with clipping (clips to the viewport area even if passed coordinates are **negative**).

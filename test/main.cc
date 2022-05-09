@@ -855,9 +855,11 @@ namespace detail {
 
                                 auto l = [&d, &ctx] (auto &itself, auto const &child, auto const &...children) {
                                         if (child (d, ctx) == Visibility::visible) {
-                                                // if (!lastWidgetInLayout) { // TODO implement
-                                                Decor::after (ctx);
-                                                // }
+                                                constexpr bool lastWidgetInLayout = (sizeof...(children) == 0);
+
+                                                if (!lastWidgetInLayout) {
+                                                        Decor::after (ctx);
+                                                }
                                         }
 
                                         if constexpr (sizeof...(children) > 0) {
@@ -1405,19 +1407,18 @@ int test2 ()
         //                 hbox (Radio2 (OptionsRad (radio (0, " R "), radio (1, " G "), radio (1, " B ")), [] (auto const &o) {})), check (" 5
         //                 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "));
 
-        // auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")), //
-        //                 hbox (label ("ho  "), check (" 5 "), check (" 6 ")), line<18>,
-        //                 group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), line<18>,
-        //                 radio (0, " R "), line<18>,
-        //                 Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}), line<18>,
-        //                 hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})), line<18>,
-        //                 check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8
-        //                 "), check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
-
-        auto vb = vbox (check (" 1 "), check (" 2 "), check (" 5 "), check (" 6 "),
-                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), check (" 1 "),
-                        check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "), check (" 9 "),
-                        check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
+        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),                                                   //
+                        hbox (label ("ho  "), check (" 5 "), check (" 6 ")),                                                   //
+                        line<18>,                                                                                              //
+                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")), //
+                        line<18>,                                                                                              //
+                        radio (0, " R "), line<18>,                                                                            //
+                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),   //
+                        line<18>,                                                                                              //
+                        hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),      //
+                        line<18>,                                                                                              //
+                        check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 "), check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 "),
+                        check (" 9 "), check (" 10 "), check (" 11 "), check (" 12 "), check (" 13 "), check (" 14 "), check (" 15 "));
 
         auto x = detail::wrap (vb);
         // log (x);
