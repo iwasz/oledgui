@@ -219,11 +219,8 @@ namespace detail {
 template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 0> struct Widget {
 
         static constexpr Dimension getHeight () { return heightV; }
-
-        uint16_t y{};
         static constexpr uint16_t widgetCount = widgetCountV;
         static constexpr bool canFocus = widgetCount > 0;
-        // static constexpr uint16_t height = heightV;
 };
 
 /****************************************************************************/
@@ -231,7 +228,7 @@ template <typename ConcreteClass, uint16_t widgetCountV = 0, uint16_t heightV = 
 template <uint16_t len, char c> struct Line : public Widget<Line<len, c>, 0, 1> {
 
         using Base = Widget<Line<len, c>, 0, 1>;
-        using Base::y, Base::getHeight;
+        using Base::getHeight;
 
         template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
@@ -303,7 +300,7 @@ template <std::integral Id> // TODO less restrictive concept for Id
 class Radio : public Widget<Radio<Id>, 1, 1> {
 public:
         using Base = Widget<Radio<Id>, 1, 1>;
-        using Base::y, Base::getHeight;
+        using Base::getHeight;
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
@@ -399,7 +396,7 @@ auto label (const char *str) { return Label{str}; }
 template <typename Callback> class Button : public Widget<Button<Callback>, 1, 1> {
 public:
         using Base = Widget<Button<Callback>, 1, 1>;
-        using Base::y, Base::getHeight;
+        using Base::getHeight;
 
         constexpr Button (const char *l, Callback const &c) : label{l}, callback{c} {}
 
@@ -476,8 +473,6 @@ class Combo : public Widget<Combo<OptionCollection, Callback>, 1, 1> {
 public:
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
-        using Base = Widget<Combo<OptionCollection, Callback>, 1, 1>;
-        using Base::y /* , Base::height */;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
         constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
@@ -1089,8 +1084,6 @@ template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct 
         using DecoratorType = Decor<WidgetsTuple>;
 
         explicit Layout (WidgetsTuple w) : widgets{std::move (w)} /* , augumentedWidgets{detail::transform (widgets)} */ {}
-
-        using Base::y;
 
         // private:
         WidgetsTuple widgets;
