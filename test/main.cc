@@ -513,46 +513,25 @@ namespace detail {
         };
 
         template <typename T> struct WidgetHeightField {
-
                 static constexpr auto value = T::getHeight ();
         };
 
         /*--------------------------------------------------------------------------*/
 
-        template <typename E, template <typename T> typename Field> constexpr auto getValue ()
-        {
-                if constexpr (requires (E t) { t.getElements (); }) {
-                        return Field<typename E::Option>::value * E::widgetCount; // TODO remove if Radio2 not needed
-                }
-                else {
-                        return Field<E>::value;
-                }
-        }
-
-        template <typename E, template <typename T> typename Field> constexpr auto getValueMax ()
-        {
-                if constexpr (requires (E t) { t.getElements (); }) {
-                        return Field<typename E::Option>::value; // All radios in a group have the same type which which imples same height
-                }
-                else {
-                        return Field<E>::value;
-                }
-        }
-
         template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Sum {
-                static constexpr auto value = getValue<std::tuple_element_t<n, Tuple>, Field> () + Sum<Tuple, Field, n - 1>::value;
+                static constexpr auto value = Field<std::tuple_element_t<n, Tuple>>::value + Sum<Tuple, Field, n - 1>::value;
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
-                static constexpr auto value = getValue<std::tuple_element_t<0, Tuple>, Field> ();
+                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
 
         template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Max {
-                static constexpr auto value = std::max (getValueMax<std::tuple_element_t<n, Tuple>, Field> (), Max<Tuple, Field, n - 1>::value);
+                static constexpr auto value = std::max (Field<std::tuple_element_t<n, Tuple>>::value, Max<Tuple, Field, n - 1>::value);
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Max<Tuple, Field, 0> {
-                static constexpr auto value = getValueMax<std::tuple_element_t<0, Tuple>, Field> ();
+                static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
 
         /*--------------------------------------------------------------------------*/
@@ -1098,10 +1077,6 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 //                                         vbox (radio (0, " E "), radio (0, " F "), radio (0, " G "), radio (0, " H "))  //
 //                                         ));                                                                            //
 
-//         // TODO compile time
-//         // TODO no additional call
-//         vb.calculatePositions (); // Only once. After composition
-
 //         // auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
 //         // // dialog.calculatePositions ();
 
@@ -1204,13 +1179,11 @@ int test2 ()
         auto x = detail::wrap (vb);
         // log (x);
 
-        // vb.calculatePositions (); // TODO get rid of this additional call
         bool showDialog{};
 
         // auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false;
         // }),
         //                                          check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
-        // dialog.calculatePositions ();
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
