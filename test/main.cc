@@ -575,6 +575,12 @@ namespace detail {
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
+        struct NoDecoration {
+                static constexpr Dimension height = 0;
+                static constexpr void after (Context const & /* ctx */) {}
+                static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
+        };
+
 } // namespace detail
 
 /****************************************************************************/
@@ -599,6 +605,107 @@ private:
 template <typename Callback, typename... W> auto group (Callback const &c, W const &...widgets)
 {
         return Group{c, std::make_tuple (widgets...)};
+}
+
+/**
+ * A window
+ */
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename ChildT> struct Window {
+
+        using Child = ChildT;
+        explicit Window (Child const &c) : child{c} {}
+
+        Visibility operator() (auto &d) const
+        {
+                Iteration iter{};
+                return operator() (d, d.context, iter);
+        }
+
+        // Visibility operator() (auto &d, Context &ctx, Iteration const &iter = {}) const
+        // {
+        //         d.cursorX = ox;
+        //         d.cursorY = oy;
+        //         return child (d, context, iter);
+        // }
+
+        // TODO This always prints the frame. There should be option for a windows without one.
+        template <typename Wrapper> Visibility operator() (auto &d, Context &ctx) const
+        {
+                d.setCursorX (ox);
+                d.setCursorY (oy);
+
+                d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
+                d.move (1, 0);
+                detail::line (d, width - 2);
+                d.print ("┐");
+
+                for (int i = 0; i < height - 2; ++i) {
+                        d.setCursorX (ox);
+                        d.move (0, 1);
+                        d.print ("│");
+                        // d.move (width - 1, 0);
+                        d.move (1, 0);
+                        detail::line (d, width - 2, " ");
+                        d.print ("│");
+                }
+
+                d.setCursorX (ox);
+                d.move (0, 1);
+                d.print ("└");
+                d.move (1, 0);
+                detail::line (d, width - 2);
+                d.print ("┘");
+
+                d.setCursorX (ox + 1);
+                d.setCursorY (oy + 1);
+
+                if (context.cursor == nullptr) { // TODO I don't like this approach
+                        context.cursor = ctx.cursor;
+                }
+
+                // return child (d, context);
+                return Visibility::visible;
+        }
+
+        void input (auto &d, char c)
+        {
+                Iteration iter{};
+                input (d, context, iter, c);
+        }
+
+        void input (auto &d, Context & /* ctx */, Iteration &iter, char c) { child.input (d, context, iter, c); }
+        void scrollToFocus (Context & /* ctx */, Iteration &iter) const { child.scrollToFocus (context, iter); }
+
+        void incrementFocus (Context & /* ctx */) const
+        {
+                if (context.currentFocus < focusableWidgetCount - 1) {
+                        ++context.currentFocus;
+                        Iteration iter{};
+                        scrollToFocus (context, iter);
+                }
+        }
+
+        void decrementFocus (Context & /* ctx */) const
+        {
+                if (context.currentFocus > 0) {
+                        --context.currentFocus;
+                        Iteration iter{};
+                        scrollToFocus (context, iter);
+                }
+        }
+
+        void calculatePositions () { child.calculatePositions (); }
+
+        static constexpr Dimension width = widthV;   // Dimensions in charcters
+        static constexpr Dimension height = heightV; // Dimensions in charcters
+        static constexpr uint16_t focusableWidgetCount = Child::focusableWidgetCount;
+        mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
+        Child child;
+};
+
+template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto window (auto &&c)
+{
+        return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
 }
 
 /****************************************************************************/
@@ -630,7 +737,7 @@ namespace detail {
                  * Additional information for all the widgetc contained in the Layout.
                  * TODO use concepts for ensuring that T is a widget and Parent is Layout or Group
                  */
-                template <typename T, Focus focusIndexV, Selection radioIndexV = 0, Coordinate yV = 0> class Widget {
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV> class Widget {
                 public:
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
                         // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
@@ -698,8 +805,25 @@ namespace detail {
                                         return Visibility::outside;
                                 }
 
+                                // Groups contain radioSelection
                                 if constexpr (requires { ConcreteClass::radioSelection; }) {
                                         ctx.radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
+                                }
+
+                                // Windows contain their own cursor
+                                if constexpr (requires { ConcreteClass::cursor; }) {
+                                        ctx.cursor = &static_cast<ConcreteClass const *> (this)->cursor;
+                                }
+
+                                // Some composite widgets have their own display method (operator ()). For instance og::Window
+                                if constexpr (requires {
+                                                      typename ConcreteClass::Wrapped;
+                                                      static_cast<ConcreteClass const *> (this)->widget;
+                                                      static_cast<ConcreteClass const *> (this)
+                                                              ->widget.template operator()<typename ConcreteClass::Wrapped> (d, ctx);
+                                              }) {
+                                        static_cast<ConcreteClass const *> (this)->widget.template operator()<typename ConcreteClass::Wrapped> (
+                                                d, ctx);
                                 }
 
                                 auto l = [&d, &ctx] (auto &itself, auto const &child, auto const &...children) {
@@ -779,16 +903,13 @@ namespace detail {
                 };
 
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Focus focusIndexV,
-                          Coordinate yV = 0> // TODO remove default parameter initializers if possible
-                class Layout : public ContainerWidget<Layout<T, WidgetTuple, focusIndexV, yV>, typename T::DecoratorType> {
+                template <typename T, typename WidgetTuple, Coordinate yV>
+                class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
                 public:
                         using Wrapped = T;
                         constexpr Layout (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
-                        static constexpr Selection getRadioIndex () { return 0; }
-                        static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
                         Wrapped &widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of template
@@ -799,16 +920,32 @@ namespace detail {
                         WidgetTuple children;
                 };
 
+                // TODO Parent has to be another Layout or void (use concept for ensuring that)
+                template <typename T, typename Child, Coordinate yV, Dimension heightV>
+                class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
+                public:
+                        using Wrapped = T;
+                        constexpr Window (Wrapped &t, Child c) : widget{t}, children{std::move (c)} {}
+
+                        static constexpr Dimension getHeight () { return heightV; }
+                        static constexpr Coordinate getY () { return yV; }
+
+                        Wrapped &widget;
+                        std::tuple<Child> children;
+
+                private:
+                        // friend ContainerWidget<Group, Decor>;
+                        mutable Point cursor;
+                };
+
                 // TODO Parent has to be a Layout (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Focus focusIndexV, Coordinate yV, Dimension heightV, typename Decor>
-                class Group : public ContainerWidget<Group<T, WidgetTuple, focusIndexV, yV, heightV, Decor>, Decor> {
+                template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
+                class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
                         using Wrapped = T;
                         constexpr Group (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
-                        static constexpr Selection getRadioIndex () { return 0; }
-                        static constexpr Focus getFocusIndex () { return focusIndexV; }
                         static constexpr Coordinate getY () { return yV; }
 
                         Wrapped &widget;
@@ -851,7 +988,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), f, y>{
+                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y>{
                                 t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
@@ -863,9 +1000,22 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), f, y,
+                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y,
                                                Parent::template Decorator<typename WidgetType::Children>::height,
                                                typename Parent::DecoratorType>{t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
+                }
+        };
+
+        // Partial specialization for Windows
+        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, Coordinate ox, Coordinate oy, Dimension widthV,
+                  Dimension heightV, typename Child>
+        struct Wrap<Window<ox, oy, widthV, heightV, Child>, GrandParent, Parent, f, r, y> {
+
+                using WidgetType = Window<ox, oy, widthV, heightV, Child>;
+                static auto wrap (WidgetType &t)
+                {
+                        return augument::Window<WidgetType, decltype (Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child)), oy, heightV> (
+                                t, Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child));
                 }
         };
 
@@ -961,112 +1111,6 @@ template <typename... W> auto hbox (W const &...widgets)
         return hbox;
 }
 
-/****************************************************************************/
-
-/**
- *
- */
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV, typename Child> struct Window {
-
-        explicit Window (Child const &c) : child{c} {}
-
-        Visibility operator() (auto &d) const
-        {
-                Iteration iter{};
-                return operator() (d, d.context, iter);
-        }
-
-        // Visibility operator() (auto &d, Context &ctx, Iteration const &iter = {}) const
-        // {
-        //         d.cursorX = ox;
-        //         d.cursorY = oy;
-        //         return child (d, context, iter);
-        // }
-
-        // TODO This always prints the frame. There should be option for a windows without one.
-        Visibility operator() (auto &d, Context &ctx, Iteration &iter) const
-        {
-                // TODO move to separate function. Code duplication.
-                // if (!detail::heightsOverlap (Base::y, height, ctx.currentScroll, ctx.dimensions.height)) {
-                //         return Visibility::outside;
-                // }
-
-                d.setCursorX (ox);
-                d.setCursorY (oy);
-
-                d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
-                d.move (1, 0);
-                detail::line (d, width - 2);
-                d.print ("┐");
-
-                for (int i = 0; i < height - 2; ++i) {
-                        d.setCursorX (ox);
-                        d.move (0, 1);
-                        d.print ("│");
-                        // d.move (width - 1, 0);
-                        d.move (1, 0);
-                        detail::line (d, width - 2, " ");
-                        d.print ("│");
-                }
-
-                d.setCursorX (ox);
-                d.move (0, 1);
-                d.print ("└");
-                d.move (1, 0);
-                detail::line (d, width - 2);
-                d.print ("┘");
-
-                d.setCursorX (ox + 1);
-                d.setCursorY (oy + 1);
-
-                if (context.cursor == nullptr) { // TODO I don't like this approach
-                        context.cursor = ctx.cursor;
-                }
-
-                return child (d, context, iter);
-        }
-
-        void input (auto &d, char c)
-        {
-                Iteration iter{};
-                input (d, context, iter, c);
-        }
-
-        void input (auto &d, Context & /* ctx */, Iteration &iter, char c) { child.input (d, context, iter, c); }
-        void scrollToFocus (Context & /* ctx */, Iteration &iter) const { child.scrollToFocus (context, iter); }
-
-        void incrementFocus (Context & /* ctx */) const
-        {
-                if (context.currentFocus < focusableWidgetCount - 1) {
-                        ++context.currentFocus;
-                        Iteration iter{};
-                        scrollToFocus (context, iter);
-                }
-        }
-
-        void decrementFocus (Context & /* ctx */) const
-        {
-                if (context.currentFocus > 0) {
-                        --context.currentFocus;
-                        Iteration iter{};
-                        scrollToFocus (context, iter);
-                }
-        }
-
-        void calculatePositions () { child.calculatePositions (); }
-
-        static constexpr Dimension width = widthV;   // Dimensions in charcters
-        static constexpr Dimension height = heightV; // Dimensions in charcters
-        static constexpr uint16_t focusableWidgetCount = Child::focusableWidgetCount;
-        mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
-        Child child;
-};
-
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto window (auto &&c)
-{
-        return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
-}
-
 } // namespace og
 
 /****************************************************************************/
@@ -1144,7 +1188,7 @@ int test2 ()
         using namespace og;
         NcursesDisplay<18, 7> d1;
 
-        auto vb = vbox (hbox (label ("Hej "), check (" 1 "), check (" 2 ")),                                                          //
+        auto vb = vbox (/* hbox (label ("Hej "), check (" 1 "), check (" 2 ")),                                                          //
                         hbox (label ("ho  "), check (" 5 "), check (" 6 ")),                                                          //
                         line<18>,                                                                                                     //
                         group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
@@ -1162,13 +1206,13 @@ int test2 ()
                         check (" 5 "),                                                                                                //
                         check (" 6 "),                                                                                                //
                         check (" 7 "),                                                                                                //
-                        check (" 8 "),                                                                                                //
-                        check (" 9 "),                                                                                                //
-                        check (" 10 "),                                                                                               //
-                        check (" 11 "),                                                                                               //
-                        check (" 12 "),                                                                                               //
-                        check (" 13 "),                                                                                               //
-                        check (" 14 "),                                                                                               //
+                        check (" 8 "),                                                                                                // */
+                        check (" 9 "),  //
+                        check (" 10 "), //
+                        check (" 11 "), //
+                        check (" 12 "), //
+                        check (" 13 "), //
+                        check (" 14 "), //
                         check (" 15 "));
 
         auto x = detail::wrap (vb);
@@ -1176,20 +1220,19 @@ int test2 ()
 
         bool showDialog{};
 
-        // auto dialog = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false;
-        // }),
-        //                                          check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+        auto dd = window<4, 1, 10, 5> (vbox (label ("  Token"), label (" 123456"), button ("  [OK]", [&showDialog] { showDialog = false; }),
+                                             check (" dialg5"), check (" 6 "), check (" 7 "), check (" 8 ")));
+
+        auto dialog = detail::wrap (dd);
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
                 d1.clear ();
-                // vb (d1);
                 x (d1);
 
-                // if (showDialog) {
-                //         Iteration iter{}; // TODO mess
-                //         dialog (d1, d1.context, iter);
-                // }
+                if (showDialog) {
+                        dialog (d1);
+                }
 
                 d1.refresh ();
                 int ch = getch ();
