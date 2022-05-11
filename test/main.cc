@@ -17,6 +17,93 @@
 #include <type_traits>
 #include <utility>
 
+/*
+A short code description:
+There are two layers of class templates.
+
+# Layer 1 (namespace og::)
+User creates a static tree of widgets where dimensions and positions of these widgets are
+fixed (compile time). Then, thanks to the static nature of the implementation certain attributes
+can be calculated at compile time:
+* height at which a widget is located looking from the top of the screen
+* focusIndex
+
+## Widgets
+There are two layers of class templates here (I'll refer to them as simply classes for short).
+First there are classes like Check, Radio and so on, and they are created by corresponding
+factory methods named accordingly (check, radio etc). Widgets can have these fields:
+
+* Coordinate height: height in characters.
+* bool canFocus: tells if widget can have focus. You also may inherit from Focusable class.
+* template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const : draws
+        the widget on the screen.
+* template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles
+        the input
+
+The first layer is meant to be extendeb by the user.
+
+## ContainerWidgets
+Then there are ContainerWidgets : Layout, Group and Window. When filled with children, they
+are able to calculate uint16_t focusableWidgetCount at compile time. This variable tells how many
+child widgets inside a container is able to accept focus. Other than children (or child) fields
+there is nothing special about them. Both Layouts, Groups and Windows inherit from ContainerWidget
+class (static polymorphism aka CRTP).
+
+## Layouts
+Although layout is a type of a widget, it can store arbitrary number of other widgets.
+
+## (Radio) Groups
+Stores one or more instances of Radio class.
+
+## Windows
+Can contain only 1 child. maintains a Context which stores runtime informations as current
+cursor position (or a pointer to it).
+
+# Layer 2 (namespace og::augment::)
+This layer is not meant to be extended or inherited from by the user. It contains class templates
+that wrap widgets and adds more information at compile time. This information includes:
+* Dimension getHeight (): for container widgets this is a sum of all children heights.
+        getHeight () - uses information from layer 1 solely. It can be calculated in the layer 1
+        classes. This is because simple widgets (i.e. not containers) know their height from the very
+        start (usually 1). And containers can simply sum all the heights of their children which is
+        simple to do at compile time.
+* Selection getRadioIndex (): this returns a child number in a container starting from 0. This
+        leverages information from the layer 1 and is calculated in between the layers in the
+        Wrapper helper classes. Wrapper helpers implement more involving compile time iterations
+        over children. Due to the fact that every container starts incrementing the radio index
+        from the 0, this value is also easy to obtain in a simple compile time "loop". See
+        transformImpl and transform functions.
+* Focus getFocusIndex (): every focusable widget in the tree has consecutive number assigned,
+        and this methid returns that number. This is calculated in a similar way as the previous
+        one, but this time addint 1 every time is not enough as the whole tree has to be traversed.
+        What is more, the tree is not heterogeneous, because you can have a mix of Layouts, Groups
+        and Windows (although not every combination makes sense and may be prohibited in the future
+        by some static checks or concepts). Thus the getFocusableWidgetCount helper function returns
+        the appropriate value for every child. If it's a simple widget, it returns a simple value,
+        otherwise it sums the heights recursively.
+* getY (): this method returns the position in characters of a widget starting from the top
+        of the screen. What differentiates this field is that it uses information from both
+        layers : height fields from layer 1 and getHeight() from layer 2 (og::augment::). The
+        getHeightIncrement helper is used in the transformImpl to achieve that.
+
+## Problem with Groups
+The problem with this container is that goes between the Layout and the Radio instances. It implements
+only grouping, while the positioning of the radios resulting from the concrete Layout type (hbox or vbox)
+has to be maintained. This is troublesome in compile time environment, so the introspection ios used in
+some places to differentiate between Layouts and Groups (by introspection i mean if constexpr (requires {
+check for a method or field })). Also the GrandParent parameter was added solely for the purpose of
+implementing Groups. See the getHeightIncrement.
+
+## Problem with windows
+Not so difficult to solve as previous one, but still. The runtime information (as opposed to compile
+time stuff like positions, orderings and heights) has to be accessible for every widget in a tree.
+For this reason the Context class was introduced. A display instance has its own context (this may
+be subject to change) and then the Windows also have their own Context-s. This is because a window
+can be drawn on top of another, and we have to maintain the runtime state of both. The way this is
+implemented is that if a concrete ContainerWidget instance has its own context field it replaces the
+previous (partent's or display's). The changeContext is used fo that.
+*/
+
 namespace og {
 enum class Visibility {
         visible,    // Widget drawed something on the screen.
@@ -237,7 +324,7 @@ public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto & /* d */, Context const &ctx, char c)
+        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, char c)
         {
                 if (c == ' ') { // TODO character must be customizable (compile time)
                         checked = !checked;
@@ -524,7 +611,7 @@ namespace detail {
         {
                 // Again this introspection is for sake of simplifying the API.
                 // User defined widgets ought to define the Dimension height field,
-                // while augument:: wrappers implement getHeight methods.
+                // while augment:: wrappers implement getHeight methods.
                 if constexpr (requires { T::getHeight (); }) {
                         return T::getHeight ();
                 }
@@ -692,7 +779,7 @@ namespace detail {
         static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
         static_assert (!is_layout<decltype (check (""))>::value);
 
-        namespace augument {
+        namespace augment {
 
                 /**
                  * Additional information for all the widgetc contained in the Layout.
@@ -708,7 +795,7 @@ namespace detail {
                         /// Height in characters.
                         static constexpr Dimension getHeight () { return T::height; }
 
-                        /// Consecutiive number in a radio group.
+                        /// Consecutive number in a radio group.
                         static constexpr Selection getRadioIndex () { return radioIndexV; }
 
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
@@ -757,7 +844,7 @@ namespace detail {
                 }
 
                 /**
-                 * Base for widgets in the augument:: namespace that can contain other widgets.
+                 * Base for widgets in the augment:: namespace that can contain other widgets.
                  */
                 template <typename ConcreteClass, typename Decor> struct ContainerWidget {
 
@@ -962,7 +1049,7 @@ namespace detail {
                         }
                 }
 
-        } // namespace augument
+        } // namespace augment
 
         template <Focus f, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple);
@@ -972,7 +1059,7 @@ namespace detail {
                   template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
         struct Wrap {
                 using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augument::Widget<WidgetType, f, r, y>{t}; }
+                static auto wrap (WidgetType &t) { return augment::Widget<WidgetType, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
@@ -983,7 +1070,7 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y>{
+                        return augment::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y>{
                                 t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
@@ -995,9 +1082,9 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y,
-                                               Parent::template Decorator<typename WidgetType::Children>::height,
-                                               typename Parent::DecoratorType>{t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
+                        return augment::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y,
+                                              Parent::template Decorator<typename WidgetType::Children>::height, typename Parent::DecoratorType>{
+                                t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
 
@@ -1009,7 +1096,7 @@ namespace detail {
                 using WidgetType = Window<ox, oy, widthV, heightV, Child>;
                 static auto wrap (WidgetType &t)
                 {
-                        return augument::Window<WidgetType, decltype (Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child)), oy, heightV> (
+                        return augment::Window<WidgetType, decltype (Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child)), oy, heightV> (
                                 t, Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child));
                 }
         };
@@ -1030,7 +1117,7 @@ namespace detail {
 
                 if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
                         constexpr auto childHeight = Wrapped::getHeight ();
-                        constexpr auto childHeightIncrement = augument::getHeightIncrement<GrandParent, Parent> (childHeight);
+                        constexpr auto childHeightIncrement = augment::getHeightIncrement<GrandParent, Parent> (childHeight);
 
                         return transformImpl<f + getFocusableWidgetCount<WidgetType> (), r + 1, y + childHeightIncrement, GrandParent, Parent> (
                                 std::tuple_cat (prev, a), ts...);

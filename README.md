@@ -52,7 +52,7 @@ aaa
   * [ ] Test this widget in the vertical and horizontal layouts.
 * [ ] vbox(); (no parameters) results in an error.
 * [ ] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
-* [ ] Describe how the code works in a comment on the top.
+* [x] Describe how the code works in a comment on the top.
 
 
 Document:
