@@ -42,6 +42,9 @@ aaa
   * [x] Dialog
 * [ ] Prepare for compile time optimization
   * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
+    * [ ] Debug, release and -OS targets
+  * [ ] Benchmark cimpilation size.
+  * [ ] Benchmark cpu?
 * [ ] Console backend (with or even without input)
   * [ ] Styling (external tempolate class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
@@ -50,3 +53,8 @@ aaa
 * [ ] vbox(); (no parameters) results in an error.
 * [ ] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [ ] Describe how the code works in a comment on the top.
+
+
+Document:
+* When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
+* Display has its own context, so you don;t have to use a window???
