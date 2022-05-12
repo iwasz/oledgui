@@ -141,12 +141,6 @@ struct Context {
         Selection *radioSelection{}; // TODO remove if nre radio proves to be feasible
 };
 
-/// These classes are for simplyfying the Widget API. Instead of n function arguments we have those 2 aggreagtes.
-struct Iteration {
-        uint16_t focusIndex{};
-        Selection radioIndex{};
-};
-
 /**
  * A helper.
  */
@@ -163,8 +157,7 @@ public:
         Visibility operator() ()
         {
                 static_cast<ConcreteClass *> (this)->clear (); // How cool.
-                Iteration iter{};
-                auto v = child (*static_cast<ConcreteClass *> (this), context, iter);
+                auto v = child (*static_cast<ConcreteClass *> (this), context);
                 static_cast<ConcreteClass *> (this)->refresh ();
                 return v;
         }
@@ -1298,7 +1291,7 @@ int test2 ()
 
         bool showDialog{};
 
-        auto vb = vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+        auto vb = vbox (/* hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
                         hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
                         button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
                         line<18>,                                                                                                     //
@@ -1323,7 +1316,7 @@ int test2 ()
                         check (" 11 "),                                                                                               //
                         check (" 12 "),                                                                                               //
                         check (" 13 "),                                                                                               //
-                        check (" 14 "),                                                                                               //
+                        check (" 14 "),         */                                                                                       //
                         check (" 15 "));
 
         auto x = detail::wrap (vb);
