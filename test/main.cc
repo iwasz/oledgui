@@ -150,10 +150,11 @@ namespace c {
          * Level 1 widget.
          */
         template <typename T>
-        concept widget = requires (T t, NcursesDisplay<0, 0, Empty> &d, Context const &c)
+        concept widget = requires (T const t, NcursesDisplay<0, 0, Empty> &d, Context const &c)
         {
-                T::height;
-                requires std::is_same_v<std::remove_cvref_t<decltype (T::height)>, Dimension>; //
+                {
+                        T::height
+                        } -> std::same_as<Dimension const &>;
                 {
                         t.template operator()<int> (d, c)
                         } -> std::same_as<Visibility>;
@@ -828,9 +829,8 @@ namespace detail {
 
                 /**
                  * Additional information for all the widgetc contained in the Layout.
-                 * TODO use concepts for ensuring that T is a widget and Parent is Layout or Group
                  */
-                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV> class Widget {
+                template <c::widget T, Focus focusIndexV, Selection radioIndexV, Coordinate yV> class Widget {
                 public:
                         using Wrapped = T;
 
@@ -884,7 +884,7 @@ namespace detail {
                 template <typename T>
                 concept widget_wrapper = is_widget_wrapper<T>::value;
 
-                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                template <c::widget T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
                 void Widget<T, focusIndexV, radioIndexV, yV>::scrollToFocus (Context *ctx) const
                 {
                         if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
@@ -1040,7 +1040,7 @@ namespace detail {
                 };
 
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
-                template <typename T, typename WidgetTuple, Coordinate yV>
+                template <c::layout T, typename WidgetTuple, Coordinate yV>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
                 public:
                         using Wrapped = T;
@@ -1313,40 +1313,42 @@ static_assert (c::widget<Radio<int>>);
 static_assert (c::widget<Label>);
 static_assert (c::widget<Button<decltype ([] {})>>);
 // These does not have the operator () and the height field
-static_assert (!c::widget<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+
+using MyLayout = Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>;
+static_assert (!c::widget<MyLayout>);
 static_assert (!c::widget<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
 static_assert (!c::widget<Window<0, 0, 0, 0, Label>>);
 
-static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
+static_assert (is_layout<MyLayout>::value);
 static_assert (!is_layout<decltype (check (""))>::value);
 static_assert (!c::layout<Label>);
-static_assert (c::layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+static_assert (c::layout<MyLayout>);
 
 static_assert (!c::group<int>);
 static_assert (!c::group<Label>);
-static_assert (!c::group<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+static_assert (!c::group<MyLayout>);
 static_assert (c::group<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
 
 static_assert (c::window<Window<0, 0, 0, 0, Label>>);
 static_assert (!c::window<Label>);
 
-static_assert (detail::augment::widget_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
-static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (detail::augment::widget_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
 static_assert (!detail::augment::widget_wrapper<detail::augment::Window<int, int, 0, 0>>);
 static_assert (!detail::augment::widget_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
-static_assert (detail::augment::layout_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+static_assert (detail::augment::layout_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
 static_assert (!detail::augment::layout_wrapper<detail::augment::Window<int, int, 0, 0>>);
 static_assert (!detail::augment::layout_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::window_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
-static_assert (!detail::augment::window_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::window_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+static_assert (!detail::augment::window_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
 static_assert (detail::augment::window_wrapper<detail::augment::Window<int, int, 0, 0>>);
 static_assert (!detail::augment::window_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::group_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
-static_assert (!detail::augment::group_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::group_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+static_assert (!detail::augment::group_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
 static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int, 0, 0>>);
 static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
