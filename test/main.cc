@@ -1141,18 +1141,16 @@ namespace detail {
         constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y,
-                  template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
-        struct Wrap {
+        template <typename T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
                 using WidgetType = T;
                 static auto wrap (WidgetType &t) { return augment::Widget<WidgetType, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
-        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, template <typename Wtu> typename Decor,
-                  typename WidgetsTuple>
-        struct Wrap<Layout<Decor, WidgetsTuple>, GrandParent, Parent, f, r, y> {
-                using WidgetType = Layout<Decor, WidgetsTuple>;
+        template <c::layout T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y>
+        struct Wrap<T, GrandParent, Parent, f, r, y> {
+
+                using WidgetType = T;
 
                 static auto wrap (WidgetType &t)
                 {
@@ -1162,9 +1160,10 @@ namespace detail {
         };
 
         // Wrapper for groups
-        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, typename Callback, typename WidgetsTuple>
-        struct Wrap<Group<Callback, WidgetsTuple>, GrandParent, Parent, f, r, y> {
-                using WidgetType = Group<Callback, WidgetsTuple>;
+        template <c::group T, typename GrandParent, c::layout Parent, Focus f, Selection r, Coordinate y>
+        struct Wrap<T, GrandParent, Parent, f, r, y> {
+
+                using WidgetType = T;
 
                 static auto wrap (WidgetType &t)
                 {
@@ -1175,11 +1174,14 @@ namespace detail {
         };
 
         // Partial specialization for Windows
-        template <typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y, Coordinate ox, Coordinate oy, Dimension widthV,
-                  Dimension heightV, typename Child>
-        struct Wrap<Window<ox, oy, widthV, heightV, Child>, GrandParent, Parent, f, r, y> {
+        template <c::window T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y>
+        struct Wrap<T, GrandParent, Parent, f, r, y> {
 
-                using WidgetType = Window<ox, oy, widthV, heightV, Child>;
+                using WidgetType = T;
+                static constexpr auto oy = T::y;
+                static constexpr auto heightV = T::height;
+                using Child = T::Child;
+
                 static auto wrap (WidgetType &t)
                 {
                         return augment::Window<WidgetType, decltype (Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child)), oy, heightV> (
@@ -1332,25 +1334,25 @@ static_assert (c::group<Group<decltype ([] {}), decltype (std::make_tuple (radio
 static_assert (c::window<Window<0, 0, 0, 0, Label>>);
 static_assert (!c::window<Label>);
 
-static_assert (detail::augment::widget_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-static_assert (!detail::augment::widget_wrapper<detail::augment::Window<int, int, 0, 0>>);
-static_assert (!detail::augment::widget_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+// static_assert (detail::augment::widget_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+// static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
+// static_assert (!detail::augment::widget_wrapper<detail::augment::Window<int, int, 0, 0>>);
+// static_assert (!detail::augment::widget_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-static_assert (detail::augment::layout_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-static_assert (!detail::augment::layout_wrapper<detail::augment::Window<int, int, 0, 0>>);
-static_assert (!detail::augment::layout_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+// static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+// static_assert (detail::augment::layout_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
+// static_assert (!detail::augment::layout_wrapper<detail::augment::Window<int, int, 0, 0>>);
+// static_assert (!detail::augment::layout_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::window_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-static_assert (!detail::augment::window_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-static_assert (detail::augment::window_wrapper<detail::augment::Window<int, int, 0, 0>>);
-static_assert (!detail::augment::window_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+// static_assert (!detail::augment::window_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+// static_assert (!detail::augment::window_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
+// static_assert (detail::augment::window_wrapper<detail::augment::Window<int, int, 0, 0>>);
+// static_assert (!detail::augment::window_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
-static_assert (!detail::augment::group_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-static_assert (!detail::augment::group_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int, 0, 0>>);
-static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+// static_assert (!detail::augment::group_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
+// static_assert (!detail::augment::group_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
+// static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int, 0, 0>>);
+// static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
 } // namespace og
 
