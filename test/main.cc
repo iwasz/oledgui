@@ -114,10 +114,11 @@ enum class Visibility {
 struct Empty {
 };
 
-using Coordinate = uint16_t; // TODO change uint16_t's in the code to proper types.
+using Coordinate = uint16_t;
 using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
+using Color = uint16_t;
 
 struct Point {
         Coordinate x{};
@@ -134,12 +135,33 @@ struct Dimensions {
  */
 struct Context {
         Point *cursor{};
-        Point origin{};          // TODO const
-        Dimensions dimensions{}; // TODO const
+        Point const origin{};
+        Dimensions const dimensions{};
         Focus currentFocus{};
         Coordinate currentScroll{};
-        Selection *radioSelection{}; // TODO remove if nre radio proves to be feasible
+        Selection *radioSelection{};
 };
+
+template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisplay;
+
+namespace c {
+
+        /**
+         * Level 1 widget.
+         */
+        template <typename T>
+        concept widget = requires (T t, NcursesDisplay<0, 0, Empty> &d, Context const &c)
+        {
+                T::height;
+                requires std::is_same_v<std::remove_cvref_t<decltype (T::height)>, Dimension>; //
+                {
+                        t.template operator()<int> (d, c)
+                        } -> std::same_as<Visibility>;
+
+                // t.template input<int> (d, c, 'a'); // input is not required. Some has, some doesn't
+        };
+
+} // namespace c
 
 /**
  * A helper.
@@ -150,7 +172,7 @@ template <typename... T> struct First {
 
 template <typename... T> using First_t = typename First<T...>::type;
 
-template <typename ConcreteClass, uint16_t widthV, uint16_t heightV, typename Child = Empty> class Display {
+template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename Child = Empty> class Display {
 public:
         Display (Child const &c = {}) : child{c} {}
 
@@ -162,7 +184,7 @@ public:
                 return v;
         }
 
-        void move (uint16_t ox, uint16_t oy) // TODO make this a Point method
+        void move (Coordinate ox, Coordinate oy) // TODO make this a Point method
         {
                 cursor.x += ox;
                 cursor.y += oy;
@@ -180,21 +202,19 @@ public:
 
         Context *getContext () { return &context; }
 
-        static constexpr uint16_t width = widthV;   // Dimensions in charcters
-        static constexpr uint16_t height = heightV; // Dimensions in charcters
+        static constexpr Dimension width = widthV;   // Dimensions in charcters
+        static constexpr Dimension height = heightV; // Dimensions in charcters
 
-        // protected: // TODO protected
+protected:
         Context context{&cursor, {0, 0}, {width, height}};
         Child child;
-        // uint16_t cursorX{}; /// Current cursor position in characters
-        // uint16_t cursorY{}; /// Current cursor position in characters
         Point cursor{};
 };
 
 /**
  * Ncurses backend.
  */
-template <uint16_t widthV, uint16_t heightV, typename Child = Empty>
+template <Dimension widthV, Dimension heightV, typename Child = Empty>
 class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
 public:
         using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
@@ -217,7 +237,7 @@ public:
                 cursor.y = 0;
         }
 
-        void color (uint16_t c) { wattron (win, COLOR_PAIR (c)); }
+        void color (Color c) { wattron (win, COLOR_PAIR (c)); }
 
         void refresh ()
         {
@@ -225,16 +245,15 @@ public:
                 wrefresh (win);
         }
 
-        // private: // TODO private
-        using Base::child;
-        using Base::context;
-        using Base::cursor;
+        using Base::context; // TODO private
 
 private:
+        using Base::child;
+        using Base::cursor;
         WINDOW *win{};
 };
 
-template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
+template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
         // return;
         setlocale (LC_ALL, "");
@@ -252,7 +271,7 @@ template <uint16_t widthV, uint16_t heightV, typename Child> NcursesDisplay<widt
         refresh ();
 }
 
-template <uint16_t widthV, uint16_t heightV> auto ncurses (auto &&child)
+template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
 {
         return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
 }
@@ -331,7 +350,7 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Wrapper> Visibility Check::operator() (auto &d, Context const &ctx) const // TODO this def. cannot be in a header file!
+template <typename Wrapper> Visibility Check::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
@@ -351,7 +370,7 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
                 d.color (1);
         }
 
-        d.move (strlen (label), 0); // TODO this strlen should be constexpr expression
+        d.move (strlen (label), 0); // TODO constexpr strings?
         return Visibility::visible;
 }
 
@@ -587,11 +606,19 @@ namespace detail {
         template <typename T> constexpr uint16_t getFocusableWidgetCount ()
         {
                 // This introspection is for widget API simplification.
-                if constexpr (requires { T::focusableWidgetCount; }) { // TODO how to check for T::focusableWidgetCount type!?
+                if constexpr (requires {
+                                      {
+                                              T::focusableWidgetCount
+                                              } -> std::convertible_to<Focus>;
+                              }) {
                         // focusableWidgetCount field is used in composite widgets like Layout and Group.
                         return T::focusableWidgetCount;
                 }
-                else if constexpr (requires { T::canFocus; }) {
+                else if constexpr (requires {
+                                           {
+                                                   T::canFocus
+                                                   } -> std::convertible_to<bool>;
+                                   }) {
                         // This field is optional and is used in regular widgets. Its absence is treated as it were declared false.
                         return uint16_t (T::canFocus);
                 }
@@ -678,7 +705,7 @@ template <typename Callback, typename WidgetTuple> class Group {
 public:
         Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
 
-        static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
+        static constexpr Focus focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
 
         using Children = WidgetTuple;
         Children &getWidgets () { return widgets; }
@@ -687,6 +714,17 @@ private:
         WidgetTuple widgets;
         Callback callback;
 };
+
+template <typename T> struct is_group : public std::bool_constant<false> {
+};
+
+template <typename Callback, typename WidgetTuple> struct is_group<Group<Callback, WidgetTuple>> : public std::bool_constant<true> {
+};
+
+namespace c {
+        template <typename T>
+        concept group = is_group<T>::value;
+} // namespace c
 
 template <typename Callback, typename... W> auto group (Callback const &c, W const &...widgets)
 {
@@ -739,12 +777,24 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typ
         static constexpr Coordinate y = oy;
         static constexpr Dimension width = widthV;   // Dimensions in charcters
         static constexpr Dimension height = heightV; // Dimensions in charcters
-        static constexpr uint16_t focusableWidgetCount = Child::focusableWidgetCount;
+        static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
         mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
         Child child;
 };
 
-template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto window (auto &&c)
+template <typename T> struct is_window : public std::bool_constant<false> {
+};
+
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename ChildT>
+struct is_window<Window<ox, oy, widthV, heightV, ChildT>> : public std::bool_constant<true> {
+};
+
+namespace c {
+        template <typename T>
+        concept window = is_window<T>::value;
+}
+
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV> auto window (auto &&c)
 {
         return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
 }
@@ -755,22 +805,24 @@ template <uint16_t ox, uint16_t oy, uint16_t widthV, uint16_t heightV> auto wind
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout;
 // template <typename T> void log (T const &t, int indent);
 
+template <typename Wtu> class DefaultDecor {
+};
+
+/// Type trait for discovering Layouts
+template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
+struct is_layout : public std::bool_constant<false> {
+};
+
+template <template <typename Wtu> typename Decor, typename WidgetsTuple>
+struct is_layout<Layout<Decor, WidgetsTuple>> : public std::bool_constant<true> {
+};
+
+namespace c {
+        template <typename T>
+        concept layout = is_layout<T>::value;
+}
+
 namespace detail {
-        template <typename Wtu> class DefaultDecor {
-        };
-
-        /// Type trait for discovering Layouts
-        template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
-        struct is_layout : public std::bool_constant<false> {
-        };
-
-        template <template <typename Wtu> typename Decor, typename WidgetsTuple>
-        struct is_layout<Layout<Decor, WidgetsTuple>> : public std::bool_constant<true> {
-        };
-
-        /// Quick "unit test"
-        static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
-        static_assert (!is_layout<decltype (check (""))>::value);
 
         namespace augment {
 
@@ -783,7 +835,8 @@ namespace detail {
                         using Wrapped = T;
 
                         constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
-                        // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex; }
+                        // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex;
+                        // }
 
                         /// Height in characters.
                         static constexpr Dimension getHeight () { return T::height; }
@@ -820,6 +873,16 @@ namespace detail {
                         T &widget; // Wrapped widget
                 private:
                 };
+
+                template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {
+                };
+
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                class is_widget_wrapper<Widget<T, focusIndexV, radioIndexV, yV>> : public std::bool_constant<true> {
+                };
+
+                template <typename T>
+                concept widget_wrapper = is_widget_wrapper<T>::value;
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
                 void Widget<T, focusIndexV, radioIndexV, yV>::scrollToFocus (Context *ctx) const
@@ -986,14 +1049,24 @@ namespace detail {
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped &widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of template
-                                         // error giberish.
+                        Wrapped &widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of
+                                         // template error giberish.
 
                         WidgetTuple children;
 
                 private:
                         friend ContainerWidget<Layout, typename T::DecoratorType>;
                 };
+
+                template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {
+                };
+
+                template <typename T, typename WidgetTuple, Coordinate yV>
+                class is_layout_wrapper<Layout<T, WidgetTuple, yV>> : public std::bool_constant<true> {
+                };
+
+                template <typename T>
+                concept layout_wrapper = is_layout_wrapper<T>::value;
 
                 // TODO Parent has to be another Layout or void (use concept for ensuring that)
                 template <typename T, typename Child, Coordinate yV, Dimension heightV>
@@ -1013,6 +1086,16 @@ namespace detail {
                         mutable Context context{nullptr, {Wrapped::x + 1, Wrapped::y + 1}, {Wrapped::width - 2, Wrapped::height - 2}};
                 };
 
+                template <typename T> struct is_window_wrapper : public std::bool_constant<false> {
+                };
+
+                template <typename T, typename Child, Coordinate yV, Dimension heightV>
+                class is_window_wrapper<Window<T, Child, yV, heightV>> : public std::bool_constant<true> {
+                };
+
+                template <typename T>
+                concept window_wrapper = is_window_wrapper<T>::value;
+
                 // TODO Parent has to be a Layout (use concept for ensuring that)
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
@@ -1030,6 +1113,16 @@ namespace detail {
                         friend ContainerWidget<Group, Decor>;
                         mutable Selection radioSelection{};
                 };
+
+                template <typename T> struct is_group_wrapper : public std::bool_constant<false> {
+                };
+
+                template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
+                class is_group_wrapper<Group<T, WidgetTuple, yV, heightV, Decor>> : public std::bool_constant<true> {
+                };
+
+                template <typename T>
+                concept group_wrapper = is_group_wrapper<T>::value;
 
                 template <typename GrandParent, typename Parent> constexpr Dimension getHeightIncrement (Dimension d)
                 {
@@ -1185,7 +1278,7 @@ template <typename T> void log (T &&t) { detail::log (std::make_tuple (std::forw
  */
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> class Layout {
 public:
-        static constexpr uint16_t focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
+        static constexpr Focus focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using DecoratorType = Decor<WidgetsTuple>;
 
@@ -1211,6 +1304,51 @@ template <typename... W> auto hbox (W const &...widgets)
         auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{std::tuple (widgets...)};
         return hbox;
 }
+
+/****************************************************************************/
+
+static_assert (c::widget<Line<0, '-'>>);
+static_assert (c::widget<Check>);
+static_assert (c::widget<Radio<int>>);
+static_assert (c::widget<Label>);
+static_assert (c::widget<Button<decltype ([] {})>>);
+// These does not have the operator () and the height field
+static_assert (!c::widget<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+static_assert (!c::widget<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
+static_assert (!c::widget<Window<0, 0, 0, 0, Label>>);
+
+static_assert (is_layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>::value);
+static_assert (!is_layout<decltype (check (""))>::value);
+static_assert (!c::layout<Label>);
+static_assert (c::layout<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+
+static_assert (!c::group<int>);
+static_assert (!c::group<Label>);
+static_assert (!c::group<Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>>);
+static_assert (c::group<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
+
+static_assert (c::window<Window<0, 0, 0, 0, Label>>);
+static_assert (!c::window<Label>);
+
+static_assert (detail::augment::widget_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
+static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::widget_wrapper<detail::augment::Window<int, int, 0, 0>>);
+static_assert (!detail::augment::widget_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+
+static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
+static_assert (detail::augment::layout_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::layout_wrapper<detail::augment::Window<int, int, 0, 0>>);
+static_assert (!detail::augment::layout_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+
+static_assert (!detail::augment::window_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
+static_assert (!detail::augment::window_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (detail::augment::window_wrapper<detail::augment::Window<int, int, 0, 0>>);
+static_assert (!detail::augment::window_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
+
+static_assert (!detail::augment::group_wrapper<detail::augment::Widget<int, 0, 0, 0>>);
+static_assert (!detail::augment::group_wrapper<detail::augment::Layout<int, std::tuple<int>, 0>>);
+static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int, 0, 0>>);
+static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
 
 } // namespace og
 
@@ -1291,7 +1429,7 @@ int test2 ()
 
         bool showDialog{};
 
-        auto vb = vbox (/* hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+        auto vb = vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
                         hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
                         button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
                         line<18>,                                                                                                     //
@@ -1316,7 +1454,7 @@ int test2 ()
                         check (" 11 "),                                                                                               //
                         check (" 12 "),                                                                                               //
                         check (" 13 "),                                                                                               //
-                        check (" 14 "),         */                                                                                       //
+                        check (" 14 "),                                                                                               //
                         check (" 15 "));
 
         auto x = detail::wrap (vb);
