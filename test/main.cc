@@ -10,8 +10,8 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
-#include <ncurses.h>
+// #include <iostream>
+// #include <ncurses.h>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -212,6 +212,7 @@ protected:
         Point cursor{};
 };
 
+#if 0
 /**
  * Ncurses backend.
  */
@@ -276,6 +277,43 @@ template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
 {
         return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
 }
+#endif
+/****************************************************************************/
+
+/**
+ * Simplest dumb terminal backend.
+ */
+template <Dimension widthV, Dimension heightV, typename Child = Empty>
+class TerminalDisplay : public Display<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
+public:
+        using Base = Display<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base::width, Base::height;
+
+        void print (const char *str)
+        {
+                // std::cout << "\033[<" << cursor.y << ">;<" << cursor.x << ">H" << str;
+                // mvwprintw (win, cursor.y, cursor.x, str);
+        }
+
+        void clear ()
+        {
+                // wclear (win);
+                cursor.x = 0;
+                cursor.y = 0;
+        }
+
+        void color (Color c)
+        { /* wattron (win, COLOR_PAIR (c)); */
+        }
+
+        void refresh () {}
+
+        using Base::context; // TODO private
+
+private:
+        using Base::child;
+        using Base::cursor;
+};
 
 /****************************************************************************/
 
@@ -1230,50 +1268,50 @@ namespace detail {
 
 /*--------------------------------------------------------------------------*/
 
-namespace detail {
-        template <typename T> void log (T const &t, int indent = 0)
-        {
-                auto l = [indent]<typename Wrapper> (auto &itself, Wrapper const &w, auto const &...ws) {
-                        using Wrapped = typename Wrapper::Wrapped;
+// namespace detail {
+//         template <typename T> void log (T const &t, int indent = 0)
+//         {
+//                 auto l = [indent]<typename Wrapper> (auto &itself, Wrapper const &w, auto const &...ws) {
+//                         using Wrapped = typename Wrapper::Wrapped;
 
-                        // std::string used only for debug.
-                        std::cout << std::string (indent, ' ') << "focusIndex: ";
+//                         // std::string used only for debug.
+//                         std::cout << std::string (indent, ' ') << "focusIndex: ";
 
-                        if constexpr (requires {
-                                              Wrapped::canFocus;
-                                              requires Wrapped::canFocus == 1;
-                                      }) {
-                                std::cout << w.getFocusIndex ();
-                        }
-                        else {
-                                std::cout << "NA";
-                        }
+//                         if constexpr (requires {
+//                                               Wrapped::canFocus;
+//                                               requires Wrapped::canFocus == 1;
+//                                       }) {
+//                                 std::cout << w.getFocusIndex ();
+//                         }
+//                         else {
+//                                 std::cout << "NA";
+//                         }
 
-                        std::cout << ", radioIndex: ";
+//                         std::cout << ", radioIndex: ";
 
-                        if constexpr (is_radio<Wrapped>::value) {
-                                std::cout << int (w.getRadioIndex ());
-                        }
-                        else {
-                                std::cout << "NA";
-                        }
+//                         if constexpr (is_radio<Wrapped>::value) {
+//                                 std::cout << int (w.getRadioIndex ());
+//                         }
+//                         else {
+//                                 std::cout << "NA";
+//                         }
 
-                        std::cout << ", y: " << w.getY () << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
+//                         std::cout << ", y: " << w.getY () << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
 
-                        if constexpr (requires (decltype (w) x) { x.children; }) {
-                                log (w.children, indent + 2);
-                        }
+//                         if constexpr (requires (decltype (w) x) { x.children; }) {
+//                                 log (w.children, indent + 2);
+//                         }
 
-                        if constexpr (sizeof...(ws) > 0) {
-                                itself (itself, ws...);
-                        }
-                };
+//                         if constexpr (sizeof...(ws) > 0) {
+//                                 itself (itself, ws...);
+//                         }
+//                 };
 
-                std::apply ([&l] (auto const &...widgets) { l (l, widgets...); }, t);
-        }
-} // namespace detail
+//                 std::apply ([&l] (auto const &...widgets) { l (l, widgets...); }, t);
+//         }
+// } // namespace detail
 
-template <typename T> void log (T &&t) { detail::log (std::make_tuple (std::forward<T> (t))); }
+// template <typename T> void log (T &&t) { detail::log (std::make_tuple (std::forward<T> (t))); }
 
 /**
  * Container for other widgtes.
@@ -1429,7 +1467,7 @@ static_assert (!c::window<Label>);
 int test2 ()
 {
         using namespace og;
-        NcursesDisplay<18, 7> d1;
+        TerminalDisplay<18, 7> d1;
 
         bool showDialog{};
 
@@ -1482,14 +1520,17 @@ int test2 ()
                 }
 
                 d1.refresh ();
-                int ch = getch ();
+                // int ch = getch ();
+                // int ch = std::cin.get ();
+                int ch = std::rand ();
 
                 if (ch == 'q') {
                         break;
                 }
 
                 switch (ch) {
-                case KEY_DOWN:
+                // case KEY_DOWN:
+                case 's':
                         if (showDialog) {
                                 dialog.incrementFocus (d1);
                         }
@@ -1498,7 +1539,8 @@ int test2 ()
                         }
                         break;
 
-                case KEY_UP:
+                // case KEY_UP:
+                case 'w':
                         if (showDialog) {
                                 dialog.decrementFocus (d1);
                         }

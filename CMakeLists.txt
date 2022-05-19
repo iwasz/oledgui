@@ -9,4 +9,4 @@ add_executable(${CMAKE_PROJECT_NAME}
     test/main.cc
 )
 
-target_link_libraries(${CMAKE_PROJECT_NAME} ncursesw)
+# target_link_libraries(${CMAKE_PROJECT_NAME} ncursesw)
