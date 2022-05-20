@@ -1141,14 +1141,13 @@ namespace detail {
         constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
+        template <typename T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
                 using WidgetType = T;
                 static auto wrap (WidgetType &t) { return augment::Widget<WidgetType, f, r, y>{t}; }
         };
 
         // Wrapper for layouts
-        template <c::layout T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y>
-        struct Wrap<T, GrandParent, Parent, f, r, y> {
+        template <c::layout T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
 
                 using WidgetType = T;
 
@@ -1160,8 +1159,7 @@ namespace detail {
         };
 
         // Wrapper for groups
-        template <c::group T, typename GrandParent, c::layout Parent, Focus f, Selection r, Coordinate y>
-        struct Wrap<T, GrandParent, Parent, f, r, y> {
+        template <c::group T, c::layout Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
 
                 using WidgetType = T;
 
@@ -1174,8 +1172,7 @@ namespace detail {
         };
 
         // Partial specialization for Windows
-        template <c::window T, typename GrandParent, typename Parent, Focus f, Selection r, Coordinate y>
-        struct Wrap<T, GrandParent, Parent, f, r, y> {
+        template <c::window T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
 
                 using WidgetType = T;
                 static constexpr auto oy = T::y;
@@ -1184,22 +1181,22 @@ namespace detail {
 
                 static auto wrap (WidgetType &t)
                 {
-                        return augment::Window<WidgetType, decltype (Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child)), oy, heightV> (
-                                t, Wrap<Child, Parent, Wrap, f, r, y>::wrap (t.child));
+                        return augment::Window<WidgetType, decltype (Wrap<Child, WidgetType, f, r, y>::wrap (t.child)), oy, heightV> (
+                                t, Wrap<Child, WidgetType, f, r, y>::wrap (t.child));
                 }
         };
 
         template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &t)
         {
                 using WidgetType = T;
-                return Wrap<WidgetType, void, void, f, r, y>::wrap (t);
+                return Wrap<WidgetType, void, f, r, y>::wrap (t);
         }
 
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
                 using WidgetType = std::remove_cvref_t<T>;
-                using Wrapper = Wrap<WidgetType, GrandParent, Parent, f, r, y>;
+                using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
                 using Wrapped = decltype (Wrapper::wrap (t));
                 auto a = std::make_tuple (Wrapper::wrap (t));
 
