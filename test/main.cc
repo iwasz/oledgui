@@ -834,9 +834,7 @@ namespace detail {
                 public:
                         using Wrapped = T;
 
-                        constexpr Widget (T &t) : widget{t} /* , focusIndex{f} */ {}
-                        // constexpr bool operator== (Widget const &other) const { return other.t == t && other.focusIndex == focusIndex;
-                        // }
+                        constexpr Widget (T t) : widget{std::move (t)} {}
 
                         /// Height in characters.
                         static constexpr Dimension getHeight () { return T::height; }
@@ -870,7 +868,7 @@ namespace detail {
 
                         void scrollToFocus (Context *ctx) const;
 
-                        T &widget; // Wrapped widget
+                        T widget; // Wrapped widget
                 private:
                 };
 
@@ -1044,13 +1042,13 @@ namespace detail {
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
                 public:
                         using Wrapped = T;
-                        constexpr Layout (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
+                        constexpr Layout (Wrapped t, WidgetTuple c) : widget{std::move (t)}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped &widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of
-                                         // template error giberish.
+                        Wrapped widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of
+                                        // template error giberish.
 
                         WidgetTuple children;
 
@@ -1073,12 +1071,12 @@ namespace detail {
                 class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
                 public:
                         using Wrapped = T;
-                        constexpr Window (Wrapped &t, Child c) : widget{t}, children{std::move (c)} {}
+                        constexpr Window (Wrapped t, Child c) : widget{std::move (t)}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped &widget;
+                        Wrapped widget;
                         std::tuple<Child> children;
 
                 private:
@@ -1101,12 +1099,12 @@ namespace detail {
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
                         using Wrapped = T;
-                        constexpr Group (Wrapped &t, WidgetTuple const &c) : widget{t}, children{c} {}
+                        constexpr Group (Wrapped t, WidgetTuple c) : widget{std::move (t)}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped &widget;
+                        Wrapped widget;
                         WidgetTuple children;
 
                 private:
@@ -1142,19 +1140,19 @@ namespace detail {
 
         // Wrapper for ordinary widgets
         template <typename T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
-                using WidgetType = T;
-                static auto wrap (WidgetType &t) { return augment::Widget<WidgetType, f, r, y>{t}; }
+
+                template <typename W> static auto wrap (W &&t) { return augment::Widget<T, f, r, y>{std::forward<W> (t)}; }
         };
 
         // Wrapper for layouts
         template <c::layout T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
 
-                using WidgetType = T;
+                // using WidgetType = T;
 
-                static auto wrap (WidgetType &t)
+                template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Layout<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y>{
-                                t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
+                        return augment::Layout<T, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y>{
+                                std::forward<W> (t), transform<f, y, Parent, T> (t.getWidgets ())};
                 }
         };
 
@@ -1163,11 +1161,11 @@ namespace detail {
 
                 using WidgetType = T;
 
-                static auto wrap (WidgetType &t)
+                template <typename W> static auto wrap (W &&t)
                 {
                         return augment::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y,
                                               Parent::template Decorator<typename WidgetType::Children>::height, typename Parent::DecoratorType>{
-                                t, transform<f, y, Parent, WidgetType> (t.getWidgets ())};
+                                std::forward<W> (t), transform<f, y, Parent, WidgetType> (t.getWidgets ())};
                 }
         };
 
@@ -1179,17 +1177,16 @@ namespace detail {
                 static constexpr auto heightV = T::height;
                 using Child = T::Child;
 
-                static auto wrap (WidgetType &t)
+                template <typename W> static auto wrap (W &&t)
                 {
                         return augment::Window<WidgetType, decltype (Wrap<Child, WidgetType, f, r, y>::wrap (t.child)), oy, heightV> (
-                                t, Wrap<Child, WidgetType, f, r, y>::wrap (t.child));
+                                std::forward<W> (t), Wrap<Child, WidgetType, f, r, y>::wrap (t.child));
                 }
         };
 
-        template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &t)
+        template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &&t)
         {
-                using WidgetType = T;
-                return Wrap<WidgetType, void, f, r, y>::wrap (t);
+                return Wrap<std::decay_t<T>, void, f, r, y>::wrap (std::forward<T> (t));
         }
 
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
@@ -1430,43 +1427,44 @@ int test2 ()
 
         bool showDialog{};
 
-        auto vb = vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                        hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                        button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                        line<18>,                                                                                                     //
-                        group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                        line<18>,                                                                                                     //
-                        hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                        line<18>,                                                                                                     //
-                        Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                        line<18>,                                                                                                     //
-                        hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                        line<18>,                                                                                                     //
-                        check (" 1 "),                                                                                                //
-                        check (" 2 "),                                                                                                //
-                        check (" 3 "),                                                                                                //
-                        check (" 4 "),                                                                                                //
-                        check (" 5 "),                                                                                                //
-                        check (" 6 "),                                                                                                //
-                        check (" 7 "),                                                                                                //
-                        check (" 8 "),                                                                                                //
-                        check (" 9 "),                                                                                                //
-                        check (" 10 "),                                                                                               //
-                        check (" 11 "),                                                                                               //
-                        check (" 12 "),                                                                                               //
-                        check (" 13 "),                                                                                               //
-                        check (" 14 "),                                                                                               //
-                        check (" 15 "));
+        auto x = detail::wrap (
+                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+                      line<18>,                                                                                                     //
+                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                      line<18>,                                                                                                     //
+                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                      line<18>,                                                                                                     //
+                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                      line<18>,                                                                                                     //
+                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                      line<18>,                                                                                                     //
+                      check (" 1 "),                                                                                                //
+                      check (" 2 "),                                                                                                //
+                      check (" 3 "),                                                                                                //
+                      check (" 4 "),                                                                                                //
+                      check (" 5 "),                                                                                                //
+                      check (" 6 "),                                                                                                //
+                      check (" 7 "),                                                                                                //
+                      check (" 8 "),                                                                                                //
+                      check (" 9 "),                                                                                                //
+                      check (" 10 "),                                                                                               //
+                      check (" 11 "),                                                                                               //
+                      check (" 12 "),                                                                                               //
+                      check (" 13 "),                                                                                               //
+                      check (" 14 "),                                                                                               //
+                      check (" 15 ")));
 
-        auto x = detail::wrap (vb);
+        // auto x = detail::wrap (vb);
         // log (x);
 
-        auto dd = window<4, 1, 10, 5> (vbox (label ("  PIN:"),  //
-                                             label (" 123456"), //
-                                             hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})),
-                                             check (" 15 ")));
+        auto dialog = detail::wrap (window<4, 1, 10, 5> (
+                vbox (label ("  PIN:"),  //
+                      label (" 123456"), //
+                      hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "))));
 
-        auto dialog = detail::wrap (dd);
+        // auto dialog = detail::wrap (dd);
         // log (dialog);
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
