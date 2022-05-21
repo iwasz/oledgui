@@ -825,6 +825,8 @@ namespace c {
 
 namespace detail {
 
+        template <typename T> void log (T const &t, int indent = 0);
+
         namespace augment {
 
                 /**
@@ -870,6 +872,7 @@ namespace detail {
 
                         T widget; // Wrapped widget
                 private:
+                        // friend void log<T> (T const &t, int indent);
                 };
 
                 template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {
@@ -1037,7 +1040,6 @@ namespace detail {
                         }
                 };
 
-                // TODO Parent has to be another Layout or void (use concept for ensuring that)
                 template <c::layout T, typename WidgetTuple, Coordinate yV>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
                 public:
@@ -1066,7 +1068,6 @@ namespace detail {
                 template <typename T>
                 concept layout_wrapper = is_layout_wrapper<T>::value;
 
-                // TODO Parent has to be another Layout or void (use concept for ensuring that)
                 template <typename T, typename Child, Coordinate yV, Dimension heightV>
                 class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
                 public:
@@ -1076,10 +1077,9 @@ namespace detail {
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
 
+                private:
                         Wrapped widget;
                         std::tuple<Child> children;
-
-                private:
                         friend ContainerWidget<Window, NoDecoration>;
                         mutable Context context{nullptr, {Wrapped::x + 1, Wrapped::y + 1}, {Wrapped::width - 2, Wrapped::height - 2}};
                 };
@@ -1094,7 +1094,6 @@ namespace detail {
                 template <typename T>
                 concept window_wrapper = is_window_wrapper<T>::value;
 
-                // TODO Parent has to be a Layout (use concept for ensuring that)
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
@@ -1145,9 +1144,9 @@ namespace detail {
         };
 
         // Wrapper for layouts
-        template <c::layout T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
-
-                // using WidgetType = T;
+        template <c::layout T, typename Parent, Focus f, Selection r, Coordinate y>
+        requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
+        struct Wrap<T, Parent, f, r, y> {
 
                 template <typename W> static auto wrap (W &&t)
                 {
@@ -1159,28 +1158,27 @@ namespace detail {
         // Wrapper for groups
         template <c::group T, c::layout Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
 
-                using WidgetType = T;
-
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Group<WidgetType, decltype (transform<f, y, Parent, WidgetType> (t.getWidgets ())), y,
-                                              Parent::template Decorator<typename WidgetType::Children>::height, typename Parent::DecoratorType>{
-                                std::forward<W> (t), transform<f, y, Parent, WidgetType> (t.getWidgets ())};
+                        return augment::Group<T, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y,
+                                              Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
+                                std::forward<W> (t), transform<f, y, Parent, T> (t.getWidgets ())};
                 }
         };
 
         // Partial specialization for Windows
-        template <c::window T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
+        template <c::window T, typename Parent, Focus f, Selection r, Coordinate y>
+        requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
+        struct Wrap<T, Parent, f, r, y> {
 
-                using WidgetType = T;
                 static constexpr auto oy = T::y;
                 static constexpr auto heightV = T::height;
                 using Child = T::Child;
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Window<WidgetType, decltype (Wrap<Child, WidgetType, f, r, y>::wrap (t.child)), oy, heightV> (
-                                std::forward<W> (t), Wrap<Child, WidgetType, f, r, y>::wrap (t.child));
+                        return augment::Window<T, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV> (
+                                std::forward<W> (t), Wrap<Child, T, f, r, y>::wrap (t.child));
                 }
         };
 
@@ -1225,7 +1223,7 @@ namespace detail {
 /*--------------------------------------------------------------------------*/
 
 namespace detail {
-        template <typename T> void log (T const &t, int indent = 0)
+        template <typename T> void log (T const &t, int indent)
         {
                 auto l = [indent]<typename Wrapper> (auto &itself, Wrapper const &w, auto const &...ws) {
                         using Wrapped = typename Wrapper::Wrapped;
@@ -1457,7 +1455,7 @@ int test2 ()
                       check (" 15 ")));
 
         // auto x = detail::wrap (vb);
-        // log (x);
+        log (x);
 
         auto dialog = detail::wrap (window<4, 1, 10, 5> (
                 vbox (label ("  PIN:"),  //
