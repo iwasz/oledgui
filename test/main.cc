@@ -159,7 +159,7 @@ namespace c {
                         t.template operator()<int> (d, c)
                         } -> std::same_as<Visibility>;
 
-                // t.template input<int> (d, c, 'a'); // input is not required. Some has, some doesn't
+                // t.template input<int> (d, c, 'a'); // input is not required. Some widget has it, some hasn't
         };
 
 } // namespace c
@@ -203,8 +203,8 @@ public:
 
         Context *getContext () { return &context; }
 
-        static constexpr Dimension width = widthV;   // Dimensions in charcters
-        static constexpr Dimension height = heightV; // Dimensions in charcters
+        static constexpr Dimension width = widthV;   // Dimensions in characters
+        static constexpr Dimension height = heightV; // Dimensions in characters
 
 protected:
         Context context{&cursor, {0, 0}, {width, height}};
@@ -732,62 +732,79 @@ template <typename Callback, typename... W> auto group (Callback const &c, W con
         return Group{c, std::make_tuple (widgets...)};
 }
 
+/****************************************************************************/
+
+namespace detail {
+        template <bool frame> struct FrameHelper {
+                static constexpr Coordinate offset = 0;
+                static constexpr Dimension cut = 0;
+        };
+
+        template <> struct FrameHelper<true> {
+                static constexpr Coordinate offset = 1;
+                static constexpr Dimension cut = 2;
+        };
+} // namespace detail
+
 /**
  * A window
  */
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename ChildT> struct Window {
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> struct Window {
 
         using Child = ChildT;
-        explicit Window (Child const &c) : child{c} {}
+        explicit Window (Child c) : child{std::move (c)} {}
 
         // TODO This always prints the frame. There should be option for a windows without one.
-        template <typename Wrapper> Visibility operator() (auto &d, Context &ctx) const
+        template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
         {
                 d.setCursorX (ox);
                 d.setCursorY (oy);
 
-                d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
-                d.move (1, 0);
-                detail::line (d, width - 2);
-                d.print ("┐");
+                if constexpr (frame) {
+                        d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
+                        d.move (1, 0);
+                        detail::line (d, width - F::cut);
+                        d.print ("┐");
 
-                for (int i = 0; i < height - 2; ++i) {
+                        for (int i = 0; i < height - F::cut; ++i) {
+                                d.setCursorX (ox);
+                                d.move (0, 1);
+                                d.print ("│");
+                                // d.move (width - 1, 0);
+                                d.move (1, 0);
+                                detail::line (d, width - F::cut, " ");
+                                d.print ("│");
+                        }
+
                         d.setCursorX (ox);
                         d.move (0, 1);
-                        d.print ("│");
-                        // d.move (width - 1, 0);
+                        d.print ("└");
                         d.move (1, 0);
-                        detail::line (d, width - 2, " ");
-                        d.print ("│");
+                        detail::line (d, width - F::cut);
+                        d.print ("┘");
+
+                        d.setCursorX (ox + F::offset);
+                        d.setCursorY (oy + F::offset);
                 }
-
-                d.setCursorX (ox);
-                d.move (0, 1);
-                d.print ("└");
-                d.move (1, 0);
-                detail::line (d, width - 2);
-                d.print ("┘");
-
-                d.setCursorX (ox + 1);
-                d.setCursorY (oy + 1);
 
                 return Visibility::visible;
         }
 
         static constexpr Coordinate x = ox;
         static constexpr Coordinate y = oy;
-        static constexpr Dimension width = widthV;   // Dimensions in charcters
-        static constexpr Dimension height = heightV; // Dimensions in charcters
+        static constexpr Dimension width = widthV;   // Dimensions in characters
+        static constexpr Dimension height = heightV; // Dimensions in characters
         static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
-        mutable Context context{nullptr, {ox + 1, oy + 1}, {width - 2, height - 2}};
+
+        using F = detail::FrameHelper<frame>;
         Child child;
 };
 
 template <typename T> struct is_window : public std::bool_constant<false> {
 };
 
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename ChildT>
-struct is_window<Window<ox, oy, widthV, heightV, ChildT>> : public std::bool_constant<true> {
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT>
+struct is_window<Window<ox, oy, widthV, heightV, frame, ChildT>> : public std::bool_constant<true> {
 };
 
 namespace c {
@@ -795,10 +812,12 @@ namespace c {
         concept window = is_window<T>::value;
 }
 
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV> auto window (auto &&c)
-{
-        return Window<ox, oy, widthV, heightV, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
-}
+namespace detail {
+        template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&c)
+        {
+                return Window<ox, oy, widthV, heightV, frame, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
+        }
+} // namespace detail
 
 /****************************************************************************/
 
@@ -1081,7 +1100,9 @@ namespace detail {
                         Wrapped widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
-                        mutable Context context{nullptr, {Wrapped::x + 1, Wrapped::y + 1}, {Wrapped::width - 2, Wrapped::height - 2}};
+                        using F = T::F;
+                        mutable Context context{
+                                nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
                 };
 
                 template <typename T> struct is_window_wrapper : public std::bool_constant<false> {
@@ -1168,7 +1189,7 @@ namespace detail {
 
         // Partial specialization for Windows
         template <c::window T, typename Parent, Focus f, Selection r, Coordinate y>
-        requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
+        requires std::same_as<Parent, void> // Means that windows are always top level
         struct Wrap<T, Parent, f, r, y> {
 
                 static constexpr auto oy = T::y;
@@ -1301,6 +1322,14 @@ template <typename... W> auto hbox (W const &...widgets)
 
 /****************************************************************************/
 
+/// window factory function has special meaning that is also wraps.
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false, typename W = void> auto window (W &&c)
+{
+        return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, frame> (std::forward<W> (c)));
+}
+
+/****************************************************************************/
+
 static_assert (c::widget<Line<0, '-'>>);
 static_assert (c::widget<Check>);
 static_assert (c::widget<Radio<int>>);
@@ -1311,7 +1340,7 @@ static_assert (c::widget<Button<decltype ([] {})>>);
 using MyLayout = Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>;
 static_assert (!c::widget<MyLayout>);
 static_assert (!c::widget<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
-static_assert (!c::widget<Window<0, 0, 0, 0, Label>>);
+static_assert (!c::widget<Window<0, 0, 0, 0, false, Label>>);
 
 static_assert (is_layout<MyLayout>::value);
 static_assert (!is_layout<decltype (check (""))>::value);
@@ -1323,7 +1352,7 @@ static_assert (!c::group<Label>);
 static_assert (!c::group<MyLayout>);
 static_assert (c::group<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
 
-static_assert (c::window<Window<0, 0, 0, 0, Label>>);
+static_assert (c::window<Window<0, 0, 0, 0, false, Label>>);
 static_assert (!c::window<Label>);
 
 // static_assert (detail::augment::widget_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
@@ -1425,7 +1454,7 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = detail::wrap (
+        auto x = window<0, 0, 18, 7> (
                 vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
                       hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
                       button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
@@ -1455,12 +1484,12 @@ int test2 ()
                       check (" 15 ")));
 
         // auto x = detail::wrap (vb);
-        log (x);
+        // log (x);
 
-        auto dialog = detail::wrap (window<4, 1, 10, 5> (
-                vbox (label ("  PIN:"),  //
-                      label (" 123456"), //
-                      hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "))));
+        auto dialog = window<4, 1, 10, 5, true> (vbox (label ("  PIN:"),  //
+                                                       label (" 123456"), //
+                                                       hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})),
+                                                       check (" 15 ")));
 
         // auto dialog = detail::wrap (dd);
         // log (dialog);
