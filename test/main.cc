@@ -10,8 +10,9 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-// #include <iostream>
+#include <iostream>
 // #include <ncurses.h>
+// #include <ostream>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -289,24 +290,33 @@ public:
         using Base = Display<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
         using Base::width, Base::height;
 
-        void print (const char *str)
-        {
-                // std::cout << "\033[<" << cursor.y << ">;<" << cursor.x << ">H" << str;
-                // mvwprintw (win, cursor.y, cursor.x, str);
-        }
+        void print (const char *str) { std::cout << "\033[" << cursor.y + 1 << ";" << cursor.x + 1 << "H" << str << std::flush; }
 
         void clear ()
         {
-                // wclear (win);
                 cursor.x = 0;
                 cursor.y = 0;
+                color (0);
+
+                for (int y = 0; y < heightV; ++y) {
+                        std::cout << "\033[" << y + 1 << ";0H" << std::flush;
+                        for (int x = 0; x < widthV; ++x) {
+                                std::cout.put (' ');
+                        }
+                }
         }
 
         void color (Color c)
-        { /* wattron (win, COLOR_PAIR (c)); */
+        {
+                if (c == 0) {
+                        std::cout << "\033[44m" << std::flush;
+                }
+                else if (c == 1) {
+                        std::cout << "\033[47m" << std::endl;
+                }
         }
 
-        void refresh () {}
+        void refresh () { std::cout << "\033[0m" << std::flush; }
 
         using Base::context; // TODO private
 
@@ -392,7 +402,7 @@ private:
 template <typename Wrapper> Visibility Check::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                d.color (1);
         }
 
         if (checked) {
@@ -406,7 +416,7 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
         d.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                d.color (0);
         }
 
         d.move (strlen (label), 0); // TODO constexpr strings?
@@ -440,7 +450,7 @@ private:
 template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                d.color (1);
         }
 
         if (ctx.radioSelection != nullptr && Wrapper::getRadioIndex () == *ctx.radioSelection) {
@@ -454,7 +464,7 @@ template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::op
         d.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                d.color (0);
         }
 
         d.move (strlen (label), 0);
@@ -533,14 +543,14 @@ private:
 template <typename Callback> template <typename Wrapper> Visibility Button<Callback>::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                d.color (1);
         }
 
         d.print (label);
         d.move (strlen (label), 0);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                d.color (0);
         }
 
         return Visibility::visible;
@@ -610,14 +620,14 @@ template <typename Wrapper>
 Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                d.color (1);
         }
 
         const char *label = options.elms.at (currentSelection).label;
         d.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                d.color (0);
         }
 
         d.move (strlen (label), 0);
@@ -1492,34 +1502,34 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = window<0, 0, 18, 7> (
-                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                      line<18>,                                                                                                     //
-                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                      line<18>,                                                                                                     //
-                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                      line<18>,                                                                                                     //
-                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                      line<18>,                                                                                                     //
-                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                      line<18>,                                                                                                     //
-                      check (" 1 "),                                                                                                //
-                      check (" 2 "),                                                                                                //
-                      check (" 3 "),                                                                                                //
-                      check (" 4 "),                                                                                                //
-                      check (" 5 "),                                                                                                //
-                      check (" 6 "),                                                                                                //
-                      check (" 7 "),                                                                                                //
-                      check (" 8 "),                                                                                                //
-                      check (" 9 "),                                                                                                //
-                      check (" 10 "),                                                                                               //
-                      check (" 11 "),                                                                                               //
-                      check (" 12 "),                                                                                               //
-                      check (" 13 "),                                                                                               //
-                      check (" 14 "),                                                                                               //
-                      check (" 15 ")));
+        auto x = window<0, 0, 18, 7> (vbox (
+                //       hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+                //       hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+                //       button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+                //       line<18>,                                                                                                     //
+                //       group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                //       line<18>,                                                                                                     //
+                //       hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                //       line<18>,                                                                                                     //
+                //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                //       line<18>,                                                                                                     //
+                //       hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                //       line<18>,                                                                                                     //
+                check (" 1 "),  //
+                check (" 2 "),  //
+                check (" 3 "),  //
+                check (" 4 "),  //
+                check (" 5 "),  //
+                check (" 6 "),  //
+                check (" 7 "),  //
+                check (" 8 "),  //
+                check (" 9 "),  //
+                check (" 10 "), //
+                check (" 11 "), //
+                check (" 12 "), //
+                check (" 13 "), //
+                check (" 14 "), //
+                check (" 15 ")));
 
         // auto x = detail::wrap (vb);
         // log (x);
