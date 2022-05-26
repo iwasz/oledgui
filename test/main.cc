@@ -1553,8 +1553,8 @@ int test2 ()
 
                 d1.refresh ();
                 // int ch = getch ();
-                // int ch = std::cin.get ();
-                int ch = std::rand ();
+                int ch = std::cin.get ();
+                // int ch = std::rand ();
 
                 if (ch == 'q') {
                         break;
