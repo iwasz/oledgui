@@ -179,14 +179,6 @@ template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename 
 public:
         Display (Child const &c = {}) : child{c} {}
 
-        Visibility operator() ()
-        {
-                static_cast<ConcreteClass *> (this)->clear (); // How cool.
-                auto v = child (*static_cast<ConcreteClass *> (this), context);
-                static_cast<ConcreteClass *> (this)->refresh ();
-                return v;
-        }
-
         void move (Coordinate ox, Coordinate oy) // TODO make this a Point method
         {
                 cursor.x += ox;
@@ -196,20 +188,10 @@ public:
         void setCursorX (Coordinate x) { cursor.x = x; }
         void setCursorY (Coordinate y) { cursor.y = y; }
 
-        void incrementFocus (auto const &mainWidget) { mainWidget.incrementFocus (context); }
-        void incrementFocus () { incrementFocus (child); }
-        void decrementFocus (auto const &mainWidget) { mainWidget.decrementFocus (context); }
-        void decrementFocus () { decrementFocus (child); }
-
-        // void calculatePositions () { child.calculatePositions (); }
-
-        Context *getContext () { return &context; }
-
         static constexpr Dimension width = widthV;   // Dimensions in characters
         static constexpr Dimension height = heightV; // Dimensions in characters
 
 protected:
-        Context context{&cursor, {0, 0}, {width, height}};
         Child child;
         Point cursor{};
 };
@@ -247,8 +229,6 @@ public:
                 ::refresh ();
                 wrefresh (win);
         }
-
-        using Base::context; // TODO private
 
 private:
         using Base::child;
@@ -694,10 +674,10 @@ namespace detail {
         template <typename WidgetsTuple> struct VBoxDecoration {
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-                static void after (Context const &ctx)
+                static void after (Context const &ctx, auto &display)
                 {
-                        ctx.cursor->y += 1;
-                        ctx.cursor->x = ctx.origin.x;
+                        display.move (0, 1);
+                        display.setCursorX (ctx.origin.x);
                 }
                 static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
         };
@@ -705,13 +685,13 @@ namespace detail {
         template <typename WidgetsTuple> struct HBoxDecoration {
                 static constexpr Dimension height = detail::Max<WidgetsTuple, detail::WidgetHeightField>::value;
 
-                static void after (Context const &ctx) {}
+                static void after (Context const &ctx, auto &display) {}
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
         struct NoDecoration {
                 static constexpr Dimension height = 0;
-                static constexpr void after (Context const & /* ctx */) {}
+                static constexpr void after (Context const &ctx, auto &display) {}
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
@@ -957,7 +937,7 @@ namespace detail {
                                         ctx->radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
                                 }
 
-                                ctx = changeContext (ctx);
+                                // ctx = changeContext (ctx);
 
                                 // Some composite widgets have their own display method (operator ()). For instance og::Window
                                 if constexpr (requires {
@@ -972,7 +952,7 @@ namespace detail {
                                                 constexpr bool lastWidgetInLayout = (sizeof...(children) == 0);
 
                                                 if (!lastWidgetInLayout) {
-                                                        Decor::after (*ctx);
+                                                        Decor::after (*ctx, d);
                                                 }
                                         }
 
@@ -986,8 +966,6 @@ namespace detail {
 
                                 return Visibility::visible;
                         }
-
-                        Visibility operator() (auto &d) const { return operator() (d, &d.context); }
 
                         void input (auto &d, Context &ctx, Key c)
                         {
@@ -1006,48 +984,6 @@ namespace detail {
                                 std::apply ([&l] (auto &...children) { l (l, children...); }, static_cast<ConcreteClass *> (this)->children);
                         }
 
-                        void input (auto &d, Key c)
-                        {
-                                Context *ctx = d.getContext ();
-
-                                // Windows contain their own context
-                                if constexpr (requires { ConcreteClass::context; }) {
-                                        ctx = &static_cast<ConcreteClass const *> (this)->context;
-                                }
-
-                                input (d, *ctx, c);
-                        }
-
-                        void incrementFocus (auto &display) const
-                        {
-                                Context *ctx = display.getContext ();
-
-                                // Windows contain their own context
-                                if constexpr (requires { ConcreteClass::context; }) {
-                                        ctx = &static_cast<ConcreteClass const *> (this)->context;
-                                }
-
-                                if (ctx->currentFocus < ConcreteClass::Wrapped::focusableWidgetCount - 1) {
-                                        ++ctx->currentFocus;
-                                        scrollToFocus (ctx);
-                                }
-                        }
-
-                        void decrementFocus (auto &display) const
-                        {
-                                Context *ctx = display.getContext ();
-
-                                // Windows contain their own context
-                                if constexpr (requires { ConcreteClass::context; }) {
-                                        ctx = &static_cast<ConcreteClass const *> (this)->context;
-                                }
-
-                                if (ctx->currentFocus > 0) {
-                                        --ctx->currentFocus;
-                                        scrollToFocus (ctx);
-                                }
-                        }
-
                         void scrollToFocus (Context *ctx) const
                         {
                                 // ctx = changeContext (ctx);
@@ -1064,21 +1000,24 @@ namespace detail {
                                             static_cast<ConcreteClass const *> (this)->children);
                         }
 
-                private:
-                        Context *changeContext (Context *ctx) const
-                        {
-                                // Windows contain their own context
-                                if constexpr (requires { ConcreteClass::context; }) {
-                                        Context *newContext = &static_cast<ConcreteClass const *> (this)->context;
-                                        // There can be many contexts, but only one cursor (assinged to a display).
-                                        newContext->cursor = ctx->cursor;
-                                        return newContext;
-                                }
+                        // private:
+                        //         Context *changeContext (Context *ctx) const
+                        //         {
+                        //                 // Windows contain their own context
+                        //                 if constexpr (requires { ConcreteClass::context; }) {
+                        //                         Context *newContext = &static_cast<ConcreteClass const *> (this)->context;
+                        //                         // There can be many contexts, but only one cursor (assinged to a display).
+                        //                         newContext->cursor = ctx->cursor;
+                        //                         return newContext;
+                        //                 }
 
-                                return ctx;
-                        }
+                        //                 return ctx;
+                        //         }
                 };
 
+                /**
+                 *
+                 */
                 template <c::layout T, typename WidgetTuple, Coordinate yV>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
                 public:
@@ -1107,6 +1046,9 @@ namespace detail {
                 template <typename T>
                 concept layout_wrapper = is_layout_wrapper<T>::value;
 
+                /**
+                 *
+                 */
                 template <typename T, typename Child, Coordinate yV, Dimension heightV>
                 class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
                 public:
@@ -1116,6 +1058,26 @@ namespace detail {
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
 
+                        Visibility operator() (auto &d) const { return BaseClass::operator() (d, &context); }
+
+                        void input (auto &d, Key c) { BaseClass::input (d, context, c); }
+
+                        void incrementFocus (auto &display) const
+                        {
+                                if (context.currentFocus < Wrapped::focusableWidgetCount - 1) {
+                                        ++context.currentFocus;
+                                        scrollToFocus (&context);
+                                }
+                        }
+
+                        void decrementFocus (auto &display) const
+                        {
+                                if (context.currentFocus > 0) {
+                                        --context.currentFocus;
+                                        scrollToFocus (&context);
+                                }
+                        }
+
                 private:
                         Wrapped widget;
                         std::tuple<Child> children;
@@ -1123,6 +1085,9 @@ namespace detail {
                         using F = T::F;
                         mutable Context context{
                                 nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+
+                        using BaseClass = ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration>;
+                        using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();
                 };
 
                 template <typename T> struct is_window_wrapper : public std::bool_constant<false> {
@@ -1135,6 +1100,9 @@ namespace detail {
                 template <typename T>
                 concept window_wrapper = is_window_wrapper<T>::value;
 
+                /**
+                 *
+                 */
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
