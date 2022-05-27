@@ -1328,6 +1328,13 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, boo
         return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, frame> (std::forward<W> (c)));
 }
 
+void draw (auto &display, detail::augment::window_wrapper auto const &window)
+{
+        display.clear ();
+        window (display);
+        display.refresh ();
+}
+
 /****************************************************************************/
 
 static_assert (c::widget<Line<0, '-'>>);
@@ -1483,7 +1490,6 @@ int test2 ()
                       check (" 14 "),                                                                                               //
                       check (" 15 ")));
 
-        // auto x = detail::wrap (vb);
         // log (x);
 
         auto dialog = window<4, 1, 10, 5, true> (vbox (label ("  PIN:"),  //
@@ -1491,19 +1497,18 @@ int test2 ()
                                                        hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})),
                                                        check (" 15 ")));
 
-        // auto dialog = detail::wrap (dd);
         // log (dialog);
 
         // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
-                d1.clear ();
-                x (d1);
 
                 if (showDialog) {
-                        dialog (d1);
+                        draw (d1, dialog);
+                }
+                else {
+                        draw (d1, x);
                 }
 
-                d1.refresh ();
                 int ch = getch ();
 
                 if (ch == 'q') {
