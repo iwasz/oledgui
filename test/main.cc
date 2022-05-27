@@ -142,6 +142,8 @@ struct Context {
         Selection *radioSelection{};
 };
 
+enum class Key { unknown, incrementFocus, decrementFocus, select };
+
 template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisplay;
 
 namespace c {
@@ -256,7 +258,6 @@ private:
 
 template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
-        // return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -270,6 +271,26 @@ template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<wi
         win = newwin (height, width, 0, 0);
         wbkgd (win, COLOR_PAIR (1));
         refresh ();
+}
+
+og::Key getKey ()
+{
+        int ch = getch ();
+
+        // TODO characters must be customizable (compile time)
+        switch (ch) {
+        case KEY_DOWN:
+                return Key::incrementFocus;
+
+        case KEY_UP:
+                return Key::decrementFocus;
+
+        case int (' '):
+                return Key::select;
+
+        default:
+                return Key::unknown;
+        }
 }
 
 template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
@@ -337,9 +358,9 @@ public:
         constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, char c)
+        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key c)
         {
-                if (c == ' ') { // TODO character must be customizable (compile time)
+                if (c == Key::select) {
                         checked = !checked;
                 }
         }
@@ -390,7 +411,7 @@ public:
 
         constexpr Radio (Id const &i, const char *l) : id{i}, label{l} {}
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto &d, Context const &ctx, char c);
+        template <typename Wrapper> void input (auto &d, Context const &ctx, Key c);
 
 private:
         Id id;
@@ -423,10 +444,9 @@ template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::op
         return Visibility::visible;
 }
 
-template <std::integral Id> template <typename Wrapper> void Radio<Id>::input (auto & /* d */, Context const &ctx, char c)
+template <std::integral Id> template <typename Wrapper> void Radio<Id>::input (auto & /* d */, Context const &ctx, Key c)
 {
-        // TODO character must be customizable (compile time)
-        if (ctx.radioSelection != nullptr && c == ' ') {
+        if (ctx.radioSelection != nullptr && c == Key::select) {
                 *ctx.radioSelection = Wrapper::getRadioIndex ();
         }
 }
@@ -480,9 +500,9 @@ public:
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
 
-        template <typename> void input (auto & /* d */, Context const & /* ctx */, char c)
+        template <typename> void input (auto & /* d */, Context const & /* ctx */, Key c)
         {
-                if (c == ' ') {
+                if (c == Key::select) {
                         callback ();
                 }
         }
@@ -557,7 +577,7 @@ public:
         constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto &d, Context const &ctx, char c);
+        template <typename Wrapper> void input (auto &d, Context const &ctx, Key c);
 
 private:
         OptionCollection options;
@@ -590,9 +610,9 @@ Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const
 
 template <typename OptionCollection, typename Callback>
 template <typename Wrapper>
-void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, char c)
+void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Key c)
 {
-        if (ctx.currentFocus == Wrapper::getFocusIndex () && c == ' ') { // TODO character must be customizable (compile time)
+        if (ctx.currentFocus == Wrapper::getFocusIndex () && c == Key::select) {
                 ++currentSelection;
                 currentSelection %= options.elms.size ();
         }
@@ -878,7 +898,7 @@ namespace detail {
                                 return widget.template operator()<Widget> (d, *ctx);
                         }
 
-                        void input (auto &d, Context const &ctx, char c)
+                        void input (auto &d, Context const &ctx, Key c)
                         {
                                 if (ctx.currentFocus == getFocusIndex ()) {
                                         if constexpr (requires { widget.template input<Widget> (d, ctx, c); }) {
@@ -969,7 +989,7 @@ namespace detail {
 
                         Visibility operator() (auto &d) const { return operator() (d, &d.context); }
 
-                        void input (auto &d, Context &ctx, char c)
+                        void input (auto &d, Context &ctx, Key c)
                         {
                                 if constexpr (requires { ConcreteClass::radioSelection; }) {
                                         ctx.radioSelection = &static_cast<ConcreteClass *> (this)->radioSelection;
@@ -986,7 +1006,7 @@ namespace detail {
                                 std::apply ([&l] (auto &...children) { l (l, children...); }, static_cast<ConcreteClass *> (this)->children);
                         }
 
-                        void input (auto &d, char c)
+                        void input (auto &d, Key c)
                         {
                                 Context *ctx = d.getContext ();
 
@@ -1328,11 +1348,28 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, boo
         return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, frame> (std::forward<W> (c)));
 }
 
-void draw (auto &display, detail::augment::window_wrapper auto const &window)
+void draw (auto &display, detail::augment::window_wrapper auto const &...window)
 {
         display.clear ();
-        window (display);
+        (window (display), ...);
         display.refresh ();
+}
+
+void input (auto &display, detail::augment::window_wrapper auto &window, Key key)
+{
+        switch (key) {
+        case Key::incrementFocus:
+                window.incrementFocus (display);
+                break;
+
+        case Key::decrementFocus:
+                window.decrementFocus (display);
+                break;
+
+        default:
+                window.input (display, key);
+                break;
+        }
 }
 
 /****************************************************************************/
@@ -1499,53 +1536,15 @@ int test2 ()
 
         // log (dialog);
 
-        // TODO simplify this mess to a few lines. Minimal verbosity.
         while (true) {
 
                 if (showDialog) {
-                        draw (d1, dialog);
+                        draw (d1, x, dialog);
+                        input (d1, dialog, getKey ()); // Blocking call.
                 }
                 else {
                         draw (d1, x);
-                }
-
-                int ch = getch ();
-
-                if (ch == 'q') {
-                        break;
-                }
-
-                switch (ch) {
-                case KEY_DOWN:
-                        if (showDialog) {
-                                dialog.incrementFocus (d1);
-                        }
-                        else {
-                                x.incrementFocus (d1);
-                        }
-                        break;
-
-                case KEY_UP:
-                        if (showDialog) {
-                                dialog.decrementFocus (d1);
-                        }
-                        else {
-                                x.decrementFocus (d1);
-                        }
-                        break;
-
-                case 'd':
-                        showDialog = true;
-                        break;
-
-                default:
-                        if (showDialog) {
-                                dialog.input (d1, char (ch));
-                        }
-                        else {
-                                x.input (d1, char (ch));
-                        }
-                        break;
+                        input (d1, x, getKey ());
                 }
         }
 
