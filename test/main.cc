@@ -122,6 +122,7 @@ using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
 using Color = uint16_t;
+using LineOffset = int;
 
 struct Point {
         Coordinate x{};
@@ -266,10 +267,8 @@ template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<wi
         refresh ();
 }
 
-og::Key getKey ()
+og::Key getKey (int ch)
 {
-        int ch = getch ();
-
         // TODO characters must be customizable (compile time)
         switch (ch) {
         case KEY_DOWN:
@@ -285,6 +284,8 @@ og::Key getKey ()
                 return Key::unknown;
         }
 }
+
+og::Key getKey () { return getKey (getch ()); }
 
 template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
 {
@@ -476,25 +477,26 @@ public:
 
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const;
 
-        Buffer::const_iterator skipToLine (Dimension line)
+        Buffer::const_iterator skipToLine (LineOffset line)
         {
-                auto charactersToSkip = line * widthV;
-                return std::next (buffer.cbegin, std::min (charactersToSkip, buffer.size ()));
+                size_t charactersToSkip = line * widthV;
+                return std::next (buffer.cbegin (), std::min (charactersToSkip, buffer.size ()));
         }
 
-        void setStartLine (Dimension line)
+        LineOffset setStartLine (LineOffset line)
         {
-                Dimension len = buffer.size ();
-                Dimension linesNumber = len / widthV + Dimension ((len % widthV) > 0);
-                Dimension minStartLine = std::max (0, linesNumber - heightV);
+                size_t len = buffer.size ();
+                size_t linesNumber = len / widthV + Dimension ((len % widthV) > 0);
+                LineOffset minStartLine = std::max (0, int (linesNumber - heightV));
                 startLine = std::min (line, minStartLine);
-                iter = skipToLine (startLine);
+                start = skipToLine (startLine);
+                return startLine;
         }
 
 private:
         Buffer buffer;
-        mutable Buffer::const_iterator iter = buffer.cbegin ();
-        Dimension startLine{};
+        Buffer::const_iterator start = buffer.cbegin ();
+        LineOffset startLine{};
         bool scrollToBottom{};
 };
 
@@ -506,6 +508,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /
         std::array<char, widthV + 1> line;
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
+        auto iter = start;
         while (totalCharactersCopied < len && linesPrinted++ < heightV) {
                 // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
                 // in a loop every iteration.
@@ -815,9 +818,9 @@ namespace c {
         concept group = is_group<T>::value;
 } // namespace c
 
-template <typename Callback, typename... W> auto group (Callback const &c, W const &...widgets)
+template <typename Callback, typename... W> auto group (Callback &&c, W &&...widgets)
 {
-        return Group{c, std::make_tuple (widgets...)};
+        return Group{std::forward<Callback> (c), std::make_tuple (std::forward<W> (widgets)...)};
 }
 
 /****************************************************************************/
@@ -903,7 +906,8 @@ namespace c {
 namespace detail {
         template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&c)
         {
-                return Window<ox, oy, widthV, heightV, frame, std::remove_reference_t<decltype (c)>> (std::forward<decltype (c)> (c));
+                return Window<ox, oy, widthV, heightV, frame, strip_reference_wrapper_t<std::decay_t<decltype (c)>>> (
+                        std::forward<decltype (c)> (c));
         }
 } // namespace detail
 
@@ -1382,17 +1386,17 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename... W> auto vbox (W const &...widgets)
+template <typename... W> auto vbox (W &&...widgets)
 {
-        using WidgetsTuple = decltype (std::tuple (widgets...));
-        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{std::tuple (widgets...)};
+        using WidgetsTuple = decltype (std::make_tuple (std::forward<W> (widgets)...));
+        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{std::make_tuple (std::forward<W> (widgets)...)};
         return vbox;
 }
 
-template <typename... W> auto hbox (W const &...widgets)
+template <typename... W> auto hbox (W &&...widgets)
 {
-        using WidgetsTuple = decltype (std::tuple (widgets...));
-        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{std::tuple (widgets...)};
+        using WidgetsTuple = decltype (std::make_tuple (std::forward<W> (widgets)...));
+        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{std::make_tuple (std::forward<W> (widgets)...)};
         return hbox;
 }
 
@@ -1590,14 +1594,13 @@ int test2 ()
 
         auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
 
-        // log (x);
+        auto v = vbox (label ("  PIN:"), label (" 123456"),
+                       hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
 
-        auto dialog = window<4, 1, 10, 5, true> (vbox (label ("  PIN:"),  //
-                                                       label (" 123456"), //
-                                                       hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})),
-                                                       check (" 15 ")));
+        auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         // log (dialog);
+        Dimension startLine{};
 
         while (true) {
                 if (showDialog) {
@@ -1606,7 +1609,20 @@ int test2 ()
                 }
                 else {
                         draw (d1, x);
-                        input (d1, x, getKey ());
+                        int ch = getch ();
+
+                        switch (ch) {
+                        case 'w':
+                                startLine = txt.setStartLine (--startLine);
+                                break;
+                        case 's':
+                                startLine = txt.setStartLine (++startLine);
+                                break;
+                        default:
+                                auto k = getKey (ch);
+                                input (d1, x, getKey ());
+                                break;
+                        }
                 }
         }
 
