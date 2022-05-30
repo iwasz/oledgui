@@ -7,10 +7,13 @@
  ****************************************************************************/
 
 #include "oledgui.h"
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <iterator>
 #include <ncurses.h>
 #include <string>
 #include <tuple>
@@ -145,6 +148,16 @@ struct Context {
 enum class Key { unknown, incrementFocus, decrementFocus, select };
 
 template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisplay;
+
+template <typename T> struct strip_reference_wrapper {
+        using type = T;
+};
+
+template <typename T> struct strip_reference_wrapper<std::reference_wrapper<T>> {
+        using type = T;
+};
+
+template <typename T> using strip_reference_wrapper_t = typename strip_reference_wrapper<T>::type;
 
 namespace c {
 
@@ -443,8 +456,83 @@ template <std::integral Id> struct is_radio<Radio<Id>> : public std::bool_consta
 /* Label                                                                    */
 /****************************************************************************/
 
+template <typename T>
+concept text_buffer = requires (T buf)
+{
+        {
+                buf.size ()
+                } -> std::convertible_to<std::size_t>;
+};
+
 /**
- * Single line (?)
+ * Multiline text
+ */
+template <Dimension widthV, Dimension heightV, text_buffer Buffer> class Text {
+public:
+        static constexpr Dimension height = heightV;
+
+        /// Tip use std::ref
+        constexpr explicit Text (Buffer b) : buffer{std::move (b)} {}
+
+        template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const;
+
+        Buffer::const_iterator skipToLine (Dimension line)
+        {
+                auto charactersToSkip = line * widthV;
+                return std::next (buffer.cbegin, std::min (charactersToSkip, buffer.size ()));
+        }
+
+        void setStartLine (Dimension line)
+        {
+                Dimension len = buffer.size ();
+                Dimension linesNumber = len / widthV + Dimension ((len % widthV) > 0);
+                Dimension minStartLine = std::max (0, linesNumber - heightV);
+                startLine = std::min (line, minStartLine);
+                iter = skipToLine (startLine);
+        }
+
+private:
+        Buffer buffer;
+        mutable Buffer::const_iterator iter = buffer.cbegin ();
+        Dimension startLine{};
+        bool scrollToBottom{};
+};
+
+template <Dimension widthV, Dimension heightV, text_buffer Buffer>
+template <typename /* Wrapper */>
+Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /* ctx */) const
+{
+        Dimension len = buffer.size ();
+        std::array<char, widthV + 1> line;
+        size_t totalCharactersCopied{};
+        size_t linesPrinted{};
+        while (totalCharactersCopied < len && linesPrinted++ < heightV) {
+                // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
+                // in a loop every iteration.
+                auto lineCharactersCopied = std::min (size_t (std::distance (iter, buffer.cend ())), size_t (widthV));
+                auto i = std::copy_n (iter, lineCharactersCopied, line.begin ());
+                *i = '\0';
+                std::advance (iter, lineCharactersCopied);
+
+                totalCharactersCopied += lineCharactersCopied;
+                d.print (line.data ());
+                d.move (0, 1);
+        }
+
+        return Visibility::visible;
+}
+
+template <Dimension widthV, Dimension heightV, typename Buffer> auto text (Buffer &&b)
+{
+        return Text<widthV, heightV, strip_reference_wrapper_t<std::decay_t<Buffer>>>{std::forward<Buffer> (b)};
+}
+
+/****************************************************************************/
+/* Label                                                                    */
+/****************************************************************************/
+
+/**
+ *
  */
 class Label {
 public:
@@ -704,7 +792,7 @@ namespace detail {
  */
 template <typename Callback, typename WidgetTuple> class Group {
 public:
-        Group (Callback const &c, WidgetTuple const &wt) : widgets{wt}, callback{c} {}
+        Group (Callback const &c, WidgetTuple wt) : widgets{std::move (wt)}, callback{c} {}
 
         static constexpr Focus focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
 
@@ -1449,7 +1537,7 @@ static_assert (!c::window<Label>);
 
 //                 default:
 //                         // d1.input (vb, char (ch));
-//                         // vb.input (d1, char (ch), 0, 0, dummy); // TODO ugly, should be vb.input (d1, char (ch)) at most
+//                         // vb.input (d1, char (ch), 0, 0, dummy);
 //                         break;
 //                 }
 //         }
@@ -1466,34 +1554,41 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = window<0, 0, 18, 7> (
-                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                      line<18>,                                                                                                     //
-                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                      line<18>,                                                                                                     //
-                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                      line<18>,                                                                                                     //
-                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                      line<18>,                                                                                                     //
-                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                      line<18>,                                                                                                     //
-                      check (" 1 "),                                                                                                //
-                      check (" 2 "),                                                                                                //
-                      check (" 3 "),                                                                                                //
-                      check (" 4 "),                                                                                                //
-                      check (" 5 "),                                                                                                //
-                      check (" 6 "),                                                                                                //
-                      check (" 7 "),                                                                                                //
-                      check (" 8 "),                                                                                                //
-                      check (" 9 "),                                                                                                //
-                      check (" 10 "),                                                                                               //
-                      check (" 11 "),                                                                                               //
-                      check (" 12 "),                                                                                               //
-                      check (" 13 "),                                                                                               //
-                      check (" 14 "),                                                                                               //
-                      check (" 15 ")));
+        // auto x = window<0, 0, 18, 7> (
+        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+        //               line<18>,                                                                                                     //
+        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+        //               line<18>,                                                                                                     //
+        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+        //               line<18>,                                                                                                     //
+        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+        //               line<18>,                                                                                                     //
+        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+        //               line<18>,                                                                                                     //
+        //               check (" 1 "),                                                                                                //
+        //               check (" 2 "),                                                                                                //
+        //               check (" 3 "),                                                                                                //
+        //               check (" 4 "),                                                                                                //
+        //               check (" 5 "),                                                                                                //
+        //               check (" 6 "),                                                                                                //
+        //               check (" 7 "),                                                                                                //
+        //               check (" 8 "),                                                                                                //
+        //               check (" 9 "),                                                                                                //
+        //               check (" 10 "),                                                                                               //
+        //               check (" 11 "),                                                                                               //
+        //               check (" 12 "),                                                                                               //
+        //               check (" 13 "),                                                                                               //
+        //               check (" 14 "),                                                                                               //
+        //               check (" 15 ")));
+
+        std::string_view buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
+                              "char-like objects with the first element of the sequence at position zero."};
+
+        auto txt = text<18, 5> (std::ref (buff));
+
+        auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
 
         // log (x);
 
@@ -1505,7 +1600,6 @@ int test2 ()
         // log (dialog);
 
         while (true) {
-
                 if (showDialog) {
                         draw (d1, x, dialog);
                         input (d1, dialog, getKey ()); // Blocking call.

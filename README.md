@@ -43,18 +43,19 @@ aaa
 * [ ] Prepare for compile time optimization
   * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
     * [ ] Debug, release and -OS targets
-  * [ ] Benchmark cimpilation size.
+  * [ ] Benchmark compilation size.
   * [ ] Benchmark cpu?
-* [ ] Console backend (with or even without input)
-  * [ ] Styling (external tempolate class impacting various aspects of the output)
-  * [ ] AND / OR Widget parameters dictating the looks.
+* [x] Console backend (with or even without input)
+* [ ] Styling (external template class impacting various aspects of the output)
+* [ ] AND / OR Widget parameters dictating the looks.
 * [ ] Implement a test widget which is more than 1 character tall.
   * [ ] Test this widget in the vertical and horizontal layouts.
 * [ ] vbox(); (no parameters) results in an error.
-* [ ] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
+* [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
-
+* [ ] Make the functions std::ref aware
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
 * Display has its own context, so you don;t have to use a window???
+* Some (text() ?)functions behave like the std::make_pair does in a way that they stripping out the reference wrappers.
