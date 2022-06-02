@@ -932,16 +932,18 @@ namespace detail {
         namespace augment {
 
                 /**
-                 * Additional information for all the widgetc contained in the Layout.
+                 * Additional information for all the widget contained in the Layout.
                  */
-                template <c::widget T, Focus focusIndexV, Selection radioIndexV, Coordinate yV> class Widget {
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                requires c::widget<std::remove_reference_t<T>> // T can be for example Label or Label &. Only these 2 options.
+                class Widget {
                 public:
-                        using Wrapped = T;
+                        using Wrapped = std::remove_reference_t<T>;
 
-                        constexpr Widget (T t) : widget{std::move (t)} {}
+                        constexpr Widget (T const &t) : widget{t} {}
 
                         /// Height in characters.
-                        static constexpr Dimension getHeight () { return T::height; }
+                        static constexpr Dimension getHeight () { return Wrapped::height; }
 
                         /// Consecutive number in a radio group.
                         static constexpr Selection getRadioIndex () { return radioIndexV; }
@@ -972,7 +974,7 @@ namespace detail {
 
                         void scrollToFocus (Context *ctx) const;
 
-                        T widget; // Wrapped widget
+                        T widget; // Wrapped widget. 2 options X or X&
                 private:
                         // friend void log<T> (T const &t, int indent);
                 };
@@ -987,7 +989,7 @@ namespace detail {
                 template <typename T>
                 concept widget_wrapper = is_widget_wrapper<T>::value;
 
-                template <c::widget T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
                 void Widget<T, focusIndexV, radioIndexV, yV>::scrollToFocus (Context *ctx) const
                 {
                         if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
@@ -1232,12 +1234,11 @@ namespace detail {
         // Wrapper for ordinary widgets
         template <typename T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
 
-                // template <typename W> static auto wrap (W &&t)
-                // {
-                //         return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, y>{std::forward<W> (t)};
-
-                // }
-                template <typename W> static auto wrap (W &&t) { return augment::Widget<T, f, r, y>{std::forward<W> (t)}; }
+                template <typename W> static auto wrap (W &&t)
+                {
+                        return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, y>{std::forward<W> (t)};
+                }
+                // template <typename W> static auto wrap (W &&t) { return augment::Widget<T, f, r, y>{std::forward<W> (t)}; }
         };
 
         // Wrapper for layouts
@@ -1288,9 +1289,10 @@ namespace detail {
 
         template <typename Parent, Focus f, Selection r, Coordinate y> auto wrap (auto &&t)
         {
-                // using RawType = std::remove_reference_t<std::unwrap_ref_decay_t<T>>;
+                // Raw type is for selecting the Wrapper partial specialization.
+                using RawType = std::remove_reference_t<std::unwrap_ref_decay_t<decltype (t)>>;
                 // return Wrap<RawType, void, f, r, y>::wrap (std::forward<T> (t));
-                return Wrap<std::decay_t<decltype (t)>, Parent, f, r, y>::wrap (std::forward<decltype (t)> (t));
+                return Wrap<RawType, Parent, f, r, y>::wrap (std::forward<decltype (t)> (t));
         }
 
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
@@ -1399,19 +1401,15 @@ private:
 
 template <typename... W> auto vbox (W &&...widgets)
 {
-        using WidgetsTuple = decltype (std::make_tuple (std::forward<W> (widgets)...));
-        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{std::make_tuple (std::forward<W> (widgets)...)};
-
-        // // using WidgetsTuple = decltype (std::tuple (std::forward<W> (widgets)...));
-        // using WidgetsTuple = std::tuple<std::decay_t<W>...>; // value semantics, does not strip reference_values
-        // auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
+        using WidgetsTuple = std::tuple<std::decay_t<W>...>; // value semantics, does not strip reference_values
+        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
         return vbox;
 }
 
 template <typename... W> auto hbox (W &&...widgets)
 {
-        using WidgetsTuple = decltype (std::make_tuple (std::forward<W> (widgets)...));
-        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{std::make_tuple (std::forward<W> (widgets)...)};
+        using WidgetsTuple = std::tuple<std::decay_t<W>...>;
+        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
         return hbox;
 }
 
@@ -1573,34 +1571,34 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = window<0, 0, 18, 7> (
-                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                      line<18>,                                                                                                     //
-                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                      line<18>,                                                                                                     //
-                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                      line<18>,                                                                                                     //
-                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                      line<18>,                                                                                                     //
-                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                      line<18>,                                                                                                     //
-                      check (" 1 "),                                                                                                //
-                      check (" 2 "),                                                                                                //
-                      check (" 3 "),                                                                                                //
-                      check (" 4 "),                                                                                                //
-                      check (" 5 "),                                                                                                //
-                      check (" 6 "),                                                                                                //
-                      check (" 7 "),                                                                                                //
-                      check (" 8 "),                                                                                                //
-                      check (" 9 "),                                                                                                //
-                      check (" 10 "),                                                                                               //
-                      check (" 11 "),                                                                                               //
-                      check (" 12 "),                                                                                               //
-                      check (" 13 "),                                                                                               //
-                      check (" 14 "),                                                                                               //
-                      check (" 15 ")));
+        // auto x = window<0, 0, 18, 7> (
+        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+        //               line<18>,                                                                                                     //
+        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+        //               line<18>,                                                                                                     //
+        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+        //               line<18>,                                                                                                     //
+        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+        //               line<18>,                                                                                                     //
+        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+        //               line<18>,                                                                                                     //
+        //               check (" 1 "),                                                                                                //
+        //               check (" 2 "),                                                                                                //
+        //               check (" 3 "),                                                                                                //
+        //               check (" 4 "),                                                                                                //
+        //               check (" 5 "),                                                                                                //
+        //               check (" 6 "),                                                                                                //
+        //               check (" 7 "),                                                                                                //
+        //               check (" 8 "),                                                                                                //
+        //               check (" 9 "),                                                                                                //
+        //               check (" 10 "),                                                                                               //
+        //               check (" 11 "),                                                                                               //
+        //               check (" 12 "),                                                                                               //
+        //               check (" 13 "),                                                                                               //
+        //               check (" 14 "),                                                                                               //
+        //               check (" 15 ")));
 
         std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
                          "char-like objects with the first element of the sequence at position zero."};
@@ -1608,7 +1606,7 @@ int test2 ()
         auto txt = text<18, 5> (std::ref (buff));
 
         // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
-        // auto x = window<0, 0, 18, 7> (vbox (std::ref (txt)));
+        auto x = window<0, 0, 18, 7> (vbox (vbox (std::ref (txt)), hbox (check (" 1 "), check (" 2 "))));
 
         // auto v = vbox (label ("  PIN:"), label (" 123456"),
         //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
@@ -1638,8 +1636,7 @@ int test2 ()
                                 buff = "ala ma kota";
                                 break;
                         default:
-                                auto k = getKey (ch);
-                                input (d1, x, getKey ());
+                                input (d1, x, getKey (ch));
                                 break;
                         }
                 }
