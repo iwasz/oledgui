@@ -1279,11 +1279,9 @@ namespace detail {
 
                 static constexpr auto oy = T::y;
                 static constexpr auto heightV = T::height;
-                // using Child = T::Child;
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        // // return augment::Window<std::unwrap_ref_decay_t<W>, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV>
                         return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, y> (t.child)), oy, heightV> (
                                 std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child));
                 }
@@ -1299,14 +1297,7 @@ namespace detail {
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
-                // using WidgetType = std::remove_cvref_t<T>;
-                // using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
-                // using Wrapped = decltype (Wrapper::wrap (t));
-                // auto a = std::make_tuple (Wrapper::wrap (t));
-
                 using WidgetType = std::remove_cvref_t<T>;
-                // using Wrapper = Wrap;
-                // using Wrapped = decltype (og::detail::wrap<Parent, f, r, y> (t));
                 auto a = std::make_tuple (og::detail::wrap<Parent, f, r, y> (t));
                 using Wrapped = std::tuple_element_t<0, decltype (a)>;
 
@@ -1392,7 +1383,9 @@ public:
         using DecoratorType = Decor<WidgetsTuple>;
 
         explicit Layout (WidgetsTuple w) : widgets{std::move (w)} {}
+
         WidgetsTuple &getWidgets () { return widgets; }
+        WidgetsTuple const &getWidgets () const { return widgets; }
 
 private:
         WidgetsTuple widgets;
@@ -1612,6 +1605,8 @@ int test2 ()
 
         // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
         auto x = window<0, 0, 18, 7> (std::ref (v)); // TODO introspection fails somewhere, both checkboxes are in focus
+
+        // TODO std::ref for groups
 
         // auto v = vbox (label ("  PIN:"), label (" 123456"),
         //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
