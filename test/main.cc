@@ -9,6 +9,7 @@
 #include "oledgui.h"
 #include <algorithm>
 #include <array>
+#include <bits/utility.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -149,16 +150,6 @@ struct Context {
 enum class Key { unknown, incrementFocus, decrementFocus, select };
 
 template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisplay;
-
-template <typename T> struct strip_reference_wrapper {
-        using type = T;
-};
-
-template <typename T> struct strip_reference_wrapper<std::reference_wrapper<T>> {
-        using type = T &;
-};
-
-template <typename T> using strip_reference_wrapper_t = typename strip_reference_wrapper<T>::type;
 
 namespace c {
 
@@ -528,7 +519,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /
 
 template <Dimension widthV, Dimension heightV, typename Buffer> auto text (Buffer &&b)
 {
-        return Text<widthV, heightV, strip_reference_wrapper_t<std::decay_t<Buffer>>>{std::forward<Buffer> (b)};
+        return Text<widthV, heightV, std::unwrap_ref_decay_t<Buffer>>{std::forward<Buffer> (b)};
 }
 
 /****************************************************************************/
@@ -844,7 +835,7 @@ namespace detail {
 template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> struct Window {
 
         using Child = ChildT;
-        explicit Window (Child c) : child{std::move (c)} {}
+        explicit Window (Child const &c) : child{c} {} // Warning : Child can be T or T&. In the latter case it collapses to T&
 
         // TODO This always prints the frame. There should be option for a windows without one.
         template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
@@ -907,8 +898,7 @@ namespace c {
 namespace detail {
         template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&c)
         {
-                return Window<ox, oy, widthV, heightV, frame, strip_reference_wrapper_t<std::decay_t<decltype (c)>>> (
-                        std::forward<decltype (c)> (c));
+                return Window<ox, oy, widthV, heightV, frame, std::unwrap_ref_decay_t<decltype (c)>> (std::forward<decltype (c)> (c));
         }
 } // namespace detail
 
@@ -1242,6 +1232,11 @@ namespace detail {
         // Wrapper for ordinary widgets
         template <typename T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
 
+                // template <typename W> static auto wrap (W &&t)
+                // {
+                //         return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, y>{std::forward<W> (t)};
+
+                // }
                 template <typename W> static auto wrap (W &&t) { return augment::Widget<T, f, r, y>{std::forward<W> (t)}; }
         };
 
@@ -1268,6 +1263,8 @@ namespace detail {
                 }
         };
 
+        template <typename Parent = void, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (auto &&t);
+
         // Partial specialization for Windows
         template <c::window T, typename Parent, Focus f, Selection r, Coordinate y>
         requires std::same_as<Parent, void> // Means that windows are always top level
@@ -1281,21 +1278,34 @@ namespace detail {
                 {
                         return augment::Window<T, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV> (
                                 std::forward<W> (t), Wrap<Child, T, f, r, y>::wrap (t.child));
+
+                        // // // TODO use og::wrap for the child here.
+                        // // return augment::Window<std::unwrap_ref_decay_t<W>, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV>
+                        return augment::Window<T, decltype (og::detail::wrap<T, f, r, y> (t.child)), oy, heightV> (
+                                std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child));
                 }
         };
 
-        template <typename T, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (T &&t)
+        template <typename Parent, Focus f, Selection r, Coordinate y> auto wrap (auto &&t)
         {
-                return Wrap<std::decay_t<T>, void, f, r, y>::wrap (std::forward<T> (t));
+                // using RawType = std::remove_reference_t<std::unwrap_ref_decay_t<T>>;
+                // return Wrap<RawType, void, f, r, y>::wrap (std::forward<T> (t));
+                return Wrap<std::decay_t<decltype (t)>, Parent, f, r, y>::wrap (std::forward<decltype (t)> (t));
         }
 
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
+                // using WidgetType = std::remove_cvref_t<T>;
+                // using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
+                // using Wrapped = decltype (Wrapper::wrap (t));
+                // auto a = std::make_tuple (Wrapper::wrap (t));
+
                 using WidgetType = std::remove_cvref_t<T>;
-                using Wrapper = Wrap<WidgetType, Parent, f, r, y>;
-                using Wrapped = decltype (Wrapper::wrap (t));
-                auto a = std::make_tuple (Wrapper::wrap (t));
+                // using Wrapper = Wrap;
+                // using Wrapped = decltype (og::detail::wrap<Parent, f, r, y> (t));
+                auto a = std::make_tuple (og::detail::wrap<Parent, f, r, y> (t));
+                using Wrapped = std::tuple_element_t<0, decltype (a)>;
 
                 if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
                         constexpr auto childHeight = Wrapped::getHeight ();
@@ -1563,54 +1573,55 @@ int test2 ()
 
         bool showDialog{};
 
-        // auto x = window<0, 0, 18, 7> (
-        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-        //               line<18>,                                                                                                     //
-        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-        //               line<18>,                                                                                                     //
-        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-        //               line<18>,                                                                                                     //
-        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-        //               line<18>,                                                                                                     //
-        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-        //               line<18>,                                                                                                     //
-        //               check (" 1 "),                                                                                                //
-        //               check (" 2 "),                                                                                                //
-        //               check (" 3 "),                                                                                                //
-        //               check (" 4 "),                                                                                                //
-        //               check (" 5 "),                                                                                                //
-        //               check (" 6 "),                                                                                                //
-        //               check (" 7 "),                                                                                                //
-        //               check (" 8 "),                                                                                                //
-        //               check (" 9 "),                                                                                                //
-        //               check (" 10 "),                                                                                               //
-        //               check (" 11 "),                                                                                               //
-        //               check (" 12 "),                                                                                               //
-        //               check (" 13 "),                                                                                               //
-        //               check (" 14 "),                                                                                               //
-        //               check (" 15 ")));
+        auto x = window<0, 0, 18, 7> (
+                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+                      line<18>,                                                                                                     //
+                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                      line<18>,                                                                                                     //
+                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                      line<18>,                                                                                                     //
+                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                      line<18>,                                                                                                     //
+                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                      line<18>,                                                                                                     //
+                      check (" 1 "),                                                                                                //
+                      check (" 2 "),                                                                                                //
+                      check (" 3 "),                                                                                                //
+                      check (" 4 "),                                                                                                //
+                      check (" 5 "),                                                                                                //
+                      check (" 6 "),                                                                                                //
+                      check (" 7 "),                                                                                                //
+                      check (" 8 "),                                                                                                //
+                      check (" 9 "),                                                                                                //
+                      check (" 10 "),                                                                                               //
+                      check (" 11 "),                                                                                               //
+                      check (" 12 "),                                                                                               //
+                      check (" 13 "),                                                                                               //
+                      check (" 14 "),                                                                                               //
+                      check (" 15 ")));
 
         std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
                          "char-like objects with the first element of the sequence at position zero."};
 
         auto txt = text<18, 5> (std::ref (buff));
 
-        auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
+        // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
+        // auto x = window<0, 0, 18, 7> (vbox (std::ref (txt)));
 
-        auto v = vbox (label ("  PIN:"), label (" 123456"),
-                       hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
+        // auto v = vbox (label ("  PIN:"), label (" 123456"),
+        //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
 
-        auto dialog = window<4, 1, 10, 5, true> (/* std::ref */ (v));
+        // auto dialog = window<4, 1, 10, 5, true> (/* std::ref */ (v));
 
         // log (dialog);
         Dimension startLine{};
 
         while (true) {
                 if (showDialog) {
-                        draw (d1, x, dialog);
-                        input (d1, dialog, getKey ()); // Blocking call.
+                        // draw (d1, x, dialog);
+                        // input (d1, dialog, getKey ()); // Blocking call.
                 }
                 else {
                         draw (d1, x);
