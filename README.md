@@ -54,6 +54,7 @@ aaa
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
 * [ ] Make the functions std::ref aware
+* [ ] Separate directory for tests, and static_assert tests.
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
