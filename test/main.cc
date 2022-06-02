@@ -340,19 +340,25 @@ class Check : public Focusable {
 public:
         static constexpr Dimension height = 1;
 
-        constexpr Check (const char *s, bool c) : label{s}, checked{c} {}
+        constexpr Check (const char *s, bool c) : label_{s}, checked_{c} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
         template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key c)
         {
                 if (c == Key::select) {
-                        checked = !checked;
+                        checked_ = !checked_;
                 }
         }
 
+        bool &checked () { return checked_; }
+        bool const &checked () const { return checked_; }
+
+        char const *&label () { return label_; }
+        char const *const &label () const { return label_; }
+
 private:
-        const char *label{};
-        bool checked{};
+        char const *label_{};
+        bool checked_{};
 };
 
 /*--------------------------------------------------------------------------*/
@@ -363,7 +369,7 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
                 d.color (2);
         }
 
-        if (checked) {
+        if (checked_) {
                 d.print ("☑");
         }
         else {
@@ -371,13 +377,13 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
         }
 
         d.move (1, 0);
-        d.print (label);
+        d.print (label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
-        d.move (strlen (label), 0); // TODO constexpr strings?
+        d.move (strlen (label_), 0); // TODO constexpr strings?
         return Visibility::visible;
 }
 
@@ -834,10 +840,9 @@ namespace detail {
  */
 template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> struct Window {
 
-        using Child = ChildT;
-        explicit Window (Child const &c) : child{c} {} // Warning : Child can be T or T&. In the latter case it collapses to T&
+        using Child = std::remove_reference_t<std::unwrap_ref_decay_t<ChildT>>;
+        explicit Window (ChildT c) : child{std::move (c)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
 
-        // TODO This always prints the frame. There should be option for a windows without one.
         template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
         {
                 d.setCursorX (ox);
@@ -880,7 +885,7 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, boo
         static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
 
         using F = detail::FrameHelper<frame>;
-        Child child;
+        ChildT child;
 };
 
 template <typename T> struct is_window : public std::bool_constant<false> {
@@ -898,7 +903,7 @@ namespace c {
 namespace detail {
         template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&c)
         {
-                return Window<ox, oy, widthV, heightV, frame, std::unwrap_ref_decay_t<decltype (c)>> (std::forward<decltype (c)> (c));
+                return Window<ox, oy, widthV, heightV, frame, std::decay_t<decltype (c)>> (std::forward<decltype (c)> (c));
         }
 } // namespace detail
 
@@ -1103,22 +1108,23 @@ namespace detail {
                 /**
                  *
                  */
-                template <c::layout T, typename WidgetTuple, Coordinate yV>
-                class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename T::DecoratorType> {
+                template <typename T, typename WidgetTuple, Coordinate yV>
+                requires c::layout<std::remove_reference_t<T>>
+                class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType> {
                 public:
-                        using Wrapped = T;
-                        constexpr Layout (Wrapped t, WidgetTuple c) : widget{std::move (t)}, children{std::move (c)} {}
+                        using Wrapped = std::remove_reference_t<T>;
+                        constexpr Layout (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped widget; // TODO make private. I failed to add frined decl. for log function here. Ran into spiral of
-                                        // template error giberish.
+                        T widget; // TODO make private. I failed to add friend decl. for log function here. Ran into spiral of
+                                  // template error giberish.
 
                         WidgetTuple children;
 
                 private:
-                        friend ContainerWidget<Layout, typename T::DecoratorType>;
+                        friend ContainerWidget<Layout, typename Wrapped::DecoratorType>;
                 };
 
                 template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {
@@ -1137,8 +1143,8 @@ namespace detail {
                 template <typename T, typename Child, Coordinate yV, Dimension heightV>
                 class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
                 public:
-                        using Wrapped = T;
-                        constexpr Window (Wrapped t, Child c) : widget{std::move (t)}, children{std::move (c)} {}
+                        using Wrapped = std::remove_reference_t<T>;
+                        constexpr Window (T const &t, Child c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
@@ -1164,10 +1170,10 @@ namespace detail {
                         }
 
                 private:
-                        Wrapped widget;
+                        T widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
-                        using F = T::F;
+                        using F = Wrapped::F;
                         mutable Context context{
                                 nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
 
@@ -1238,7 +1244,6 @@ namespace detail {
                 {
                         return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, y>{std::forward<W> (t)};
                 }
-                // template <typename W> static auto wrap (W &&t) { return augment::Widget<T, f, r, y>{std::forward<W> (t)}; }
         };
 
         // Wrapper for layouts
@@ -1248,8 +1253,9 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Layout<T, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y>{
-                                std::forward<W> (t), transform<f, y, Parent, T> (t.getWidgets ())};
+                        return augment::Layout<std::unwrap_ref_decay_t<W>,
+                                               decltype (transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())), y>{
+                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())};
                 }
         };
 
@@ -1258,7 +1264,7 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Group<T, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y,
+                        return augment::Group<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y,
                                               Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
                                 std::forward<W> (t), transform<f, y, Parent, T> (t.getWidgets ())};
                 }
@@ -1273,25 +1279,20 @@ namespace detail {
 
                 static constexpr auto oy = T::y;
                 static constexpr auto heightV = T::height;
-                using Child = T::Child;
+                // using Child = T::Child;
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Window<T, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV> (
-                                std::forward<W> (t), Wrap<Child, T, f, r, y>::wrap (t.child));
-
-                        // // // TODO use og::wrap for the child here.
                         // // return augment::Window<std::unwrap_ref_decay_t<W>, decltype (Wrap<Child, T, f, r, y>::wrap (t.child)), oy, heightV>
-                        return augment::Window<T, decltype (og::detail::wrap<T, f, r, y> (t.child)), oy, heightV> (
+                        return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, y> (t.child)), oy, heightV> (
                                 std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child));
                 }
         };
 
         template <typename Parent, Focus f, Selection r, Coordinate y> auto wrap (auto &&t)
         {
-                // Raw type is for selecting the Wrapper partial specialization.
+                // RawType is for selecting the Wrapper partial specialization.
                 using RawType = std::remove_reference_t<std::unwrap_ref_decay_t<decltype (t)>>;
-                // return Wrap<RawType, void, f, r, y>::wrap (std::forward<T> (t));
                 return Wrap<RawType, Parent, f, r, y>::wrap (std::forward<decltype (t)> (t));
         }
 
@@ -1605,8 +1606,12 @@ int test2 ()
 
         auto txt = text<18, 5> (std::ref (buff));
 
+        auto chk = check (" 1 ");
+
+        auto v = vbox (vbox (std::ref (txt)), hbox (std::ref (chk), check (" 2 ")));
+
         // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
-        auto x = window<0, 0, 18, 7> (vbox (vbox (std::ref (txt)), hbox (check (" 1 "), check (" 2 "))));
+        auto x = window<0, 0, 18, 7> (std::ref (v)); // TODO introspection fails somewhere, both checkboxes are in focus
 
         // auto v = vbox (label ("  PIN:"), label (" 123456"),
         //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
@@ -1634,6 +1639,9 @@ int test2 ()
                                 break;
                         case 'a':
                                 buff = "ala ma kota";
+                                break;
+                        case 'c':
+                                chk.checked () = !chk.checked ();
                                 break;
                         default:
                                 input (d1, x, getKey (ch));
