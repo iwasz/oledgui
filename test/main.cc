@@ -155,7 +155,7 @@ template <typename T> struct strip_reference_wrapper {
 };
 
 template <typename T> struct strip_reference_wrapper<std::reference_wrapper<T>> {
-        using type = T;
+        using type = T &;
 };
 
 template <typename T> using strip_reference_wrapper_t = typename strip_reference_wrapper<T>::type;
@@ -470,14 +470,15 @@ concept text_buffer = requires (T buf)
  */
 template <Dimension widthV, Dimension heightV, text_buffer Buffer> class Text {
 public:
+        using BufferType = std::remove_reference_t<Buffer>;
         static constexpr Dimension height = heightV;
 
         /// Tip use std::ref
-        constexpr explicit Text (Buffer b) : buffer{std::move (b)} {}
+        constexpr explicit Text (Buffer const &b) : buffer{b} {}
 
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const;
 
-        Buffer::const_iterator skipToLine (LineOffset line)
+        BufferType::const_iterator skipToLine (LineOffset line)
         {
                 size_t charactersToSkip = line * widthV;
                 return std::next (buffer.cbegin (), std::min (charactersToSkip, buffer.size ()));
@@ -495,7 +496,7 @@ public:
 
 private:
         Buffer buffer;
-        Buffer::const_iterator start = buffer.cbegin ();
+        BufferType::const_iterator start = buffer.cbegin ();
         LineOffset startLine{};
         bool scrollToBottom{};
 };
@@ -1390,6 +1391,10 @@ template <typename... W> auto vbox (W &&...widgets)
 {
         using WidgetsTuple = decltype (std::make_tuple (std::forward<W> (widgets)...));
         auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{std::make_tuple (std::forward<W> (widgets)...)};
+
+        // // using WidgetsTuple = decltype (std::tuple (std::forward<W> (widgets)...));
+        // using WidgetsTuple = std::tuple<std::decay_t<W>...>; // value semantics, does not strip reference_values
+        // auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
         return vbox;
 }
 
@@ -1587,8 +1592,8 @@ int test2 ()
         //               check (" 14 "),                                                                                               //
         //               check (" 15 ")));
 
-        std::string_view buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
-                              "char-like objects with the first element of the sequence at position zero."};
+        std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
+                         "char-like objects with the first element of the sequence at position zero."};
 
         auto txt = text<18, 5> (std::ref (buff));
 
@@ -1597,7 +1602,7 @@ int test2 ()
         auto v = vbox (label ("  PIN:"), label (" 123456"),
                        hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
 
-        auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
+        auto dialog = window<4, 1, 10, 5, true> (/* std::ref */ (v));
 
         // log (dialog);
         Dimension startLine{};
@@ -1617,6 +1622,9 @@ int test2 ()
                                 break;
                         case 's':
                                 startLine = txt.setStartLine (++startLine);
+                                break;
+                        case 'a':
+                                buff = "ala ma kota";
                                 break;
                         default:
                                 auto k = getKey (ch);
