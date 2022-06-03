@@ -1017,8 +1017,7 @@ namespace detail {
                  * Base for widgets in the augment:: namespace that can contain other widgets.
                  */
                 template <typename ConcreteClass, typename Decor> struct ContainerWidget {
-
-                        // TODO this class is exposed to the users. I want this methid to be private
+                protected:
                         Visibility operator() (auto &d, Context *ctx) const
                         {
                                 // Groups contain radioSelection
@@ -1097,7 +1096,6 @@ namespace detail {
                 requires c::layout<std::remove_reference_t<T>>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType> {
                 public:
-                        using BaseClass = ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType>;
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Layout (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
@@ -1113,13 +1111,14 @@ namespace detail {
                                 return BaseClass::operator() (d, ctx);
                         }
 
+                private:
+                        using BaseClass = ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType>;
+                        template <typename CC, typename D> friend class ContainerWidget;
+
                         T widget; // TODO make private. I failed to add friend decl. for log function here. Ran into spiral of
                                   // template error giberish.
 
                         WidgetTuple children;
-
-                private:
-                        friend ContainerWidget<Layout, typename Wrapped::DecoratorType>;
                 };
 
                 template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {
@@ -1165,6 +1164,7 @@ namespace detail {
                         }
 
                 private:
+                        template <typename CC, typename D> friend class ContainerWidget;
                         T widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
@@ -1192,7 +1192,6 @@ namespace detail {
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
-                        using BaseClass = ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor>;
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Group (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
@@ -1208,11 +1207,12 @@ namespace detail {
                                 return BaseClass::operator() (d, ctx);
                         }
 
+                private:
+                        using BaseClass = ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor>;
+                        template <typename CC, typename D> friend class ContainerWidget;
+
                         T widget;
                         WidgetTuple children;
-
-                private:
-                        friend ContainerWidget<Group, Decor>;
                         mutable Selection radioSelection{};
                 };
 
