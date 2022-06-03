@@ -329,8 +329,8 @@ template <uint16_t len, char c> struct Line {
         }
 };
 
-template <uint16_t len> Line<len, '-'> line;
-template <uint16_t len = 1> Line<len, ' '> hspace;
+template <uint16_t len> Line<len, '-'> const line;
+template <uint16_t len = 1> Line<len, ' '> const hspace;
 
 /****************************************************************************/
 /* Check                                                                    */
@@ -797,15 +797,17 @@ namespace detail {
  */
 template <typename Callback, typename WidgetTuple> class Group {
 public:
-        Group (Callback const &c, WidgetTuple wt) : widgets{std::move (wt)}, callback{c} {}
+        Group (Callback const &c, WidgetTuple wt) : widgets_{std::move (wt)}, callback{c} {}
 
         static constexpr Focus focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
 
         using Children = WidgetTuple;
-        Children &getWidgets () { return widgets; }
+
+        Children &widgets () { return widgets_; }
+        Children const &widgets () const { return widgets_; }
 
 private:
-        WidgetTuple widgets;
+        WidgetTuple widgets_;
         Callback callback;
 };
 
@@ -842,10 +844,10 @@ namespace detail {
 /**
  * A window
  */
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> struct Window {
-
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> class Window {
+public:
         using Child = std::remove_reference_t<std::unwrap_ref_decay_t<ChildT>>;
-        explicit Window (ChildT c) : child{std::move (c)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
+        explicit Window (ChildT c) : child_{std::move (c)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
 
         template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
         {
@@ -882,6 +884,9 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, boo
                 return Visibility::visible;
         }
 
+        ChildT &child () { return child_; }
+        ChildT const &child () const { return child_; }
+
         static constexpr Coordinate x = ox;
         static constexpr Coordinate y = oy;
         static constexpr Dimension width = widthV;   // Dimensions in characters
@@ -889,7 +894,9 @@ template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, boo
         static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
 
         using F = detail::FrameHelper<frame>;
-        ChildT child;
+
+private:
+        ChildT child_;
 };
 
 template <typename T> struct is_window : public std::bool_constant<false> {
@@ -915,7 +922,6 @@ namespace detail {
 
 // Forward declaration for is_layout
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout;
-// template <typename T> void log (T const &t, int indent);
 
 template <typename Wtu> class DefaultDecor {
 };
@@ -935,8 +941,6 @@ namespace c {
 }
 
 namespace detail {
-
-        template <typename T> void log (T const &t, int indent = 0);
 
         namespace augment {
 
@@ -983,9 +987,9 @@ namespace detail {
 
                         void scrollToFocus (Context *ctx) const;
 
-                        T widget; // Wrapped widget. 2 options X or X&
                 private:
-                        // friend void log<T> (T const &t, int indent);
+                        template <typename X> friend void log (X const &, int);
+                        T widget; // Wrapped widget. 2 options X or X&
                 };
 
                 template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {
@@ -1113,11 +1117,10 @@ namespace detail {
 
                 private:
                         using BaseClass = ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType>;
+                        template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
 
-                        T widget; // TODO make private. I failed to add friend decl. for log function here. Ran into spiral of
-                                  // template error giberish.
-
+                        T widget;
                         WidgetTuple children;
                 };
 
@@ -1164,7 +1167,9 @@ namespace detail {
                         }
 
                 private:
+                        template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
+
                         T widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
@@ -1209,6 +1214,7 @@ namespace detail {
 
                 private:
                         using BaseClass = ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor>;
+                        template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
 
                         T widget;
@@ -1258,9 +1264,8 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Layout<std::unwrap_ref_decay_t<W>,
-                                               decltype (transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())), y>{
-                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())};
+                        return augment::Layout<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (static_cast<T> (t).widgets ())),
+                                               y>{std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).widgets ())};
                 }
         };
 
@@ -1269,10 +1274,9 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Group<std::unwrap_ref_decay_t<W>,
-                                              decltype (transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())), y,
-                                              Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
-                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())};
+                        return augment::Group<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (static_cast<T> (t).widgets ())),
+                                              y, Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
+                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).widgets ())};
                 }
         };
 
@@ -1288,8 +1292,8 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, y> (t.child)), oy, heightV> (
-                                std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child));
+                        return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, y> (t.child ())), oy, heightV> (
+                                std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child ()));
                 }
         };
 
@@ -1334,8 +1338,8 @@ namespace detail {
 
 /*--------------------------------------------------------------------------*/
 
-namespace detail {
-        template <typename T> void log (T const &t, int indent)
+namespace detail::augment {
+        template <typename T> void log (T const &t, int indent = 0)
         {
                 auto l = [indent]<typename Wrapper> (auto &itself, Wrapper const &w, auto const &...ws) {
                         using Wrapped = typename Wrapper::Wrapped;
@@ -1375,12 +1379,12 @@ namespace detail {
 
                 std::apply ([&l] (auto const &...widgets) { l (l, widgets...); }, t);
         }
-} // namespace detail
+} // namespace detail::augment
 
-template <typename T> void log (T &&t) { detail::log (std::make_tuple (std::forward<T> (t))); }
+template <typename T> void log (T &&t) { detail::augment::log (std::make_tuple (std::forward<T> (t))); }
 
 /**
- * Container for other widgtes.
+ * Container for other widgets.
  */
 template <template <typename Wtu> typename Decor, typename WidgetsTuple> class Layout {
 public:
@@ -1388,13 +1392,13 @@ public:
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using DecoratorType = Decor<WidgetsTuple>;
 
-        explicit Layout (WidgetsTuple w) : widgets{std::move (w)} {}
+        explicit Layout (WidgetsTuple w) : widgets_{std::move (w)} {}
 
-        WidgetsTuple &getWidgets () { return widgets; }
-        WidgetsTuple const &getWidgets () const { return widgets; }
+        WidgetsTuple &widgets () { return widgets_; }
+        WidgetsTuple const &widgets () const { return widgets_; }
 
 private:
-        WidgetsTuple widgets;
+        WidgetsTuple widgets_;
 };
 
 /*--------------------------------------------------------------------------*/
@@ -1571,35 +1575,37 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = window<0, 0, 18, 7> (vbox (
-                //         hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                //       hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                //       button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                //       line<18>,                                                                                                     //
-                //       group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                //       line<18>,                                                                                                     //
-                //       hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                //       line<18>,                                                                                                     //
-                //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                //       line<18>,                                                                                                     //
-                //       hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                //       line<18>,                                                                                                     //
-                check (" 1 "),  //
-                check (" 2 "),  //
-                check (" 3 "),  //
-                check (" 4 "),  //
-                check (" 5 "),  //
-                check (" 6 "),  //
-                check (" 7 "),  //
-                check (" 8 "),  //
-                check (" 9 "),  //
-                check (" 10 "), //
-                check (" 11 "), //
-                check (" 12 "), //
-                check (" 13 "), //
-                check (" 14 "), //
-                check (" 15 ")  //
-                ));             //
+        auto x = window<0, 0, 18, 7> (
+                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+                      line<18>,                                                                                                     //
+                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                      line<18>,                                                                                                     //
+                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                      line<18>,                                                                                                     //
+                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                      line<18>,                                                                                                     //
+                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                      line<18>,                                                                                                     //
+                      check (" 1 "),                                                                                                //
+                      check (" 2 "),                                                                                                //
+                      check (" 3 "),                                                                                                //
+                      check (" 4 "),                                                                                                //
+                      check (" 5 "),                                                                                                //
+                      check (" 6 "),                                                                                                //
+                      check (" 7 "),                                                                                                //
+                      check (" 8 "),                                                                                                //
+                      check (" 9 "),                                                                                                //
+                      check (" 10 "),                                                                                               //
+                      check (" 11 "),                                                                                               //
+                      check (" 12 "),                                                                                               //
+                      check (" 13 "),                                                                                               //
+                      check (" 14 "),                                                                                               //
+                      check (" 15 ")                                                                                                //
+                      ));                                                                                                           //
+
+        log (x);
 
         // std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
         //                  "char-like objects with the first element of the sequence at position zero."};
