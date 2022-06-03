@@ -1556,58 +1556,56 @@ int test2 ()
 
         bool showDialog{};
 
-        // auto x = window<0, 0, 18, 7> (
-        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-        //               line<18>,                                                                                                     //
-        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-        //               line<18>,                                                                                                     //
-        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-        //               line<18>,                                                                                                     //
-        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-        //               line<18>,                                                                                                     //
-        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-        //               line<18>,                                                                                                     //
-        //               check (" 1 "),                                                                                                //
-        //               check (" 2 "),                                                                                                //
-        //               check (" 3 "),                                                                                                //
-        //               check (" 4 "),                                                                                                //
-        //               check (" 5 "),                                                                                                //
-        //               check (" 6 "),                                                                                                //
-        //               check (" 7 "),                                                                                                //
-        //               check (" 8 "),                                                                                                //
-        //               check (" 9 "),                                                                                                //
-        //               check (" 10 "),                                                                                               //
-        //               check (" 11 "),                                                                                               //
-        //               check (" 12 "),                                                                                               //
-        //               check (" 13 "),                                                                                               //
-        //               check (" 14 "),                                                                                               //
-        //               check (" 15 ")));
+        auto x = window<0, 0, 18, 7> (vbox (
+                //         hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+                //       hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+                //       button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+                //       line<18>,                                                                                                     //
+                //       group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+                //       line<18>,                                                                                                     //
+                //       hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+                //       line<18>,                                                                                                     //
+                //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+                //       line<18>,                                                                                                     //
+                //       hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+                //       line<18>,                                                                                                     //
+                check (" 1 "),  //
+                check (" 2 "),  //
+                check (" 3 "),  //
+                check (" 4 "),  //
+                check (" 5 "),  //
+                check (" 6 "),  //
+                check (" 7 "),  //
+                check (" 8 "),  //
+                check (" 9 "),  //
+                check (" 10 "), //
+                check (" 11 "), //
+                check (" 12 "), //
+                check (" 13 "), //
+                check (" 14 "), //
+                check (" 15 ")  //
+                ));             //
 
-        std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
-                         "char-like objects with the first element of the sequence at position zero."};
+        // std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
+        //                  "char-like objects with the first element of the sequence at position zero."};
 
-        auto txt = text<18, 3> (std::ref (buff));
+        // auto txt = text<18, 3> (std::ref (buff));
 
-        auto chk = check (" 1 ");
+        // auto chk = check (" 1 ");
 
-        auto grp = group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
+        // auto grp = group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
 
-        auto v = vbox (vbox (std::ref (txt)),                //
-                       hbox (std::ref (chk), check (" 2 ")), //
-                       std::ref (grp)                        //
-        );
+        // auto v = vbox (vbox (std::ref (txt)),                //
+        //                hbox (std::ref (chk), check (" 2 ")), //
+        //                std::ref (grp)                        //
+        // );
 
-        // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
-        auto x = window<0, 0, 18, 7> (std::ref (v));
+        // auto x = window<0, 0, 18, 7> (std::ref (v));
 
-        // auto x = window<0, 0, 18, 7> (vbox (std::ref (chk), check (" 2 ")));
+        auto v = vbox (label ("  PIN:"), label (" 123456"),
+                       hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
 
-        // auto v = vbox (label ("  PIN:"), label (" 123456"),
-        //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
-
-        // auto dialog = window<4, 1, 10, 5, true> (/* std::ref */ (v));
+        auto dialog = window<4, 1, 10, 5, true> (/* std::ref ( */ v /* ) */);
 
         // log (dialog);
         Dimension startLine{};
@@ -1622,18 +1620,18 @@ int test2 ()
                         int ch = getch ();
 
                         switch (ch) {
-                        case 'w':
-                                startLine = txt.setStartLine (--startLine);
-                                break;
-                        case 's':
-                                startLine = txt.setStartLine (++startLine);
-                                break;
-                        case 'a':
-                                buff = "ala ma kota";
-                                break;
-                        case 'c':
-                                chk.checked () = !chk.checked ();
-                                break;
+                        // case 'w':
+                        //         startLine = txt.setStartLine (--startLine);
+                        //         break;
+                        // case 's':
+                        //         startLine = txt.setStartLine (++startLine);
+                        //         break;
+                        // case 'a':
+                        //         buff = "ala ma kota";
+                        //         break;
+                        // case 'c':
+                        //         chk.checked () = !chk.checked ();
+                        //         break;
                         default:
                                 input (d1, x, getKey (ch));
                                 break;
