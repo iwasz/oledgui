@@ -78,7 +78,7 @@ that wrap widgets and adds more information at compile time. This information in
         from the 0, this value is also easy to obtain in a simple compile time "loop". See
         transformImpl and transform functions.
 * Focus getFocusIndex (): every focusable widget in the tree has consecutive number assigned,
-        and this methid returns that number. This is calculated in a similar way as the previous
+        and this method returns that number. This is calculated in a similar way as the previous
         one, but this time addint 1 every time is not enough as the whole tree has to be traversed.
         What is more, the tree is not heterogeneous, because you can have a mix of Layouts, Groups
         and Windows (although not every combination makes sense and may be prohibited in the future
@@ -460,6 +460,10 @@ concept text_buffer = requires (T buf)
         {
                 buf.size ()
                 } -> std::convertible_to<std::size_t>;
+
+        // typename T::const_iterator; // TODO add
+        // buf.cbegin();
+        // buf.cend ();
 };
 
 /**
@@ -731,11 +735,11 @@ namespace detail {
         };
 
         template <typename T> struct FocusableWidgetCountField {
-                static constexpr auto value = getFocusableWidgetCount<T> ();
+                static constexpr auto value = getFocusableWidgetCount<std::remove_reference_t<std::unwrap_ref_decay_t<T>>> ();
         };
 
         template <typename T> struct WidgetHeightField {
-                static constexpr auto value = getHeight<T> ();
+                static constexpr auto value = getHeight<std::remove_reference_t<std::unwrap_ref_decay_t<T>>> ();
         };
 
         /*--------------------------------------------------------------------------*/
@@ -818,7 +822,7 @@ namespace c {
 
 template <typename Callback, typename... W> auto group (Callback &&c, W &&...widgets)
 {
-        return Group{std::forward<Callback> (c), std::make_tuple (std::forward<W> (widgets)...)};
+        return Group{std::forward<Callback> (c), std::tuple{std::forward<W> (widgets)...}};
 }
 
 /****************************************************************************/
@@ -1089,20 +1093,6 @@ namespace detail {
                                 std::apply ([&l] (auto const &...children) { l (l, children...); },
                                             static_cast<ConcreteClass const *> (this)->children);
                         }
-
-                        // private:
-                        //         Context *changeContext (Context *ctx) const
-                        //         {
-                        //                 // Windows contain their own context
-                        //                 if constexpr (requires { ConcreteClass::context; }) {
-                        //                         Context *newContext = &static_cast<ConcreteClass const *> (this)->context;
-                        //                         // There can be many contexts, but only one cursor (assinged to a display).
-                        //                         newContext->cursor = ctx->cursor;
-                        //                         return newContext;
-                        //                 }
-
-                        //                 return ctx;
-                        //         }
                 };
 
                 /**
@@ -1197,13 +1187,13 @@ namespace detail {
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
-                        using Wrapped = T;
-                        constexpr Group (Wrapped t, WidgetTuple c) : widget{std::move (t)}, children{std::move (c)} {}
+                        using Wrapped = std::remove_reference_t<T>;
+                        constexpr Group (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
 
-                        Wrapped widget;
+                        T widget;
                         WidgetTuple children;
 
                 private:
@@ -1264,9 +1254,10 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Group<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (t.getWidgets ())), y,
+                        return augment::Group<std::unwrap_ref_decay_t<W>,
+                                              decltype (transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())), y,
                                               Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
-                                std::forward<W> (t), transform<f, y, Parent, T> (t.getWidgets ())};
+                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).getWidgets ())};
                 }
         };
 
@@ -1297,7 +1288,6 @@ namespace detail {
         template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
-                using WidgetType = std::remove_cvref_t<T>;
                 auto a = std::make_tuple (og::detail::wrap<Parent, f, r, y> (t));
                 using Wrapped = std::tuple_element_t<0, decltype (a)>;
 
@@ -1305,6 +1295,7 @@ namespace detail {
                         constexpr auto childHeight = Wrapped::getHeight ();
                         constexpr auto childHeightIncrement = augment::getHeightIncrement<GrandParent, Parent> (childHeight);
 
+                        using WidgetType = std::remove_reference_t<std::unwrap_ref_decay_t<T>>;
                         return transformImpl<f + getFocusableWidgetCount<WidgetType> (), r + 1, y + childHeightIncrement, GrandParent, Parent> (
                                 std::tuple_cat (prev, a), ts...);
                 }
@@ -1395,14 +1386,14 @@ private:
 
 template <typename... W> auto vbox (W &&...widgets)
 {
-        using WidgetsTuple = std::tuple<std::decay_t<W>...>; // value semantics, does not strip reference_values
+        using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
         auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
         return vbox;
 }
 
 template <typename... W> auto hbox (W &&...widgets)
 {
-        using WidgetsTuple = std::tuple<std::decay_t<W>...>;
+        using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
         auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
         return hbox;
 }
@@ -1597,16 +1588,21 @@ int test2 ()
         std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
                          "char-like objects with the first element of the sequence at position zero."};
 
-        auto txt = text<18, 5> (std::ref (buff));
+        auto txt = text<18, 3> (std::ref (buff));
 
         auto chk = check (" 1 ");
 
-        auto v = vbox (vbox (std::ref (txt)), hbox (std::ref (chk), check (" 2 ")));
+        auto grp = group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
+
+        auto v = vbox (vbox (std::ref (txt)),                //
+                       hbox (std::ref (chk), check (" 2 ")), //
+                       std::ref (grp)                        //
+        );
 
         // auto x = window<0, 0, 18, 7> (vbox (label ("Hello "), check (" 1 "), std::ref (txt)));
-        auto x = window<0, 0, 18, 7> (std::ref (v)); // TODO introspection fails somewhere, both checkboxes are in focus
+        auto x = window<0, 0, 18, 7> (std::ref (v));
 
-        // TODO std::ref for groups
+        // auto x = window<0, 0, 18, 7> (vbox (std::ref (chk), check (" 2 ")));
 
         // auto v = vbox (label ("  PIN:"), label (" 123456"),
         //                hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));

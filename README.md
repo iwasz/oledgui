@@ -48,15 +48,15 @@ aaa
 * [x] Console backend (with or even without input)
 * [ ] Styling (external template class impacting various aspects of the output)
 * [ ] AND / OR Widget parameters dictating the looks.
-* [ ] Implement a test widget which is more than 1 character tall.
+* [x] Implement a test widget which is more than 1 character tall.
   * [ ] Test this widget in the vertical and horizontal layouts.
 * [ ] vbox(); (no parameters) results in an error.
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
-* [ ] Make the functions std::ref aware
+* [x] Make the functions std::ref aware
 * [ ] Separate directory for tests, and static_assert tests.
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
 * Display has its own context, so you don;t have to use a window???
-* Some (text() ?)functions behave like the std::make_pair does in a way that they stripping out the reference wrappers.
+* Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
