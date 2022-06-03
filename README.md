@@ -60,3 +60,4 @@ Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
 * Display has its own context, so you don;t have to use a window???
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
+* No window in a window should be possible. Just display two one after another.

@@ -1021,11 +1021,6 @@ namespace detail {
                         // TODO this class is exposed to the users. I want this methid to be private
                         Visibility operator() (auto &d, Context *ctx) const
                         {
-                                if (!detail::heightsOverlap (ConcreteClass::getY (), ConcreteClass::getHeight (), ctx->currentScroll,
-                                                             ctx->dimensions.height)) {
-                                        return Visibility::outside;
-                                }
-
                                 // Groups contain radioSelection
                                 if constexpr (requires { ConcreteClass::radioSelection; }) {
                                         ctx->radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
@@ -1096,17 +1091,27 @@ namespace detail {
                 };
 
                 /**
-                 *
+                 * Layout
                  */
                 template <typename T, typename WidgetTuple, Coordinate yV>
                 requires c::layout<std::remove_reference_t<T>>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType> {
                 public:
+                        using BaseClass = ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType>;
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Layout (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
                         static constexpr Coordinate getY () { return yV; }
+
+                        Visibility operator() (auto &d, Context *ctx) const
+                        {
+                                if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
+                                        return Visibility::outside;
+                                }
+
+                                return BaseClass::operator() (d, ctx);
+                        }
 
                         T widget; // TODO make private. I failed to add friend decl. for log function here. Ran into spiral of
                                   // template error giberish.
@@ -1128,13 +1133,13 @@ namespace detail {
                 concept layout_wrapper = is_layout_wrapper<T>::value;
 
                 /**
-                 *
+                 * Window
                  */
                 template <typename T, typename Child, Coordinate yV, Dimension heightV>
                 class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
-                        constexpr Window (T const &t, Child c) : widget{t}, children{std::move (c)} {}
+                        constexpr explicit Window (T const &t, Child c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
@@ -1182,16 +1187,26 @@ namespace detail {
                 concept window_wrapper = is_window_wrapper<T>::value;
 
                 /**
-                 *
+                 * Group
                  */
                 template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
                 class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
                 public:
+                        using BaseClass = ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor>;
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Group (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
                         static constexpr Dimension getHeight () { return heightV; }
                         static constexpr Coordinate getY () { return yV; }
+
+                        Visibility operator() (auto &d, Context *ctx) const
+                        {
+                                if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
+                                        return Visibility::outside;
+                                }
+
+                                return BaseClass::operator() (d, ctx);
+                        }
 
                         T widget;
                         WidgetTuple children;
