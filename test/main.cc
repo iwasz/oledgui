@@ -125,9 +125,52 @@ using Selection = uint8_t;
 using Color = uint16_t;
 using LineOffset = int;
 
-struct Point {
-        Coordinate x{};
-        Coordinate y{};
+class Point {
+public:
+        Point (Coordinate x = 0, Coordinate y = 0) : x_{x}, y_{y} {}
+
+        Point &operator= (Point const &p)
+        {
+                x_ = p.x_;
+                y_ = p.y_;
+                return *this;
+        }
+
+        Point &operator+= (Point const &p)
+        {
+                x_ += p.x_;
+                y_ += p.y_;
+                return *this;
+        }
+
+        Point &operator-= (Point const &p)
+        {
+                x_ -= p.x_;
+                y_ -= p.y_;
+                return *this;
+        }
+
+        Point operator+ (Point p)
+        {
+                p += *this;
+                return p;
+        }
+
+        Point operator- (Point const &p)
+        {
+                Point ret = *this;
+                ret -= p;
+                return ret;
+        }
+
+        Coordinate &x () { return x_; }
+        Coordinate x () const { return x_; }
+        Coordinate &y () { return y_; }
+        Coordinate y () const { return y_; }
+
+private:
+        Coordinate x_;
+        Coordinate y_;
 };
 
 struct Dimensions {
@@ -184,21 +227,15 @@ template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename 
 public:
         Display (Child const &c = {}) : child{c} {}
 
-        void move (Coordinate ox, Coordinate oy) // TODO make this a Point method
-        {
-                cursor.x += ox;
-                cursor.y += oy;
-        }
-
-        void setCursorX (Coordinate x) { cursor.x = x; }
-        void setCursorY (Coordinate y) { cursor.y = y; }
-
         static constexpr Dimension width = widthV;   // Dimensions in characters
         static constexpr Dimension height = heightV; // Dimensions in characters
 
+        Point &cursor () { return cursor_; }
+        Point const &cursor () const { return cursor_; }
+
 protected:
+        Point cursor_{};
         Child child;
-        Point cursor{};
 };
 
 /**
@@ -208,6 +245,7 @@ template <Dimension widthV, Dimension heightV, typename Child = Empty>
 class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
 public:
         using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base::cursor;
         using Base::width, Base::height;
 
         NcursesDisplay (Child c = {});
@@ -218,13 +256,13 @@ public:
                 endwin ();
         }
 
-        void print (const char *str) { mvwprintw (win, cursor.y, cursor.x, str); }
+        void print (const char *str) { mvwprintw (win, cursor ().y (), cursor ().x (), str); }
 
         void clear ()
         {
                 wclear (win);
-                cursor.x = 0;
-                cursor.y = 0;
+                cursor ().x () = 0;
+                cursor ().y () = 0;
         }
 
         void color (Color c) { wattron (win, COLOR_PAIR (c)); }
@@ -237,7 +275,6 @@ public:
 
 private:
         using Base::child;
-        using Base::cursor;
         WINDOW *win{};
 };
 
@@ -291,7 +328,7 @@ namespace detail {
         {
                 for (uint16_t i = 0; i < len; ++i) {
                         d.print (ch);
-                        d.move (1, 0);
+                        d.cursor () += {1, 0};
                 }
         }
 
@@ -376,14 +413,14 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
                 d.print ("☐");
         }
 
-        d.move (1, 0);
+        d.cursor () += {1, 0};
         d.print (label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
-        d.move (strlen (label_), 0); // TODO constexpr strings?
+        d.cursor () += {Dimension (strlen (label_)), 0}; // TODO constexpr strings?
         return Visibility::visible;
 }
 
@@ -424,14 +461,14 @@ template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::op
                 d.print ("○");
         }
 
-        d.move (1, 0);
+        d.cursor () += {1, 0};
         d.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
-        d.move (strlen (label), 0);
+        d.cursor () += {Dimension (strlen (label)), 0};
         return Visibility::visible;
 }
 
@@ -511,6 +548,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
         auto iter = start;
+        Point tmpCursor = d.cursor ();
         while (totalCharactersCopied < len && linesPrinted++ < heightV) {
                 // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
                 // in a loop every iteration.
@@ -521,9 +559,10 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /
 
                 totalCharactersCopied += lineCharactersCopied;
                 d.print (line.data ());
-                d.move (0, 1);
+                d.cursor () += {0, 1};
         }
 
+        d.cursor () = tmpCursor + Point{widthV - 1, heightV - 1};
         return Visibility::visible;
 }
 
@@ -548,7 +587,7 @@ public:
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
                 d.print (label);
-                d.move (strlen (label), 0);
+                d.cursor () += {Dimension (strlen (label)), 0};
                 return Visibility::visible;
         }
 
@@ -592,7 +631,7 @@ template <typename Callback> template <typename Wrapper> Visibility Button<Callb
         }
 
         d.print (label);
-        d.move (strlen (label), 0);
+        d.cursor () += {Dimension (strlen (label)), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -705,7 +744,7 @@ namespace detail {
                                               T::focusableWidgetCount
                                               } -> std::convertible_to<Focus>;
                               }) {
-                        // focusableWidgetCount field is used in composite widgets like Layout and Group.
+                        // focusableWidgetCount field is used in container widgets like Layout and Group.
                         return T::focusableWidgetCount;
                 }
                 else if constexpr (requires {
@@ -769,8 +808,8 @@ namespace detail {
 
                 static void after (Context const &ctx, auto &display)
                 {
-                        display.move (0, 1);
-                        display.setCursorX (ctx.origin.x);
+                        display.cursor ().y () += 1;
+                        display.cursor ().x () = ctx.origin.x ();
                 }
                 static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
         };
@@ -851,34 +890,31 @@ public:
 
         template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
         {
-                d.setCursorX (ox);
-                d.setCursorY (oy);
+                d.cursor () = {ox, oy};
 
                 if constexpr (frame) {
                         d.print ("┌"); // TODO print does not move cursor, but line does. Inconsistent.
-                        d.move (1, 0);
+                        d.cursor () += {1, 0};
                         detail::line (d, width - F::cut);
                         d.print ("┐");
 
                         for (int i = 0; i < height - F::cut; ++i) {
-                                d.setCursorX (ox);
-                                d.move (0, 1);
+                                d.cursor ().x () = ox;
+                                d.cursor () += {0, 1};
                                 d.print ("│");
-                                // d.move (width - 1, 0);
-                                d.move (1, 0);
+                                d.cursor () += {1, 0};
                                 detail::line (d, width - F::cut, " ");
                                 d.print ("│");
                         }
 
-                        d.setCursorX (ox);
-                        d.move (0, 1);
+                        d.cursor ().x () = ox;
+                        d.cursor () += {0, 1};
                         d.print ("└");
-                        d.move (1, 0);
+                        d.cursor () += {1, 0};
                         detail::line (d, width - F::cut);
                         d.print ("┘");
 
-                        d.setCursorX (ox + F::offset);
-                        d.setCursorY (oy + F::offset);
+                        d.cursor () = {ox + F::offset, oy + F::offset};
                 }
 
                 return Visibility::visible;
@@ -1031,7 +1067,7 @@ namespace detail {
 
                                 // ctx = changeContext (ctx);
 
-                                // Some composite widgets have their own display method (operator ()). For instance og::Window
+                                // Some container widgets have their own display method (operator ()). For instance og::Window
                                 if constexpr (requires {
                                                       static_cast<ConcreteClass const *> (this)->widget.template operator()<ConcreteClass> (
                                                               d, *ctx);
@@ -1150,7 +1186,7 @@ namespace detail {
 
                         void input (auto &d, Key c) { BaseClass::input (d, context, c); }
 
-                        void incrementFocus (auto &display) const
+                        void incrementFocus (auto & /* display */) const
                         {
                                 if (context.currentFocus < Wrapped::focusableWidgetCount - 1) {
                                         ++context.currentFocus;
@@ -1158,7 +1194,7 @@ namespace detail {
                                 }
                         }
 
-                        void decrementFocus (auto &display) const
+                        void decrementFocus (auto & /* display */) const
                         {
                                 if (context.currentFocus > 0) {
                                         --context.currentFocus;
@@ -1575,84 +1611,88 @@ int test2 ()
 
         bool showDialog{};
 
-        auto x = window<0, 0, 18, 7> (
-                vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-                      hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-                      button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-                      line<18>,                                                                                                     //
-                      group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-                      line<18>,                                                                                                     //
-                      hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-                      line<18>,                                                                                                     //
-                      Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-                      line<18>,                                                                                                     //
-                      hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-                      line<18>,                                                                                                     //
-                      check (" 1 "),                                                                                                //
-                      check (" 2 "),                                                                                                //
-                      check (" 3 "),                                                                                                //
-                      check (" 4 "),                                                                                                //
-                      check (" 5 "),                                                                                                //
-                      check (" 6 "),                                                                                                //
-                      check (" 7 "),                                                                                                //
-                      check (" 8 "),                                                                                                //
-                      check (" 9 "),                                                                                                //
-                      check (" 10 "),                                                                                               //
-                      check (" 11 "),                                                                                               //
-                      check (" 12 "),                                                                                               //
-                      check (" 13 "),                                                                                               //
-                      check (" 14 "),                                                                                               //
-                      check (" 15 ")                                                                                                //
-                      ));                                                                                                           //
+        // auto x = window<0, 0, 18, 7> (
+        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
+        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
+        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
+        //               line<18>,                                                                                                     //
+        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
+        //               line<18>,                                                                                                     //
+        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
+        //               line<18>,                                                                                                     //
+        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
+        //               line<18>,                                                                                                     //
+        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
+        //               line<18>,                                                                                                     //
+        //               check (" 1 "),                                                                                                //
+        //               check (" 2 "),                                                                                                //
+        //               check (" 3 "),                                                                                                //
+        //               check (" 4 "),                                                                                                //
+        //               check (" 5 "),                                                                                                //
+        //               check (" 6 "),                                                                                                //
+        //               check (" 7 "),                                                                                                //
+        //               check (" 8 "),                                                                                                //
+        //               check (" 9 "),                                                                                                //
+        //               check (" 10 "),                                                                                               //
+        //               check (" 11 "),                                                                                               //
+        //               check (" 12 "),                                                                                               //
+        //               check (" 13 "),                                                                                               //
+        //               check (" 14 "),                                                                                               //
+        //               check (" 15 ")                                                                                                //
+        //               ));                                                                                                           //
 
-        log (x);
+        // log (x);
+        /*--------------------------------------------------------------------------*/
 
         // std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
         //                  "char-like objects with the first element of the sequence at position zero."};
+        std::string buff{"aaa"};
 
-        // auto txt = text<18, 3> (std::ref (buff));
+        auto txt = text<18, 3> (std::ref (buff));
 
-        // auto chk = check (" 1 ");
+        auto chk = check (" 1 ");
 
-        // auto grp = group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
+        auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
 
-        // auto v = vbox (vbox (std::ref (txt)),                //
-        //                hbox (std::ref (chk), check (" 2 ")), //
-        //                std::ref (grp)                        //
-        // );
+        auto vv = vbox (vbox (std::ref (txt)),                //
+                        hbox (std::ref (chk), check (" 2 ")), //
+                        std::ref (grp)                        //
+        );
 
-        // auto x = window<0, 0, 18, 7> (std::ref (v));
+        auto x = window<0, 0, 18, 7> (std::ref (vv));
+
+        /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"), label (" 123456"),
                        hbox (button ("[OK]", [&showDialog] { showDialog = false; }), button ("[Cl]", [] {})), check (" 15 "));
 
-        auto dialog = window<4, 1, 10, 5, true> (/* std::ref ( */ v /* ) */);
+        auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         // log (dialog);
         Dimension startLine{};
 
         while (true) {
                 if (showDialog) {
-                        // draw (d1, x, dialog);
-                        // input (d1, dialog, getKey ()); // Blocking call.
+                        draw (d1, x, dialog);
+                        input (d1, dialog, getKey ()); // Blocking call.
                 }
                 else {
                         draw (d1, x);
                         int ch = getch ();
 
                         switch (ch) {
-                        // case 'w':
-                        //         startLine = txt.setStartLine (--startLine);
-                        //         break;
-                        // case 's':
-                        //         startLine = txt.setStartLine (++startLine);
-                        //         break;
-                        // case 'a':
-                        //         buff = "ala ma kota";
-                        //         break;
-                        // case 'c':
-                        //         chk.checked () = !chk.checked ();
-                        //         break;
+                        case 'w':
+                                startLine = txt.setStartLine (--startLine);
+                                break;
+                        case 's':
+                                startLine = txt.setStartLine (++startLine);
+                                break;
+                        case 'a':
+                                buff = "ala ma kota";
+                                break;
+                        case 'c':
+                                chk.checked () = !chk.checked ();
+                                break;
                         default:
                                 input (d1, x, getKey (ch));
                                 break;

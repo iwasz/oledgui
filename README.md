@@ -55,9 +55,13 @@ aaa
 * [x] Describe how the code works in a comment on the top.
 * [x] Make the functions std::ref aware
 * [ ] Separate directory for tests, and static_assert tests.
+* [ ] Composite widgets as a possibility (or implement the text widget with scroll buttons).
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
 * Display has its own context, so you don;t have to use a window???
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
 * No window in a window should be possible. Just display two one after another.
+* Glossary : 
+  * container widget : layout, group & window. 
+  * composite widget : widgets returned by special factory methods which was designed to compose few other widgets in a container (for instance a text widget with buttons to scroll the contents up and down.)
