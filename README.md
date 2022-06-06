@@ -49,13 +49,16 @@ aaa
 * [ ] Styling (external template class impacting various aspects of the output)
 * [ ] AND / OR Widget parameters dictating the looks.
 * [x] Implement a test widget which is more than 1 character tall.
-  * [ ] Test this widget in the vertical and horizontal layouts.
+  * [x] Test this widget in the vertical and horizontal layouts.
+    * [ ] Widgets having height > 1 have to implement their own scrolling. I haven't anticipated that a widget can be half visible.
 * [ ] vbox(); (no parameters) results in an error.
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
 * [x] Make the functions std::ref aware
 * [ ] Separate directory for tests, and static_assert tests.
 * [ ] Composite widgets as a possibility (or implement the text widget with scroll buttons).
+* [ ] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
+
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.

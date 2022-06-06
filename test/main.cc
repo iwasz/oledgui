@@ -127,14 +127,12 @@ using LineOffset = int;
 
 class Point {
 public:
-        Point (Coordinate x = 0, Coordinate y = 0) : x_{x}, y_{y} {}
-
-        Point &operator= (Point const &p)
-        {
-                x_ = p.x_;
-                y_ = p.y_;
-                return *this;
-        }
+        constexpr Point (Coordinate x = 0, Coordinate y = 0) : x_{x}, y_{y} {}
+        Point (Point const &) = default;
+        Point &operator= (Point const &p) = default;
+        Point (Point &&) = default;
+        Point &operator= (Point &&p) = default;
+        ~Point () = default;
 
         Point &operator+= (Point const &p)
         {
@@ -150,7 +148,7 @@ public:
                 return *this;
         }
 
-        Point operator+ (Point p)
+        Point operator+ (Point p) const
         {
                 p += *this;
                 return p;
@@ -516,7 +514,7 @@ public:
 
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const;
 
-        BufferType::const_iterator skipToLine (LineOffset line)
+        typename BufferType::const_iterator skipToLine (LineOffset line)
         {
                 size_t charactersToSkip = line * widthV;
                 return std::next (buffer.cbegin (), std::min (charactersToSkip, buffer.size ()));
@@ -534,7 +532,7 @@ public:
 
 private:
         Buffer buffer;
-        BufferType::const_iterator start = buffer.cbegin ();
+        typename BufferType::const_iterator start = buffer.cbegin ();
         LineOffset startLine{};
         bool scrollToBottom{};
 };
@@ -1209,7 +1207,7 @@ namespace detail {
                         T widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
-                        using F = Wrapped::F;
+                        using F = typename Wrapped::F;
                         mutable Context context{
                                 nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
 
@@ -1644,9 +1642,9 @@ int test2 ()
         // log (x);
         /*--------------------------------------------------------------------------*/
 
-        // std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
-        //                  "char-like objects with the first element of the sequence at position zero."};
-        std::string buff{"aaa"};
+        std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
+                         "char-like objects with the first element of the sequence at position zero."};
+        // std::string buff{"aaa"};
 
         auto txt = text<18, 3> (std::ref (buff));
 
