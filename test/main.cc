@@ -541,15 +541,21 @@ template <Dimension widthV, Dimension heightV, text_buffer Buffer>
 template <typename Wrapper>
 Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
 {
-        int widgetScroll = std::max (ctx.currentScroll - Wrapper::getY (), 0);
+        size_t widgetScroll = std::max (ctx.currentScroll - Wrapper::getY (), 0);
+        size_t heightToPrint = heightV - widgetScroll;
 
         Dimension len = buffer.size ();
         std::array<char, widthV + 1> line;
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
-        auto iter = start;
+
+        // start = skipToLine (startLine + widgetScroll);
+        size_t charactersToSkip = widgetScroll * widthV;
+        auto iter = std::next (start, std::min (charactersToSkip, buffer.size ()));
+
+        // auto iter = start;
         Point tmpCursor = d.cursor ();
-        while (totalCharactersCopied < len && linesPrinted++ < heightV) {
+        while (totalCharactersCopied < len && linesPrinted++ < heightToPrint) {
                 // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
                 // in a loop every iteration.
                 auto lineCharactersCopied = std::min (size_t (std::distance (iter, buffer.cend ())), size_t (widthV));
