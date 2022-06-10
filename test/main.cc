@@ -524,8 +524,8 @@ public:
         {
                 size_t len = buffer.size ();
                 size_t linesNumber = len / widthV + Dimension ((len % widthV) > 0);
-                LineOffset minStartLine = std::max (0, int (linesNumber - heightV));
-                startLine = std::min (line, minStartLine);
+                LineOffset maxStartLine = std::max (0, int (linesNumber - heightV));
+                startLine = std::min (std::max (line, 0), maxStartLine);
                 start = skipToLine (startLine);
                 return startLine;
         }
@@ -538,9 +538,11 @@ private:
 };
 
 template <Dimension widthV, Dimension heightV, text_buffer Buffer>
-template <typename /* Wrapper */>
-Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const & /* ctx */) const
+template <typename Wrapper>
+Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
 {
+        int widgetScroll = std::max (ctx.currentScroll - Wrapper::getY (), 0);
+
         Dimension len = buffer.size ();
         std::array<char, widthV + 1> line;
         size_t totalCharactersCopied{};
@@ -1650,7 +1652,8 @@ int test2 ()
 
         auto chk = check (" 1 ");
 
-        auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "));
+        auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "), radio (1, " C "),
+                          radio (1, " M "), radio (1, " Y "), radio (1, " K "));
 
         auto vv = vbox (vbox (std::ref (txt)),                //
                         hbox (std::ref (chk), check (" 2 ")), //
@@ -1667,7 +1670,7 @@ int test2 ()
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         // log (dialog);
-        Dimension startLine{};
+        LineOffset startLine{};
 
         while (true) {
                 if (showDialog) {
