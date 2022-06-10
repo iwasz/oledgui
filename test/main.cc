@@ -781,12 +781,29 @@ namespace detail {
                 }
         };
 
+        template <typename T> constexpr Dimension getWidth ()
+        {
+                if constexpr (requires { T::getHeight (); }) {
+                        return T::getHeight ();
+                }
+                else if constexpr (requires { T::height; }) {
+                        return T::height;
+                }
+                else {
+                        return 0; // default
+                }
+        };
+
         template <typename T> struct FocusableWidgetCountField {
                 static constexpr auto value = getFocusableWidgetCount<std::remove_reference_t<std::unwrap_ref_decay_t<T>>> ();
         };
 
         template <typename T> struct WidgetHeightField {
                 static constexpr auto value = getHeight<std::remove_reference_t<std::unwrap_ref_decay_t<T>>> ();
+        };
+
+        template <typename T> struct WidgetWidthField {
+                static constexpr auto value = getWidth<std::remove_reference_t<std::unwrap_ref_decay_t<T>>> ();
         };
 
         /*--------------------------------------------------------------------------*/
@@ -812,6 +829,7 @@ namespace detail {
         /*--------------------------------------------------------------------------*/
 
         template <typename WidgetsTuple> struct VBoxDecoration {
+                static constexpr Dimension width = detail::Max<WidgetsTuple, detail::WidgetWidthField>::value;
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
                 static void after (Context const &ctx, auto &display)
@@ -819,19 +837,23 @@ namespace detail {
                         display.cursor ().y () += 1;
                         display.cursor ().x () = ctx.origin.x ();
                 }
+                static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
                 static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
         };
 
         template <typename WidgetsTuple> struct HBoxDecoration {
+                static constexpr Dimension width = detail::Sum<WidgetsTuple, detail::WidgetWidthField>::value;
                 static constexpr Dimension height = detail::Max<WidgetsTuple, detail::WidgetHeightField>::value;
 
                 static void after (Context const &ctx, auto &display) {}
+                static constexpr Dimension getWidthIncrement (Dimension d) { return d; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
         struct NoDecoration {
                 static constexpr Dimension height = 0;
                 static constexpr void after (Context const &ctx, auto &display) {}
+                static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
@@ -965,18 +987,18 @@ namespace detail {
 /****************************************************************************/
 
 // Forward declaration for is_layout
-template <template <typename Wtu> typename Decor, typename WidgetsTuple> struct Layout;
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0> struct Layout;
 
 template <typename Wtu> class DefaultDecor {
 };
 
 /// Type trait for discovering Layouts
-template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty>
+template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty, Dimension widthV = 0>
 struct is_layout : public std::bool_constant<false> {
 };
 
-template <template <typename Wtu> typename Decor, typename WidgetsTuple>
-struct is_layout<Layout<Decor, WidgetsTuple>> : public std::bool_constant<true> {
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV>
+struct is_layout<Layout<Decor, WidgetsTuple, widthV>> : public std::bool_constant<true> {
 };
 
 namespace c {
@@ -1155,14 +1177,19 @@ namespace detail {
                 /**
                  * Layout
                  */
-                template <typename T, typename WidgetTuple, Coordinate yV>
+                template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV>
                 requires c::layout<std::remove_reference_t<T>>
-                class Layout : public ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType> {
+                class Layout : public ContainerWidget<Layout<T, WidgetTuple, xV, yV>, typename std::remove_reference_t<T>::DecoratorType> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Layout (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
+                        static constexpr Dimension getWidth ()
+                        {
+                                return std::max (Wrapped::template Decorator<WidgetTuple>::width, Wrapped::width);
+                        }
                         static constexpr Dimension getHeight () { return Wrapped::template Decorator<WidgetTuple>::height; }
+                        static constexpr Coordinate getX () { return xV; }
                         static constexpr Coordinate getY () { return yV; }
 
                         Visibility operator() (auto &d, Context *ctx) const
@@ -1175,7 +1202,7 @@ namespace detail {
                         }
 
                 private:
-                        using BaseClass = ContainerWidget<Layout<T, WidgetTuple, yV>, typename std::remove_reference_t<T>::DecoratorType>;
+                        using BaseClass = ContainerWidget<Layout<T, WidgetTuple, xV, yV>, typename std::remove_reference_t<T>::DecoratorType>;
                         template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
 
@@ -1186,8 +1213,8 @@ namespace detail {
                 template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {
                 };
 
-                template <typename T, typename WidgetTuple, Coordinate yV>
-                class is_layout_wrapper<Layout<T, WidgetTuple, yV>> : public std::bool_constant<true> {
+                template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV>
+                class is_layout_wrapper<Layout<T, WidgetTuple, xV, yV>> : public std::bool_constant<true> {
                 };
 
                 template <typename T>
@@ -1196,14 +1223,15 @@ namespace detail {
                 /**
                  * Window
                  */
-                template <typename T, typename Child, Coordinate yV, Dimension heightV>
-                class Window : public ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration> {
+                template <typename T, typename Child> class Window : public ContainerWidget<Window<T, Child>, NoDecoration> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr explicit Window (T const &t, Child c) : widget{t}, children{std::move (c)} {}
 
-                        static constexpr Dimension getHeight () { return heightV; }
-                        static constexpr Coordinate getY () { return yV; }
+                        static constexpr Dimension getWidth () { return Wrapped::width; }
+                        static constexpr Dimension getHeight () { return Wrapped::height; }
+                        static constexpr Coordinate getX () { return Wrapped::x; }
+                        static constexpr Coordinate getY () { return Wrapped::y; }
 
                         Visibility operator() (auto &d) const { return BaseClass::operator() (d, &context); }
 
@@ -1236,15 +1264,14 @@ namespace detail {
                         mutable Context context{
                                 nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
 
-                        using BaseClass = ContainerWidget<Window<T, Child, yV, heightV>, NoDecoration>;
+                        using BaseClass = ContainerWidget<Window<T, Child>, NoDecoration>;
                         using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();
                 };
 
                 template <typename T> struct is_window_wrapper : public std::bool_constant<false> {
                 };
 
-                template <typename T, typename Child, Coordinate yV, Dimension heightV>
-                class is_window_wrapper<Window<T, Child, yV, heightV>> : public std::bool_constant<true> {
+                template <typename T, typename Child> class is_window_wrapper<Window<T, Child>> : public std::bool_constant<true> {
                 };
 
                 template <typename T>
@@ -1259,7 +1286,9 @@ namespace detail {
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Group (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
+                        static constexpr Dimension getWidth () { return 0; }
                         static constexpr Dimension getHeight () { return heightV; }
+                        static constexpr Coordinate getX () { return 0; }
                         static constexpr Coordinate getY () { return yV; }
 
                         Visibility operator() (auto &d, Context *ctx) const
@@ -1302,93 +1331,105 @@ namespace detail {
                         }
                 }
 
+                template <typename GrandParent, typename Parent> constexpr Dimension getWidthIncrement (Dimension d)
+                {
+                        // Parent : og::Layout or og::Group
+                        if constexpr (is_layout<Parent>::value) {
+                                return Parent::DecoratorType::getWidthIncrement (d);
+                        }
+                        else {
+                                return GrandParent::DecoratorType::getWidthIncrement (d);
+                        }
+                }
         } // namespace augment
 
-        template <Focus f, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
+        template <Focus f, Coordinate x, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        template <typename T, typename Parent, Focus f, Selection r, Coordinate y> struct Wrap {
+        // TODO can I replace x and y with 1 parameter of type Point?
+        template <typename T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y> struct Wrap {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, 0 /* TODO implement */, y>{std::forward<W> (t)};
+                        return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, x, y>{std::forward<W> (t)};
                 }
         };
 
         // Wrapper for layouts
-        template <c::layout T, typename Parent, Focus f, Selection r, Coordinate y>
+        template <c::layout T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y>
         requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
-        struct Wrap<T, Parent, f, r, y> {
+        struct Wrap<T, Parent, f, r, x, y> {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Layout<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (static_cast<T> (t).widgets ())),
-                                               y>{std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).widgets ())};
+                        return augment::Layout<std::unwrap_ref_decay_t<W>,
+                                               decltype (transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())), x, y>{
+                                std::forward<W> (t), transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())};
                 }
         };
 
         // Wrapper for groups
-        template <c::group T, c::layout Parent, Focus f, Selection r, Coordinate y> struct Wrap<T, Parent, f, r, y> {
+        template <c::group T, c::layout Parent, Focus f, Selection r, Coordinate x, Coordinate y> struct Wrap<T, Parent, f, r, x, y> {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Group<std::unwrap_ref_decay_t<W>, decltype (transform<f, y, Parent, T> (static_cast<T> (t).widgets ())),
-                                              y, Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
-                                std::forward<W> (t), transform<f, y, Parent, T> (static_cast<T> (t).widgets ())};
+                        return augment::Group<std::unwrap_ref_decay_t<W>,
+                                              decltype (transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())), y,
+                                              Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
+                                std::forward<W> (t), transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())};
                 }
         };
 
-        template <typename Parent = void, Focus f = 0, Selection r = 0, Coordinate y = 0> auto wrap (auto &&t);
+        template <typename Parent = void, Focus f = 0, Selection r = 0, Coordinate x = 0, Coordinate y = 0> auto wrap (auto &&t);
 
         // Partial specialization for Windows
-        template <c::window T, typename Parent, Focus f, Selection r, Coordinate y>
+        template <c::window T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y>
         requires std::same_as<Parent, void> // Means that windows are always top level
-        struct Wrap<T, Parent, f, r, y> {
-
-                static constexpr auto oy = T::y;
-                static constexpr auto heightV = T::height;
+        struct Wrap<T, Parent, f, r, x, y> {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, y> (t.child ())), oy, heightV> (
-                                std::forward<W> (t), og::detail::wrap<T, f, r, y> (t.child ()));
+                        return augment::Window<std::unwrap_ref_decay_t<W>, decltype (og::detail::wrap<T, f, r, x, y> (t.child ()))> (
+                                std::forward<W> (t), og::detail::wrap<T, f, r, x, y> (t.child ()));
                 }
         };
 
-        template <typename Parent, Focus f, Selection r, Coordinate y> auto wrap (auto &&t)
+        /// Default values for template arguments are in the forward declaration above
+        template <typename Parent, Focus f, Selection r, Coordinate x, Coordinate y> auto wrap (auto &&t)
         {
                 // RawType is for selecting the Wrapper partial specialization.
                 using RawType = std::remove_reference_t<std::unwrap_ref_decay_t<decltype (t)>>;
-                return Wrap<RawType, Parent, f, r, y>::wrap (std::forward<decltype (t)> (t));
+                return Wrap<RawType, Parent, f, r, x, y>::wrap (std::forward<decltype (t)> (t));
         }
 
-        template <Focus f, Selection r, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T, typename... Ts>
+        template <Focus f, Selection r, Coordinate x, Coordinate y, typename GrandParent, typename Parent, typename Tuple, typename T,
+                  typename... Ts>
         constexpr auto transformImpl (Tuple &&prev, T &t, Ts &...ts)
         {
-                auto a = std::make_tuple (og::detail::wrap<Parent, f, r, y> (t));
+                auto a = std::make_tuple (og::detail::wrap<Parent, f, r, x, y> (t));
                 using Wrapped = std::tuple_element_t<0, decltype (a)>;
 
                 if constexpr (sizeof...(Ts) > 0) { // Parent(Layout)::Decor::filter -> hbox return 0 : vbox return height
-                        constexpr auto childHeight = Wrapped::getHeight ();
-                        constexpr auto childHeightIncrement = augment::getHeightIncrement<GrandParent, Parent> (childHeight);
+                        constexpr auto childWidthIncrement = augment::getWidthIncrement<GrandParent, Parent> (Wrapped::getWidth ());
+                        constexpr auto childHeightIncrement = augment::getHeightIncrement<GrandParent, Parent> (Wrapped::getHeight ());
 
                         using WidgetType = std::remove_reference_t<std::unwrap_ref_decay_t<T>>;
-                        return transformImpl<f + getFocusableWidgetCount<WidgetType> (), r + 1, y + childHeightIncrement, GrandParent, Parent> (
-                                std::tuple_cat (prev, a), ts...);
+                        return transformImpl<f + getFocusableWidgetCount<WidgetType> (), r + 1, x + childWidthIncrement,
+                                             y + childHeightIncrement, GrandParent, Parent> (std::tuple_cat (prev, a), ts...);
                 }
                 else {
                         return std::tuple_cat (prev, a);
                 }
         }
 
-        template <Focus f, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
+        template <Focus f, Coordinate x, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple) // TODO use concept instead of "Children" prefix.
         {
                 return std::apply (
                         [] (auto &...element) {
                                 std::tuple dummy{};
-                                return transformImpl<f, 0, y, GrandParent, Parent> (dummy, element...);
+                                return transformImpl<f, 0, x, y, GrandParent, Parent> (dummy, element...);
                         },
                         tuple);
         }
@@ -1445,11 +1486,12 @@ template <typename T> void log (T &&t) { detail::augment::log (std::make_tuple (
 /**
  * Container for other widgets.
  */
-template <template <typename Wtu> typename Decor, typename WidgetsTuple> class Layout {
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV> class Layout {
 public:
         static constexpr Focus focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using DecoratorType = Decor<WidgetsTuple>;
+        static constexpr Dimension width = widthV;
 
         explicit Layout (WidgetsTuple w) : widgets_{std::move (w)} {}
 
@@ -1462,17 +1504,17 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename... W> auto vbox (W &&...widgets)
+template <Dimension width = 0, typename... W> auto vbox (W &&...widgets)
 {
         using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
-        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
+        auto vbox = Layout<detail::VBoxDecoration, WidgetsTuple, width>{WidgetsTuple{std::forward<W> (widgets)...}};
         return vbox;
 }
 
-template <typename... W> auto hbox (W &&...widgets)
+template <Dimension width = 0, typename... W> auto hbox (W &&...widgets)
 {
         using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
-        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple>{WidgetsTuple{std::forward<W> (widgets)...}};
+        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple, width>{WidgetsTuple{std::forward<W> (widgets)...}};
         return hbox;
 }
 
