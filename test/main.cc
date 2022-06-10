@@ -503,6 +503,7 @@ concept text_buffer = requires (T buf)
 
 /**
  * Multiline text
+ * TODO multiline is not supported! Implement!
  */
 template <Dimension widthV, Dimension heightV, text_buffer Buffer> class Text {
 public:
@@ -1654,14 +1655,16 @@ int test2 ()
                          "char-like objects with the first element of the sequence at position zero."};
         // std::string buff{"aaa"};
 
-        auto txt = text<18, 3> (std::ref (buff));
+        auto txt = text<17, 3> (std::ref (buff));
+
+        auto txtComp = hbox (std::ref (txt), vbox (button ("^", [] {}), label ("|"), button ("v", [] {})));
 
         auto chk = check (" 1 ");
 
         auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "), radio (1, " C "),
                           radio (1, " M "), radio (1, " Y "), radio (1, " K "));
 
-        auto vv = vbox (vbox (std::ref (txt)),                //
+        auto vv = vbox (txtComp,                              //
                         hbox (std::ref (chk), check (" 2 ")), //
                         std::ref (grp)                        //
         );
