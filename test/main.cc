@@ -549,13 +549,15 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
 
-        // start = skipToLine (startLine + widgetScroll);
         size_t charactersToSkip = widgetScroll * widthV;
         auto iter = std::next (start, std::min (charactersToSkip, buffer.size ()));
 
-        // auto iter = start;
         Point tmpCursor = d.cursor ();
         while (totalCharactersCopied < len && linesPrinted++ < heightToPrint) {
+                if (linesPrinted > 1) {
+                        d.cursor () += {0, 1};
+                }
+
                 // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
                 // in a loop every iteration.
                 auto lineCharactersCopied = std::min (size_t (std::distance (iter, buffer.cend ())), size_t (widthV));
@@ -565,10 +567,8 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
 
                 totalCharactersCopied += lineCharactersCopied;
                 d.print (line.data ());
-                d.cursor () += {0, 1};
         }
 
-        d.cursor () = tmpCursor + Point{widthV - 1, heightV - 1};
         return Visibility::visible;
 }
 
