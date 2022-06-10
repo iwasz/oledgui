@@ -1280,15 +1280,15 @@ namespace detail {
                 /**
                  * Group
                  */
-                template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
-                class Group : public ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor> {
+                template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV, Dimension widthV, Dimension heightV, typename Decor>
+                class Group : public ContainerWidget<Group<T, WidgetTuple, xV, yV, widthV, heightV, Decor>, Decor> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr Group (T const &t, WidgetTuple c) : widget{t}, children{std::move (c)} {}
 
-                        static constexpr Dimension getWidth () { return 0; }
+                        static constexpr Dimension getWidth () { return widthV; }
                         static constexpr Dimension getHeight () { return heightV; }
-                        static constexpr Coordinate getX () { return 0; }
+                        static constexpr Coordinate getX () { return xV; }
                         static constexpr Coordinate getY () { return yV; }
 
                         Visibility operator() (auto &d, Context *ctx) const
@@ -1301,7 +1301,7 @@ namespace detail {
                         }
 
                 private:
-                        using BaseClass = ContainerWidget<Group<T, WidgetTuple, yV, heightV, Decor>, Decor>;
+                        using BaseClass = ContainerWidget<Group<T, WidgetTuple, xV, yV, widthV, heightV, Decor>, Decor>;
                         template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
 
@@ -1313,8 +1313,8 @@ namespace detail {
                 template <typename T> struct is_group_wrapper : public std::bool_constant<false> {
                 };
 
-                template <typename T, typename WidgetTuple, Coordinate yV, Dimension heightV, typename Decor>
-                class is_group_wrapper<Group<T, WidgetTuple, yV, heightV, Decor>> : public std::bool_constant<true> {
+                template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV, Dimension widthV, Dimension heightV, typename Decor>
+                class is_group_wrapper<Group<T, WidgetTuple, xV, yV, widthV, heightV, Decor>> : public std::bool_constant<true> {
                 };
 
                 template <typename T>
@@ -1375,7 +1375,8 @@ namespace detail {
                 template <typename W> static auto wrap (W &&t)
                 {
                         return augment::Group<std::unwrap_ref_decay_t<W>,
-                                              decltype (transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())), y,
+                                              decltype (transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())), x, y,
+                                              Parent::template Decorator<typename T::Children>::width,
                                               Parent::template Decorator<typename T::Children>::height, typename Parent::DecoratorType>{
                                 std::forward<W> (t), transform<f, x, y, Parent, T> (static_cast<T> (t).widgets ())};
                 }
