@@ -68,3 +68,4 @@ Document:
 * Glossary : 
   * container widget : layout, group & window. 
   * composite widget : widgets returned by special factory methods which was designed to compose few other widgets in a container (for instance a text widget with buttons to scroll the contents up and down.)
+* No height in a layer 1 widgets gets you 0. No width - the same.

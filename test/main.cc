@@ -15,6 +15,7 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <ncurses.h>
 #include <string>
 #include <tuple>
@@ -44,7 +45,7 @@ factory methods named accordingly (check, radio etc). Widgets can have these fie
 * template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles
         the input
 
-The first layer is meant to be extendeb by the user.
+The first layer is meant to be extended by the user.
 
 ## ContainerWidgets
 Then there are ContainerWidgets : Layout, Group and Window. When filled with children, they
@@ -195,7 +196,7 @@ template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisp
 namespace c {
 
         /**
-         * Level 1 widget.
+         * Layer 1 widget.
          */
         template <typename T>
         concept widget = requires (T const t, NcursesDisplay<0, 0, Empty> &d, Context const &c)
@@ -990,7 +991,7 @@ namespace detail {
                 /**
                  * Additional information for all the widget contained in the Layout.
                  */
-                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
                 requires c::widget<std::remove_reference_t<T>> // T can be for example Label or Label &. Only these 2 options.
                 class Widget {
                 public:
@@ -998,8 +999,8 @@ namespace detail {
 
                         constexpr Widget (T const &t) : widget{t} {}
 
-                        /// Height in characters.
-                        static constexpr Dimension getHeight () { return Wrapped::height; }
+                        static constexpr Dimension getWidth ();                             /// Width in characters.
+                        static constexpr Dimension getHeight () { return Wrapped::height; } /// Height in characters.
 
                         /// Consecutive number in a radio group.
                         static constexpr Selection getRadioIndex () { return radioIndexV; }
@@ -1007,8 +1008,8 @@ namespace detail {
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
 
-                        /// Position starting from the top.
-                        static constexpr Coordinate getY () { return yV; }
+                        static constexpr Coordinate getX () { return xV; } /// Position relative to the top left corner.
+                        static constexpr Coordinate getY () { return yV; } /// Position relative to the top left corner.
 
                         Visibility operator() (auto &d, Context const *ctx) const
                         {
@@ -1038,15 +1039,30 @@ namespace detail {
                 template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {
                 };
 
-                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
-                class is_widget_wrapper<Widget<T, focusIndexV, radioIndexV, yV>> : public std::bool_constant<true> {
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
+                class is_widget_wrapper<Widget<T, focusIndexV, radioIndexV, xV, yV>> : public std::bool_constant<true> {
                 };
 
                 template <typename T>
                 concept widget_wrapper = is_widget_wrapper<T>::value;
 
-                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate yV>
-                void Widget<T, focusIndexV, radioIndexV, yV>::scrollToFocus (Context *ctx) const
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
+                constexpr Dimension Widget<T, focusIndexV, radioIndexV, xV, yV>::getWidth ()
+                {
+                        if constexpr (requires {
+                                              {
+                                                      Wrapped::width
+                                                      } -> std::same_as<Dimension &>;
+                                      }) {
+                                return Wrapped::width;
+                        }
+                        else {
+                                return 0;
+                        }
+                }
+
+                template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
+                void Widget<T, focusIndexV, radioIndexV, xV, yV>::scrollToFocus (Context *ctx) const
                 {
                         if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
                                 if (ctx->currentFocus == getFocusIndex ()) {
@@ -1296,7 +1312,7 @@ namespace detail {
 
                 template <typename W> static auto wrap (W &&t)
                 {
-                        return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, y>{std::forward<W> (t)};
+                        return augment::Widget<std::unwrap_ref_decay_t<W>, f, r, 0 /* TODO implement */, y>{std::forward<W> (t)};
                 }
         };
 
