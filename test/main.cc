@@ -282,7 +282,6 @@ private:
 
 template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
-        return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -789,11 +788,11 @@ namespace detail {
 
         template <typename T> constexpr Dimension getWidth ()
         {
-                if constexpr (requires { T::getHeight (); }) {
-                        return T::getHeight ();
+                if constexpr (requires { T::getWidth (); }) {
+                        return T::getWidth ();
                 }
-                else if constexpr (requires { T::height; }) {
-                        return T::height;
+                else if constexpr (requires { T::width; }) {
+                        return T::width;
                 }
                 else {
                         return 0; // default
@@ -1728,21 +1727,23 @@ int test2 ()
         // std::string buff{"aaa"};
 
         auto txt = text<17, 3> (std::ref (buff));
-
-        auto txtComp = hbox (std::ref (txt), vbox (button ("^", [] {}), label ("|"), button ("v", [] {})));
+        LineOffset startLine{};
+        auto up = button ("^", [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
+        auto dwn = button ("v", [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto txtComp = hbox (std::ref (txt), vbox (std::ref (up), label ("|"), std::ref (dwn)));
 
         auto chk = check (" 1 ");
 
         auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "), radio (1, " C "),
                           radio (1, " M "), radio (1, " Y "), radio (1, " K "));
 
-        auto vv = vbox (txtComp/*,                              //
+        auto vv = vbox (txtComp,                              //
                         hbox (std::ref (chk), check (" 2 ")), //
-                        std::ref (grp)                      */  //
+                        std::ref (grp)                        //
         );
 
-        auto x = window<0, 0, 18, 7> (std::ref (txtComp));
-        log (x);
+        auto x = window<0, 0, 18, 7> (std::ref (vv));
+        // log (x);
 
         /*--------------------------------------------------------------------------*/
 
@@ -1752,7 +1753,6 @@ int test2 ()
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         // log (dialog);
-        LineOffset startLine{};
 
         while (true) {
                 if (showDialog) {
