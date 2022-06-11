@@ -70,6 +70,8 @@ Document:
   * composite widget : widgets returned by special factory methods which was designed to compose few other widgets in a container (for instance a text widget with buttons to scroll the contents up and down.)
 
 Layouts:
+* Assumption : every widget starts to draw itself where the cursor currently is right now, and leaves the cursor in it's bottom right corner. So for example if the current cursor coordinates are (2, 2) and we draw a `text` widget which is 3 chars wide and 3 chars tall, the resulting position of the cursor should be (5, 5). Every widget has to comply with this, otherwise layouts won't work as expected.
+  * Thus widgets are responsible for moving the cursor accordingly after drawing themselves.
 * Layer 1 requires height field, but width is optional. If no width is present in a widget, 0 is assumed
 * Show (on a diagram) where the cursor ends up after drawing various configurations of layouts and widgets
 * All widgets have their heights defined (either as a variable or calculated) and available at compile time. Width at the other hand, is trickier, as widgets don't have to provide it at compile time. For example it would be impossible for a label to know its with based on its run time contents.

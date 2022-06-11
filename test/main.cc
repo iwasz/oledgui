@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -173,6 +174,8 @@ private:
 };
 
 struct Dimensions {
+        constexpr Dimensions (Dimension w = 0, Dimension h = 0) : width{w}, height{h} {}
+
         Dimension width{};
         Dimension height{};
 };
@@ -181,7 +184,7 @@ struct Dimensions {
  * Runtime context for all the recursive loops.
  */
 struct Context {
-        Point *cursor{};
+        // Point *cursor{};
         Point const origin{};
         Dimensions const dimensions{};
         Focus currentFocus{};
@@ -279,6 +282,7 @@ private:
 
 template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
+        return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -510,6 +514,7 @@ template <Dimension widthV, Dimension heightV, text_buffer Buffer> class Text {
 public:
         using BufferType = std::remove_reference_t<Buffer>;
         static constexpr Dimension height = heightV;
+        static constexpr Dimension width = widthV;
 
         /// Tip use std::ref
         constexpr explicit Text (Buffer const &b) : buffer{b} {}
@@ -554,7 +559,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
         size_t charactersToSkip = widgetScroll * widthV;
         auto iter = std::next (start, std::min (charactersToSkip, buffer.size ()));
 
-        Point tmpCursor = d.cursor ();
+        // Point tmpCursor = d.cursor ();
         while (totalCharactersCopied < len && linesPrinted++ < heightToPrint) {
                 if (linesPrinted > 1) {
                         d.cursor () += {0, 1};
@@ -571,6 +576,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
                 d.print (line.data ());
         }
 
+        d.cursor ().x () += widthV;
         return Visibility::visible;
 }
 
@@ -832,10 +838,11 @@ namespace detail {
                 static constexpr Dimension width = detail::Max<WidgetsTuple, detail::WidgetWidthField>::value;
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-                static void after (Context const &ctx, auto &display)
+                static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
                         display.cursor ().y () += 1;
-                        display.cursor ().x () = ctx.origin.x ();
+                        // display.cursor ().x () = ctx.origin.x ();
+                        display.cursor ().x () = layoutOrigin.x ();
                 }
                 static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
                 static constexpr Dimension getHeightIncrement (Dimension d) { return d; }
@@ -845,14 +852,18 @@ namespace detail {
                 static constexpr Dimension width = detail::Sum<WidgetsTuple, detail::WidgetWidthField>::value;
                 static constexpr Dimension height = detail::Max<WidgetsTuple, detail::WidgetHeightField>::value;
 
-                static void after (Context const &ctx, auto &display) {}
+                static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
+                {
+                        display.cursor ().y () = layoutOrigin.y ();
+                        // display.cursor ().x ();
+                }
                 static constexpr Dimension getWidthIncrement (Dimension d) { return d; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
 
         struct NoDecoration {
                 static constexpr Dimension height = 0;
-                static constexpr void after (Context const &ctx, auto &display) {}
+                static constexpr void after (auto &display, Context const &ctx, Point const &layoutOrigin) {}
                 static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
         };
@@ -1023,15 +1034,14 @@ namespace detail {
 
                         static constexpr Dimension getWidth ();                             /// Width in characters.
                         static constexpr Dimension getHeight () { return Wrapped::height; } /// Height in characters.
+                        static constexpr Coordinate getX () { return xV; }                  /// Position relative to the top left corner.
+                        static constexpr Coordinate getY () { return yV; }                  /// Position relative to the top left corner.
 
                         /// Consecutive number in a radio group.
                         static constexpr Selection getRadioIndex () { return radioIndexV; }
 
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
-
-                        static constexpr Coordinate getX () { return xV; } /// Position relative to the top left corner.
-                        static constexpr Coordinate getY () { return yV; } /// Position relative to the top left corner.
 
                         Visibility operator() (auto &d, Context const *ctx) const
                         {
@@ -1074,7 +1084,7 @@ namespace detail {
                         if constexpr (requires {
                                               {
                                                       Wrapped::width
-                                                      } -> std::same_as<Dimension &>;
+                                                      } -> std::convertible_to<Dimension>;
                                       }) {
                                 return Wrapped::width;
                         }
@@ -1125,7 +1135,7 @@ namespace detail {
                                                 constexpr bool lastWidgetInLayout = (sizeof...(children) == 0);
 
                                                 if (!lastWidgetInLayout) {
-                                                        Decor::after (*ctx, d);
+                                                        Decor::after (d, *ctx, Point (ConcreteClass::getX (), ConcreteClass::getY ()));
                                                 }
                                         }
 
@@ -1261,8 +1271,8 @@ namespace detail {
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
                         using F = typename Wrapped::F;
-                        mutable Context context{
-                                nullptr, {Wrapped::x + F::offset, Wrapped::y + F::offset}, {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+                        mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
+                                                {Wrapped::width - F::cut, Wrapped::height - F::cut}};
 
                         using BaseClass = ContainerWidget<Window<T, Child>, NoDecoration>;
                         using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();
@@ -1467,7 +1477,10 @@ namespace detail::augment {
                                 std::cout << "NA";
                         }
 
-                        std::cout << ", y: " << w.getY () << ", height: " << w.getHeight () << ", " << typeid (w.widget).name () << std::endl;
+                        std::string name (typeid (w.widget).name ());
+                        name.resize (std::min (32UL, name.size ()));
+                        std::cout << ", x: " << w.getX () << ", y: " << w.getY () << ", w: " << w.getWidth () << ", h: " << w.getHeight ()
+                                  << ", " << name << std::endl;
 
                         if constexpr (requires (decltype (w) x) { x.children; }) {
                                 log (w.children, indent + 2);
@@ -1723,12 +1736,13 @@ int test2 ()
         auto grp = group ([] (auto o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "), radio (1, " C "),
                           radio (1, " M "), radio (1, " Y "), radio (1, " K "));
 
-        auto vv = vbox (txtComp,                              //
+        auto vv = vbox (txtComp/*,                              //
                         hbox (std::ref (chk), check (" 2 ")), //
-                        std::ref (grp)                        //
+                        std::ref (grp)                      */  //
         );
 
-        auto x = window<0, 0, 18, 7> (std::ref (vv));
+        auto x = window<0, 0, 18, 7> (std::ref (txtComp));
+        log (x);
 
         /*--------------------------------------------------------------------------*/
 
