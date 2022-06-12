@@ -120,7 +120,7 @@ enum class Visibility {
 struct Empty {
 };
 
-using Coordinate = uint16_t;
+using Coordinate = uint16_t; // TODO should be signed!
 using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
@@ -282,6 +282,7 @@ private:
 
 template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
+        // return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);
@@ -337,6 +338,7 @@ namespace detail {
 } // namespace detail
 
 namespace detail {
+        // TODO y1 should be coordinate (may be templatized) while height1 should be dimension
         template <typename T> constexpr bool heightsOverlap (T y1, T height1, T y2, T height2)
         {
                 auto y1d = y1 + height1 - 1;
@@ -644,7 +646,7 @@ template <typename Callback> template <typename Wrapper> Visibility Button<Callb
         }
 
         d.print (label);
-        d.cursor () += {Dimension (strlen (label)), 0};
+        d.cursor () += {Dimension (strlen (label)), 0}; // TODO utf chars confuse this calculation.
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -853,7 +855,12 @@ namespace detail {
 
                 static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
-                        display.cursor ().y () = layoutOrigin.y ();
+                        display.cursor ().y () = layoutOrigin.y () - ctx.currentScroll;
+
+                        if (display.cursor ().y () > 1000) { // TODO remove after coordinate is modified to be signed.
+                                display.cursor ().y () = 0;
+                        }
+
                         // display.cursor ().x ();
                 }
                 static constexpr Dimension getWidthIncrement (Dimension d) { return d; }
@@ -1262,6 +1269,9 @@ namespace detail {
                                 }
                         }
 
+                        mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
+                                                {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+
                 private:
                         template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
@@ -1270,8 +1280,8 @@ namespace detail {
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
                         using F = typename Wrapped::F;
-                        mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
-                                                {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+                        // mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
+                        //                         {Wrapped::width - F::cut, Wrapped::height - F::cut}};
 
                         using BaseClass = ContainerWidget<Window<T, Child>, NoDecoration>;
                         using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();
@@ -1728,9 +1738,9 @@ int test2 ()
 
         auto txt = text<17, 3> (std::ref (buff));
         LineOffset startLine{};
-        auto up = button ("^", [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        auto dwn = button ("v", [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
-        auto txtComp = hbox (std::ref (txt), vbox (std::ref (up), label ("|"), std::ref (dwn)));
+        auto up = button ("^", [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });  // TODO "▲"
+        auto dwn = button ("v", [&txt, &startLine] { startLine = txt.setStartLine (++startLine); }); // TODO "▼"
+        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), label ("|"), std::ref (dwn)));
 
         auto chk = check (" 1 ");
 
@@ -1765,10 +1775,12 @@ int test2 ()
 
                         switch (ch) {
                         case 'w':
-                                startLine = txt.setStartLine (--startLine);
+                                // startLine = txt.setStartLine (--startLine);
+                                --x.context.currentScroll;
                                 break;
                         case 's':
-                                startLine = txt.setStartLine (++startLine);
+                                // startLine = txt.setStartLine (++startLine);
+                                ++x.context.currentScroll;
                                 break;
                         case 'a':
                                 buff = "ala ma kota";

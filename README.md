@@ -58,6 +58,7 @@ aaa
 * [ ] Separate directory for tests, and static_assert tests.
 * [ ] Composite widgets as a possibility (or implement the text widget with scroll buttons).
 * [ ] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
+* [ ] vspace
 
 
 Document:

@@ -3,7 +3,7 @@ project(oledgui)
 include_directories(src)
 
 # To make clangd happy
-SET(CMAKE_CXX_FLAGS "-std=c++2a -fconcepts-diagnostics-depth=10")
+SET(CMAKE_CXX_FLAGS "-std=c++2a -Werror -fconcepts-diagnostics-depth=10")
 
 add_executable(${CMAKE_PROJECT_NAME}
     test/main.cc
