@@ -50,15 +50,16 @@ aaa
 * [ ] AND / OR Widget parameters dictating the looks.
 * [x] Implement a test widget which is more than 1 character tall.
   * [x] Test this widget in the vertical and horizontal layouts.
-    * [ ] Widgets having height > 1 have to implement their own scrolling. I haven't anticipated that a widget can be half visible.
+    * [x] Widgets having height > 1 have to implement their own scrolling. I haven't anticipated that a widget can be half visible.
 * [ ] vbox(); (no parameters) results in an error.
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
 * [x] Make the functions std::ref aware
 * [ ] Separate directory for tests, and static_assert tests.
-* [ ] Composite widgets as a possibility (or implement the text widget with scroll buttons).
+* [x] Composite widgets as a possibility (or implement the text widget with scroll buttons).
 * [ ] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
 * [ ] vspace
+* [ ] constexpr strings as an option whenever const char * is used.
 
 
 Document:
@@ -69,6 +70,7 @@ Document:
 * Glossary : 
   * container widget : layout, group & window. 
   * composite widget : widgets returned by special factory methods which was designed to compose few other widgets in a container (for instance a text widget with buttons to scroll the contents up and down.)
+* Show how to write a composite widget (text widget as an example)
 
 Layouts:
 * Assumption : every widget starts to draw itself where the cursor currently is right now, and leaves the cursor in it's bottom right corner. So for example if the current cursor coordinates are (2, 2) and we draw a `text` widget which is 3 chars wide and 3 chars tall, the resulting position of the cursor should be (5, 5). Every widget has to comply with this, otherwise layouts won't work as expected.

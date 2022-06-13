@@ -120,7 +120,7 @@ enum class Visibility {
 struct Empty {
 };
 
-using Coordinate = uint16_t; // TODO should be signed!
+using Coordinate = int16_t;
 using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
@@ -338,18 +338,17 @@ namespace detail {
 } // namespace detail
 
 namespace detail {
-        // TODO y1 should be coordinate (may be templatized) while height1 should be dimension
-        template <typename T> constexpr bool heightsOverlap (T y1, T height1, T y2, T height2)
+        template <std::signed_integral C, std::unsigned_integral D> constexpr bool heightsOverlap (C y1, D height1, C y2, D height2)
         {
                 auto y1d = y1 + height1 - 1;
                 auto y2d = y2 + height2 - 1;
                 return y1 <= y2d && y2 <= y1d;
         }
 
-        static_assert (!heightsOverlap (-1, 1, 0, 2));
-        static_assert (heightsOverlap (0, 1, 0, 2));
-        static_assert (heightsOverlap (1, 1, 0, 2));
-        static_assert (!heightsOverlap (2, 1, 0, 2));
+        static_assert (!heightsOverlap (-1, 1U, 0, 2U));
+        static_assert (heightsOverlap (0, 1U, 0, 2U));
+        static_assert (heightsOverlap (1, 1U, 0, 2U));
+        static_assert (!heightsOverlap (2, 1U, 0, 2U));
 
 } // namespace detail
 
@@ -424,7 +423,7 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
                 d.color (1);
         }
 
-        d.cursor () += {Dimension (strlen (label_)), 0}; // TODO constexpr strings?
+        d.cursor () += {Coordinate (strlen (label_)), 0}; // TODO constexpr strings?
         return Visibility::visible;
 }
 
@@ -472,7 +471,7 @@ template <std::integral Id> template <typename Wrapper> Visibility Radio<Id>::op
                 d.color (1);
         }
 
-        d.cursor () += {Dimension (strlen (label)), 0};
+        d.cursor () += {Coordinate (strlen (label)), 0};
         return Visibility::visible;
 }
 
@@ -602,7 +601,7 @@ public:
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
                 d.print (label);
-                d.cursor () += {Dimension (strlen (label)), 0};
+                d.cursor () += {Coordinate (strlen (label)), 0};
                 return Visibility::visible;
         }
 
@@ -646,7 +645,7 @@ template <typename Callback> template <typename Wrapper> Visibility Button<Callb
         }
 
         d.print (label);
-        d.cursor () += {Dimension (strlen (label)), 0}; // TODO utf chars confuse this calculation.
+        d.cursor () += {Coordinate (strlen (label)), 0}; // TODO utf chars confuse this calculation.
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -842,7 +841,6 @@ namespace detail {
                 static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
                         display.cursor ().y () += 1;
-                        // display.cursor ().x () = ctx.origin.x ();
                         display.cursor ().x () = layoutOrigin.x ();
                 }
                 static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
@@ -855,13 +853,7 @@ namespace detail {
 
                 static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
-                        display.cursor ().y () = layoutOrigin.y () - ctx.currentScroll;
-
-                        if (display.cursor ().y () > 1000) { // TODO remove after coordinate is modified to be signed.
-                                display.cursor ().y () = 0;
-                        }
-
-                        // display.cursor ().x ();
+                        display.cursor ().y () = std::max (layoutOrigin.y () - ctx.currentScroll, 0);
                 }
                 static constexpr Dimension getWidthIncrement (Dimension d) { return d; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
