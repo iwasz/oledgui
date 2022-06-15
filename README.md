@@ -35,7 +35,8 @@ aaa
 * [x] combo - "action" key changes the value (works for numbers as well)
   * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
 * [x] Button (with callback).
-* [ ] std::string - like strings??? naah...
+* [ ] std::string - like strings???
+  * [ ] Test with std::string_view, std::string abd etl::string. Test with std::refs
 * [ ] callbacks and / or references - for all widgets that has input. 
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
@@ -79,3 +80,10 @@ Layouts:
 * Show (on a diagram) where the cursor ends up after drawing various configurations of layouts and widgets
 * All widgets have their heights defined (either as a variable or calculated) and available at compile time. Width at the other hand, is trickier, as widgets don't have to provide it at compile time. For example it would be impossible for a label to know its with based on its run time contents.
   * As a result it is easy (easy as C++ meta-programing goes) to calculate layout's height (you sum all the contained widgets' heights) but not that easy to do the same with width. This is why you can explicitly specify the width of a layout. However it sums the contained children' widths but then gets the max of the sum and explicit value.
+
+* `c::string` concept.
+  * copyable
+  * has size () -> std::size_t
+  * tip : you can use std::ref
+* c::text_buffer : c::string + cbegin & cend
+  * tip : you can use std::ref
