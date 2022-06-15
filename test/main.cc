@@ -423,6 +423,7 @@ template <typename Wrapper> Visibility Check::operator() (auto &d, Context const
                 d.color (1);
         }
 
+        
         d.cursor () += {Coordinate (strlen (label_)), 0}; // TODO constexpr strings?
         return Visibility::visible;
 }
@@ -1732,7 +1733,7 @@ int test2 ()
         LineOffset startLine{};
         auto up = button ("^", [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });  // TODO "▲"
         auto dwn = button ("v", [&txt, &startLine] { startLine = txt.setStartLine (++startLine); }); // TODO "▼"
-        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), label ("|"), std::ref (dwn)));
+        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), label (" "), std::ref (dwn)));
 
         auto chk = check (" 1 ");
 
