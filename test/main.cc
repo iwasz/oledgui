@@ -222,6 +222,20 @@ namespace c {
                         } -> std::convertible_to<std::size_t>;
         };
 
+        template <typename S>
+        concept text_buffer = string<S> && requires (S s)
+        {
+                typename S::value_type;
+
+                {
+                        s.cbegin ()
+                        } -> std::input_iterator;
+
+                {
+                        s.cend ()
+                        } -> std::input_iterator;
+        };
+
 } // namespace c
 
 /**
@@ -543,7 +557,7 @@ template <typename String, typename Id> struct is_radio<Radio<String, Id>> : pub
  * TODO multiline is not supported! Implement!
  */
 template <Dimension widthV, Dimension heightV, typename Buffer>
-requires c::string<std::remove_reference_t<Buffer>>
+requires c::text_buffer<std::remove_reference_t<Buffer>>
 class Text {
 public:
         using BufferType = std::remove_reference_t<Buffer>;
@@ -581,7 +595,6 @@ private:
         bool scrollToBottom{};
 };
 
-// TODO Buffer has stricter requirements than c::string. Get bask to using text_buffer
 template <Dimension widthV, Dimension heightV, typename Buffer>
 template <typename Wrapper>
 Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
