@@ -32,11 +32,14 @@ aaa
 * [ ] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
   * [ ] Demo - menu 
   * [ ] Navigation between screens - research how to do it the best from the API perspective.
+  * [ ] Show how to make a table-like layout (preferably with dynamic content - like 2 colums of temperature readings with labels etc.).
 * [x] combo - "action" key changes the value (works for numbers as well)
   * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
 * [x] Button (with callback).
-* [ ] std::string - like strings???
+* [x] std::string - like strings
   * [ ] Test with std::string_view, std::string abd etl::string. Test with std::refs
+  * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
+  * [ ] Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available
 * [ ] callbacks and / or references - for all widgets that has input. 
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
@@ -58,10 +61,12 @@ aaa
 * [x] Make the functions std::ref aware
 * [ ] Separate directory for tests, and static_assert tests.
 * [x] Composite widgets as a possibility (or implement the text widget with scroll buttons).
-* [ ] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
-* [ ] vspace
-* [ ] constexpr strings as an option whenever const char * is used.
-
+* [x] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
+* [x] vspace
+* [ ] Prepare backends for:
+  * [ ] Zephyr
+  * [x] Ncurses
+  * [ ] Arduino
 
 Document:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
@@ -87,3 +92,5 @@ Layouts:
   * tip : you can use std::ref
 * c::text_buffer : c::string + cbegin & cend
   * tip : you can use std::ref
+
+* utf8 strings can confuse the length calculation (no UTF8 library is used here, and in general utf8 is not supported). If this is a case, use layout: hbox<1> (label ("▲"))

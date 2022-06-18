@@ -393,8 +393,9 @@ struct Focusable {
 
 /****************************************************************************/
 
-template <uint16_t len, char c> struct Line {
+template <Dimension len, char c> struct Line {
         static constexpr Dimension height = 1;
+        static constexpr Dimension width = len;
 
         template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
@@ -405,7 +406,21 @@ template <uint16_t len, char c> struct Line {
 };
 
 template <uint16_t len> Line<len, '-'> const line;
-template <uint16_t len = 1> Line<len, ' '> const hspace;
+
+template <Dimension widthV, Dimension heightV> struct Space {
+        static constexpr Dimension height = heightV;
+        static constexpr Dimension width = widthV;
+
+        template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
+        {
+                d.cursor () += {width, std::max (height - 1, 0)};
+                return Visibility::visible;
+        }
+};
+
+template <Dimension widthV, Dimension heightV> Space<widthV, heightV> const space;
+template <Dimension widthV> Space<widthV, 1> const hspace;
+template <Dimension heightV> Space<1, heightV> const vspace;
 
 /****************************************************************************/
 /* Check                                                                    */
@@ -708,7 +723,7 @@ Visibility Button<String, Callback>::operator() (auto &d, Context const &ctx) co
         }
 
         d.print (label_);
-        d.cursor () += {Coordinate (label_.size ()), 0}; // TODO utf chars confuse this calculation.
+        d.cursor () += {Coordinate (label_.size ()), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -1185,7 +1200,7 @@ namespace detail {
                                         ctx->radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
                                 }
 
-                                // ctx = changeContext (ctx);
+                                auto tmpCursor = d.cursor ();
 
                                 // Some container widgets have their own display method (operator ()). For instance og::Window
                                 if constexpr (requires {
@@ -1211,6 +1226,10 @@ namespace detail {
 
                                 std::apply ([&l] (auto const &...children) { l (l, children...); },
                                             static_cast<ConcreteClass const *> (this)->children);
+
+                                // Move the cursor to the bottom right corner
+                                d.cursor () = tmpCursor;
+                                d.cursor () += {ConcreteClass::getWidth (), std::max (ConcreteClass::getHeight () - 1, 0)};
 
                                 return Visibility::visible;
                         }
@@ -1798,21 +1817,22 @@ int test2 ()
                          "char-like objects with the first element of the sequence at position zero."};
         // std::string buff{"aaa"};
 
-        auto txt = text<17, 3> (std::ref (buff));
+        auto txt = text<17, 5> (std::ref (buff));
         LineOffset startLine{};
-        auto up = button ("^"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });  // TODO "▲"
-        auto dwn = button ("v"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); }); // TODO "▼"
-        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), label (" "sv), std::ref (dwn)));
+        auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
+        auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<3>, std::ref (dwn)));
 
         auto chk = check (" 1 "sv);
 
         auto grp = group ([] (auto o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv), radio (1, " C "sv),
                           radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
 
-        auto vv = vbox (txtComp,                                //
-                        hbox (std::ref (chk), check (" 2 "sv)), //
-                        std::ref (grp)                          //
-        );
+        auto vv = vbox (txtComp, //
+                        hbox (hbox<1> (label ("▲"sv)), label ("▲"sv), label ("▲"sv)));
+        //                 hbox (std::ref (chk), check (" 2 "sv)), //
+        //                 std::ref (grp)                          //
+        // );
 
         auto x = window<0, 0, 18, 7> (std::ref (vv));
         // log (x);
