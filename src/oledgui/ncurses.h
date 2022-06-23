@@ -86,4 +86,24 @@ template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
         return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
 }
 
+og::Key getKey (int ch)
+{
+        // TODO characters must be customizable (compile time)
+        switch (ch) {
+        case KEY_DOWN:
+                return Key::incrementFocus;
+
+        case KEY_UP:
+                return Key::decrementFocus;
+
+        case int (' '):
+                return Key::select;
+
+        default:
+                return Key::unknown;
+        }
+}
+
+og::Key getKey () { return getKey (getch ()); }
+
 } // namespace og

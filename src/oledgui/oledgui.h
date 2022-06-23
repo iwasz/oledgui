@@ -16,7 +16,6 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <ncurses.h>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -269,26 +268,6 @@ template <typename Child> struct EmptyDisplay : public Display<EmptyDisplay<Chil
         void refresh () {}
 };
 
-og::Key getKey (int ch)
-{
-        // TODO characters must be customizable (compile time)
-        switch (ch) {
-        case KEY_DOWN:
-                return Key::incrementFocus;
-
-        case KEY_UP:
-                return Key::decrementFocus;
-
-        case int (' '):
-                return Key::select;
-
-        default:
-                return Key::unknown;
-        }
-}
-
-og::Key getKey () { return getKey (getch ()); }
-
 /****************************************************************************/
 
 namespace detail {
@@ -425,7 +404,7 @@ template <typename String> constexpr auto check (String &&str, bool checked = fa
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::integral Id> // TODO less restrictive concept for Id
+template <typename String, std::integral Id> // TODO remove Id! It is not used.
 requires c::string<std::remove_reference_t<String>>
 class Radio : public Focusable {
 public:
@@ -551,7 +530,8 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
         size_t heightToPrint = heightV - widgetScroll;
 
         Dimension len = buffer_.size ();
-        std::array<char, widthV + 1> line;
+        std::array<char, widthV + 1> lineA;
+        std::string_view line{lineA.data (), lineA.size ()};
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
 
@@ -567,7 +547,7 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
                 // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
                 // in a loop every iteration.
                 auto lineCharactersCopied = std::min (size_t (std::distance (iter, buffer_.cend ())), size_t (widthV));
-                auto i = std::copy_n (iter, lineCharactersCopied, line.begin ());
+                auto i = std::copy_n (iter, lineCharactersCopied, lineA.begin ());
                 *i = '\0';
                 std::advance (iter, lineCharactersCopied);
 
