@@ -37,9 +37,9 @@ aaa
   * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
 * [x] Button (with callback).
 * [x] std::string - like strings
-  * [ ] Test with std::string_view, std::string abd etl::string. Test with std::refs
+  * [ ] Test with std::string_view, std::string and etl::string. Test with std::refs
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
-  * [ ] Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available
+  * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
 * [ ] callbacks and / or references - for all widgets that has input. 
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)

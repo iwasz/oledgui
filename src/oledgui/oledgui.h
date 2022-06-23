@@ -6,7 +6,6 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
-#include "oledgui.h"
 #include <algorithm>
 #include <array>
 #include <bits/utility.h>
@@ -194,7 +193,7 @@ struct Context {
 
 enum class Key { unknown, incrementFocus, decrementFocus, select };
 
-template <Dimension widthV, Dimension heightV, typename Child> class NcursesDisplay;
+template <typename Child> struct EmptyDisplay;
 
 namespace c {
 
@@ -202,7 +201,7 @@ namespace c {
          * Layer 1 widget.
          */
         template <typename T>
-        concept widget = requires (T const t, NcursesDisplay<0, 0, Empty> &d, Context const &c)
+        concept widget = requires (T const t, EmptyDisplay<Empty> &d, Context const &c)
         {
                 {
                         T::height
@@ -262,74 +261,13 @@ protected:
         Child child;
 };
 
-/**
- * Ncurses backend.
- */
-template <Dimension widthV, Dimension heightV, typename Child = Empty>
-class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
-public:
-        using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
-        using Base::cursor;
-        using Base::width, Base::height;
+template <typename Child> struct EmptyDisplay : public Display<EmptyDisplay<Child>, 0, 0, Child> {
 
-        explicit NcursesDisplay (Child c = {});
-        NcursesDisplay (NcursesDisplay const &) = default;
-        NcursesDisplay &operator= (NcursesDisplay const &) = default;
-        NcursesDisplay (NcursesDisplay &&) noexcept = default;
-        NcursesDisplay &operator= (NcursesDisplay &&) noexcept = default;
-        ~NcursesDisplay () noexcept
-        {
-                clrtoeol ();
-                refresh ();
-                endwin ();
-        }
-
-        template <typename String>
-        requires requires (String s)
-        {
-                {
-                        s.data ()
-                        } -> std::convertible_to<const char *>;
-        }
-        void print (String const &str) { mvwprintw (win, cursor ().y (), cursor ().x (), static_cast<const char *> (str.data ())); }
-
-        void clear ()
-        {
-                wclear (win);
-                cursor ().x () = 0;
-                cursor ().y () = 0;
-        }
-
-        void color (Color c) { wattron (win, COLOR_PAIR (c)); }
-
-        void refresh ()
-        {
-                ::refresh ();
-                wrefresh (win);
-        }
-
-private:
-        using Base::child;
-        WINDOW *win{};
+        template <typename String> void print (String const &str) {}
+        void clear () {}
+        void color (Color c) {}
+        void refresh () {}
 };
-
-template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
-{
-        // return;
-        setlocale (LC_ALL, "");
-        initscr ();
-        curs_set (0);
-        noecho ();
-        cbreak ();
-        use_default_colors ();
-        start_color ();
-        init_pair (1, COLOR_WHITE, COLOR_BLUE);
-        init_pair (2, COLOR_BLUE, COLOR_WHITE);
-        keypad (stdscr, true);
-        win = newwin (height, width, 0, 0);
-        wbkgd (win, COLOR_PAIR (1));
-        refresh ();
-}
 
 og::Key getKey (int ch)
 {
@@ -350,11 +288,6 @@ og::Key getKey (int ch)
 }
 
 og::Key getKey () { return getKey (getch ()); }
-
-template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
-{
-        return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
-}
 
 /****************************************************************************/
 
@@ -1651,240 +1584,4 @@ void input (auto &display, detail::augment::window_wrapper auto &window, Key key
         }
 }
 
-/****************************************************************************/
-
-// TODO uncomment and move to a separate file
-// static_assert (c::widget<Line<0, '-'>>);
-// static_assert (c::widget<Check>);
-// static_assert (c::widget<Radio<int>>);
-// static_assert (c::widget<Label>);
-// static_assert (c::widget<Button<decltype ([] {})>>);
-// // These does not have the operator () and the height field
-
-// using MyLayout = Layout<detail::VBoxDecoration, decltype (std::tuple{check ("")})>;
-// static_assert (!c::widget<MyLayout>);
-// static_assert (!c::widget<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
-// static_assert (!c::widget<Window<0, 0, 0, 0, false, Label>>);
-
-// static_assert (is_layout<MyLayout>::value);
-// static_assert (!is_layout<decltype (check (""))>::value);
-// static_assert (!c::layout<Label>);
-// static_assert (c::layout<MyLayout>);
-
-// static_assert (!c::group<int>);
-// static_assert (!c::group<Label>);
-// static_assert (!c::group<MyLayout>);
-// static_assert (c::group<Group<decltype ([] {}), decltype (std::make_tuple (radio (1, "")))>>);
-
-// static_assert (c::window<Window<0, 0, 0, 0, false, Label>>);
-// static_assert (!c::window<Label>);
-
-// static_assert (detail::augment::widget_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-// static_assert (!detail::augment::widget_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-// static_assert (!detail::augment::widget_wrapper<detail::augment::Window<int, int, 0, 0>>);
-// static_assert (!detail::augment::widget_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
-
-// static_assert (!detail::augment::layout_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-// static_assert (detail::augment::layout_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-// static_assert (!detail::augment::layout_wrapper<detail::augment::Window<int, int, 0, 0>>);
-// static_assert (!detail::augment::layout_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
-
-// static_assert (!detail::augment::window_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-// static_assert (!detail::augment::window_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-// static_assert (detail::augment::window_wrapper<detail::augment::Window<int, int, 0, 0>>);
-// static_assert (!detail::augment::window_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
-
-// static_assert (!detail::augment::group_wrapper<detail::augment::Widget<Label, 0, 0, 0>>);
-// static_assert (!detail::augment::group_wrapper<detail::augment::Layout<MyLayout, std::tuple<int>, 0>>);
-// static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int, 0, 0>>);
-// static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, DefaultDecor<int>>>);
-
 } // namespace og
-
-/****************************************************************************/
-
-// int test1 ()
-// {
-//         using namespace og;
-
-//         /*
-//          * TODO This has the problem that it woud be tedious and wasteful to declare ncurses<18, 7>
-//          * with every new window/view. Alas I'm trying to investigate how to commonize Displays and Windows.
-//          *
-//          * This ncurses method can be left as an option.
-//          */
-//         auto vb = ncurses<18, 7> (vbox (vbox (radio (0, " A "), radio (1, " B "), radio (2, " C "), radio (3, " d ")), //
-//                                         line<10>,                                                                      //
-//                                         vbox (check (" 1 "), check (" 2 "), check (" 3 "), check (" 4 ")),             //
-//                                         line<10>,                                                                      //
-//                                         vbox (radio (0, " a "), radio (0, " b "), radio (0, " c "), radio (0, " d ")), //
-//                                         line<10>,                                                                      //
-//                                         vbox (check (" 5 "), check (" 6 "), check (" 7 "), check (" 8 ")),             //
-//                                         line<10>,                                                                      //
-//                                         vbox (radio (0, " E "), radio (0, " F "), radio (0, " G "), radio (0, " H "))  //
-//                                         ));                                                                            //
-
-//         // auto dialog = window<2, 2, 10, 10> (vbox (radio (" A "), radio (" B "), radio (" C "), radio (" d ")));
-//         // // dialog.calculatePositions ();
-
-//         bool showDialog{};
-
-//         while (true) {
-//                 // d1.clear ()
-//                 // vb (d1);
-
-//                 vb ();
-
-//                 // if (showDialog) {
-//                 //         dialog (d1);
-//                 // }
-
-//                 // wrefresh (d1.win);
-//                 int ch = getch ();
-
-//                 if (ch == 'q') {
-//                         break;
-//                 }
-
-//                 switch (ch) {
-//                 case KEY_DOWN:
-//                         vb.incrementFocus ();
-//                         break;
-
-//                 case KEY_UP:
-//                         vb.decrementFocus ();
-//                         break;
-
-//                 case 'd':
-//                         showDialog = true;
-//                         break;
-
-//                 default:
-//                         // d1.input (vb, char (ch));
-//                         // vb.input (d1, char (ch), 0, 0, dummy);
-//                         break;
-//                 }
-//         }
-
-//         return 0;
-// }
-
-/****************************************************************************/
-
-int test2 ()
-{
-        using namespace og;
-        using namespace std::string_view_literals;
-
-        NcursesDisplay<18, 7> d1;
-
-        bool showDialog{};
-
-        // auto x = window<0, 0, 18, 7> (
-        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-        //               line<18>,                                                                                                     //
-        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-        //               line<18>,                                                                                                     //
-        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-        //               line<18>,                                                                                                     //
-        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-        //               line<18>,                                                                                                     //
-        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-        //               line<18>,                                                                                                     //
-        //               check (" 1 "),                                                                                                //
-        //               check (" 2 "),                                                                                                //
-        //               check (" 3 "),                                                                                                //
-        //               check (" 4 "),                                                                                                //
-        //               check (" 5 "),                                                                                                //
-        //               check (" 6 "),                                                                                                //
-        //               check (" 7 "),                                                                                                //
-        //               check (" 8 "),                                                                                                //
-        //               check (" 9 "),                                                                                                //
-        //               check (" 10 "),                                                                                               //
-        //               check (" 11 "),                                                                                               //
-        //               check (" 12 "),                                                                                               //
-        //               check (" 13 "),                                                                                               //
-        //               check (" 14 "),                                                                                               //
-        //               check (" 15 ")                                                                                                //
-        //               ));                                                                                                           //
-
-        // log (x);
-        /*--------------------------------------------------------------------------*/
-
-        std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
-                         "char-like objects with the first element of the sequence at position zero."};
-        // std::string buff{"aaa"};
-
-        auto txt = text<17, 5> (std::ref (buff));
-        LineOffset startLine{};
-        auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
-        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<3>, std::ref (dwn)));
-
-        auto chk = check (" 1 "sv);
-
-        auto grp = group ([] (auto o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv), radio (1, " C "sv),
-                          radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
-
-        auto vv = vbox (txtComp, //
-                        hbox (hbox<1> (label ("▲"sv)), label ("▲"sv), label ("▲"sv)));
-        //                 hbox (std::ref (chk), check (" 2 "sv)), //
-        //                 std::ref (grp)                          //
-        // );
-
-        auto x = window<0, 0, 18, 7> (std::ref (vv));
-        // log (x);
-
-        /*--------------------------------------------------------------------------*/
-
-        auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (" 15 "sv));
-
-        auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
-
-        // log (dialog);
-
-        while (true) {
-                if (showDialog) {
-                        draw (d1, x, dialog);
-                        input (d1, dialog, getKey ()); // Blocking call.
-                }
-                else {
-                        draw (d1, x);
-                        int ch = getch ();
-
-                        switch (ch) {
-                        case 'w':
-                                // startLine = txt.setStartLine (--startLine);
-                                --x.context.currentScroll;
-                                break;
-                        case 's':
-                                // startLine = txt.setStartLine (++startLine);
-                                ++x.context.currentScroll;
-                                break;
-                        case 'a':
-                                buff = "ala ma kota";
-                                break;
-                        case 'c':
-                                chk.checked () = !chk.checked ();
-                                break;
-                        default:
-                                input (d1, x, getKey (ch));
-                                break;
-                        }
-                }
-        }
-
-        return 0;
-}
-
-/****************************************************************************/
-
-int main ()
-{
-
-        test2 ();
-        // test1 ();
-}
