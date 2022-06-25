@@ -134,7 +134,7 @@ int test2 ()
                           radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
 
         auto vv = vbox (txtComp, //
-                        hbox (hbox<1> (label ("▲"sv)), label ("▲"sv), label ("▲"sv)));
+                        hbox (hbox<1> (label ("▲"sv)), label ("▲"sv), label ("▲"sv)), vbox ());
         //                 hbox (std::ref (chk), check (" 2 "sv)), //
         //                 std::ref (grp)                          //
         // );

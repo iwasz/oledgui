@@ -40,7 +40,8 @@ aaa
   * [ ] Test with std::string_view, std::string and etl::string. Test with std::refs
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
-* [ ] callbacks and / or references - for all widgets that has input. 
+* [ ] callbacks and / or references - for all widgets that have input. 
+  * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
   * [x] Dialog
@@ -55,7 +56,7 @@ aaa
 * [x] Implement a test widget which is more than 1 character tall.
   * [x] Test this widget in the vertical and horizontal layouts.
     * [x] Widgets having height > 1 have to implement their own scrolling. I haven't anticipated that a widget can be half visible.
-* [ ] vbox(); (no parameters) results in an error.
+* [x] vbox(); (no parameters) results in an error.
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
 * [x] Make the functions std::ref aware

@@ -808,20 +808,33 @@ namespace detail {
 
         /*--------------------------------------------------------------------------*/
 
-        template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Sum {
-                static constexpr auto value = Field<std::tuple_element_t<n, Tuple>>::value + Sum<Tuple, Field, n - 1>::value;
+        template <typename Tuple, template <typename T> typename Field, int elemIdx = static_cast<int> (std::tuple_size_v<Tuple> - 1)>
+        struct Sum {
+                static constexpr auto value = Field<std::tuple_element_t<elemIdx, Tuple>>::value + Sum<Tuple, Field, elemIdx - 1>::value;
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, 0> {
                 static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
         };
 
-        template <typename Tuple, template <typename T> typename Field, size_t n = std::tuple_size_v<Tuple> - 1> struct Max {
-                static constexpr auto value = std::max (Field<std::tuple_element_t<n, Tuple>>::value, Max<Tuple, Field, n - 1>::value);
+        // Partial specialization for empty children list
+        template <typename Tuple, template <typename T> typename Field> struct Sum<Tuple, Field, -1> {
+                static constexpr int value = 0;
+        };
+
+        template <typename Tuple, template <typename T> typename Field, int elemIdx = static_cast<int> (std::tuple_size_v<Tuple> - 1)>
+        struct Max {
+                static constexpr auto value
+                        = std::max (Field<std::tuple_element_t<elemIdx, Tuple>>::value, Max<Tuple, Field, elemIdx - 1>::value);
         };
 
         template <typename Tuple, template <typename T> typename Field> struct Max<Tuple, Field, 0> {
                 static constexpr auto value = Field<std::tuple_element_t<0, Tuple>>::value;
+        };
+
+        // Partial specialization for empty children list
+        template <typename Tuple, template <typename T> typename Field> struct Max<Tuple, Field, -1> {
+                static constexpr int value = 0;
         };
 
         /*--------------------------------------------------------------------------*/
@@ -1137,8 +1150,16 @@ namespace detail {
                                         }
                                 };
 
-                                std::apply ([&l] (auto const &...children) { l (l, children...); },
-                                            static_cast<ConcreteClass const *> (this)->children);
+                                auto &concreteChildren = static_cast<ConcreteClass const *> (this)->children;
+
+                                std::apply (
+                                        [&l] (auto const &...children) {
+                                                // In case of empty children list for example when vbox() was called (no args)
+                                                if constexpr (sizeof...(children) > 0) {
+                                                        l (l, children...);
+                                                }
+                                        },
+                                        concreteChildren);
 
                                 // Move the cursor to the bottom right corner
                                 d.cursor () = tmpCursor;
@@ -1161,7 +1182,13 @@ namespace detail {
                                         }
                                 };
 
-                                std::apply ([&l] (auto &...children) { l (l, children...); }, static_cast<ConcreteClass *> (this)->children);
+                                std::apply (
+                                        [&l] (auto &...children) {
+                                                if constexpr (sizeof...(children) > 0) {
+                                                        l (l, children...);
+                                                }
+                                        },
+                                        static_cast<ConcreteClass *> (this)->children);
                         }
 
                         void scrollToFocus (Context *ctx) const
@@ -1176,8 +1203,13 @@ namespace detail {
                                         }
                                 };
 
-                                std::apply ([&l] (auto const &...children) { l (l, children...); },
-                                            static_cast<ConcreteClass const *> (this)->children);
+                                std::apply (
+                                        [&l] (auto const &...children) {
+                                                if constexpr (sizeof...(children) > 0) {
+                                                        l (l, children...);
+                                                }
+                                        },
+                                        static_cast<ConcreteClass const *> (this)->children);
                         }
                 };
 
@@ -1437,12 +1469,17 @@ namespace detail {
         template <Focus f, Coordinate x, Coordinate y, typename GrandParent, typename Parent, typename ChildrenTuple>
         constexpr auto transform (ChildrenTuple &tuple) // TODO use concept instead of "Children" prefix.
         {
-                return std::apply (
-                        [] (auto &...element) {
-                                std::tuple dummy{};
-                                return transformImpl<f, 0, x, y, GrandParent, Parent> (dummy, element...);
-                        },
-                        tuple);
+                if constexpr (std::tuple_size<ChildrenTuple>::value == 0) {
+                        return std::tuple{};
+                }
+                else {
+                        return std::apply (
+                                [] (auto &...element) {
+                                        std::tuple dummy{};
+                                        return transformImpl<f, 0, x, y, GrandParent, Parent> (dummy, element...);
+                                },
+                                tuple);
+                }
         }
 
 } // namespace detail
