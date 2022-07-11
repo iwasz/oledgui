@@ -118,15 +118,21 @@ int test2 ()
         // log (x);
         /*--------------------------------------------------------------------------*/
 
-        std::string buff{"The class template basic_string_view describes an object that can refer to a constant contiguous sequence of "
-                         "char-like objects with the first element of the sequence at position zero."};
+        std::string buff{R"(The
+class
+template
+basic_string_view describes an object that can refer to a constant contiguous sequence of
+char-like
+objects
+with
+the first element of the sequence at position zero.)"};
         // std::string buff{"aaa"};
 
-        auto txt = text<17, 5> (std::ref (buff));
+        auto txt = text<17, 7> (std::ref (buff));
         LineOffset startLine{};
         auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
         auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
-        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<3>, std::ref (dwn)));
+        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<5>, std::ref (dwn)));
 
         auto chk = check (" 1 "sv);
 
@@ -139,7 +145,7 @@ int test2 ()
         //                 std::ref (grp)                          //
         // );
 
-        auto x = window<0, 0, 18, 7> (std::ref (vv));
+        auto x = window<0, 0, 18, 7> (std::ref (txtComp));
         // log (x);
 
         /*--------------------------------------------------------------------------*/

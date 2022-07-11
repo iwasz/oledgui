@@ -21,96 +21,10 @@
 #include <type_traits>
 #include <utility>
 
-/*
-A short code description:
-There are two layers of class templates.
-
-# Layer 1 (namespace og::)
-User creates a static tree of widgets where dimensions and positions of these widgets are
-fixed (compile time). Then, thanks to the static nature of the implementation certain attributes
-can be calculated at compile time:
-* height at which a widget is located looking from the top of the screen
-* focusIndex
-
-## Widgets
-There are two layers of class templates here (I'll refer to them as simply classes for short).
-First there are classes like Check, Radio and so on, and they are created by corresponding
-factory methods named accordingly (check, radio etc). Widgets can have these fields:
-
-* Coordinate height: height in characters.
-* bool canFocus: tells if widget can have focus. You also may inherit from Focusable class.
-* template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const : draws
-        the widget on the screen.
-* template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles
-        the input
-
-The first layer is meant to be extended by the user.
-
-## ContainerWidgets
-Then there are ContainerWidgets : Layout, Group and Window. When filled with children, they
-are able to calculate uint16_t focusableWidgetCount at compile time. This variable tells how many
-child widgets inside a container is able to accept focus. Other than children (or child) fields
-there is nothing special about them. Both Layouts, Groups and Windows inherit from ContainerWidget
-class (static polymorphism aka CRTP).
-
-## Layouts
-Although layout is a type of a widget, it can store arbitrary number of other widgets.
-
-## (Radio) Groups
-Stores one or more instances of Radio class.
-
-## Windows
-Can contain only 1 child. maintains a Context which stores runtime informations as current
-cursor position (or a pointer to it).
-
-# Layer 2 (namespace og::augment::)
-This layer is not meant to be extended or inherited from by the user. It contains class templates
-that wrap widgets and adds more information at compile time. This information includes:
-* Dimension getHeight (): for container widgets this is a sum of all children heights.
-        getHeight () - uses information from layer 1 solely. It can be calculated in the layer 1
-        classes. This is because simple widgets (i.e. not containers) know their height from the very
-        start (usually 1). And containers can simply sum all the heights of their children which is
-        simple to do at compile time.
-* Selection getRadioIndex (): this returns a child number in a container starting from 0. This
-        leverages information from the layer 1 and is calculated in between the layers in the
-        Wrapper helper classes. Wrapper helpers implement more involving compile time iterations
-        over children. Due to the fact that every container starts incrementing the radio index
-        from the 0, this value is also easy to obtain in a simple compile time "loop". See
-        transformImpl and transform functions.
-* Focus getFocusIndex (): every focusable widget in the tree has consecutive number assigned,
-        and this method returns that number. This is calculated in a similar way as the previous
-        one, but this time addint 1 every time is not enough as the whole tree has to be traversed.
-        What is more, the tree is not heterogeneous, because you can have a mix of Layouts, Groups
-        and Windows (although not every combination makes sense and may be prohibited in the future
-        by some static checks or concepts). Thus the getFocusableWidgetCount helper function returns
-        the appropriate value for every child. If it's a simple widget, it returns a simple value,
-        otherwise it sums the heights recursively.
-* getY (): this method returns the position in characters of a widget starting from the top
-        of the screen. What differentiates this field is that it uses information from both
-        layers : height fields from layer 1 and getHeight() from layer 2 (og::augment::). The
-        getHeightIncrement helper is used in the transformImpl to achieve that.
-
-## Problem with Groups
-The problem with this container is that goes between the Layout and the Radio instances. It implements
-only grouping, while the positioning of the radios resulting from the concrete Layout type (hbox or vbox)
-has to be maintained. This is troublesome in compile time environment, so the introspection ios used in
-some places to differentiate between Layouts and Groups (by introspection i mean if constexpr (requires {
-check for a method or field })). Also the GrandParent parameter was added solely for the purpose of
-implementing Groups. See the getHeightIncrement.
-
-## Problem with windows
-Not so difficult to solve as previous one, but still. The runtime information (as opposed to compile
-time stuff like positions, orderings and heights) has to be accessible for every widget in a tree.
-For this reason the Context class was introduced. A display instance has its own context (this may
-be subject to change) and then the Windows also have their own Context-s. This is because a window
-can be drawn on top of another, and we have to maintain the runtime state of both. The way this is
-implemented is that if a concrete ContainerWidget instance has its own context field it replaces the
-previous (partent's or display's). The changeContext is used fo that.
-*/
-
+// See README.md for a brief code overview
 namespace og {
 enum class Visibility {
-        visible,    // Widget drawed something on the screen.
+        visible,    // Widget drew something on the screen.
         outside,    // Widget is invisible because is outside the active region.
         nonDrawable // Widget is does not draw anything by itself.
 };
@@ -404,7 +318,7 @@ template <typename String> constexpr auto check (String &&str, bool checked = fa
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::integral Id> // TODO remove Id! It is not used.
+template <typename String, std::integral Id> // TODO remove Id! It is not used - or better still, fix so that it is used.
 requires c::string<std::remove_reference_t<String>>
 class Radio : public Focusable {
 public:
@@ -476,7 +390,7 @@ template <typename String, typename Id> struct is_radio<Radio<String, Id>> : pub
 };
 
 /****************************************************************************/
-/* Label                                                                    */
+/* Text                                                                     */
 /****************************************************************************/
 
 /**
@@ -504,11 +418,31 @@ public:
 
         LineOffset setStartLine (LineOffset line)
         {
-                size_t len = buffer_.size ();
-                size_t linesNumber = len / widthV + Dimension ((len % widthV) > 0);
-                LineOffset maxStartLine = std::max (0, int (linesNumber - heightV));
-                startLine = std::min (std::max (line, 0), maxStartLine);
-                start = skipToLine (startLine);
+                startLine = std::max (line, 0);
+
+                size_t charNoInLine{};
+                LineOffset linesCounted{};
+                start = std::find_if (buffer_.cbegin (), buffer_.cend (), [&charNoInLine, &linesCounted, this] (auto c) {
+                        if (startLine == linesCounted) {
+                                return true;
+                        }
+
+                        if (c != '\n') {
+                                ++charNoInLine;
+                        }
+
+                        if (c == '\n' || charNoInLine >= width) {
+                                ++linesCounted;
+                                charNoInLine = 0;
+                        }
+
+                        return false;
+                });
+
+                if (start == buffer_.cend ()) {
+                        startLine = linesCounted;
+                }
+
                 return startLine;
         }
 
@@ -517,7 +451,7 @@ public:
 
 private:
         Buffer buffer_;
-        typename BufferType::const_iterator start = buffer_.cbegin ();
+        typename BufferType::const_iterator start = buffer_.cbegin (); // start points to the start of what's visible
         LineOffset startLine{};
         bool scrollToBottom{};
 };
@@ -534,24 +468,30 @@ Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ct
         std::string_view line{lineA.data (), lineA.size ()};
         size_t totalCharactersCopied{};
         size_t linesPrinted{};
-
         size_t charactersToSkip = widgetScroll * widthV;
         auto iter = std::next (start, std::min (charactersToSkip, buffer_.size ()));
 
-        // Point tmpCursor = d.cursor ();
         while (totalCharactersCopied < len && linesPrinted++ < heightToPrint) {
                 if (linesPrinted > 1) {
-                        d.cursor () += {0, 1};
+                        d.cursor () += {0, 1}; // New line
                 }
 
-                // TODO this line is wasteful. What could have been tracked easily by incrementing/decrementing a variable is otherwise counted
-                // in a loop every iteration.
-                auto lineCharactersCopied = std::min (size_t (std::distance (iter, buffer_.cend ())), size_t (widthV));
-                auto i = std::copy_n (iter, lineCharactersCopied, lineA.begin ());
-                *i = '\0';
-                std::advance (iter, lineCharactersCopied);
+                // Depending on the iterator category (input or random), distance can perform an iteration or simple subtraction respectively.
+                auto lineCharactersToCopy = std::min (size_t (std::distance (iter, buffer_.cend ())), size_t (widthV));
 
-                totalCharactersCopied += lineCharactersCopied;
+                // We're looking for \n-s not from the buffer start, but from the visible contents start
+                bool newLine{};
+                auto end = std::next (iter, lineCharactersToCopy + 1); // 1 past the end
+                if (auto lineEndIter = std::find (iter, end, '\n'); lineEndIter != end) {
+                        lineCharactersToCopy = std::distance (iter, lineEndIter);
+                        newLine = true;
+                }
+
+                auto i = std::copy_n (iter, lineCharactersToCopy, lineA.begin ());
+                *i = '\0';
+                std::advance (iter, lineCharactersToCopy + int (newLine)); // Skip the '\n' if necessary
+
+                totalCharactersCopied += lineCharactersToCopy + int (newLine);
                 d.print (line);
         }
 
