@@ -1,4 +1,4 @@
-Modern C++ GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
+Modern C++ GUI library for small displays with 3 button input. Developed with microcontrollers in mind. Stabilising the API.
 
 ![Demo](demo.gif)
 
@@ -13,6 +13,9 @@ Modern C++ GUI library for small displays with 3 button input. Developed with mi
 * print at cursor's possition with clipping (clips to the viewport area even if passed coordinates are **negative**).
 * switch color (2 colors)
 * move cursor
+
+## Zephyr CFB
+Example can be found in `test/integration/zephyr/src/main.cc`. The display has to be already properly initized as the oledgui only draws and clears the screen.
 
 # FAQ
 * How to add a margin? No automatic margins, just add a space.
@@ -68,6 +71,8 @@ aaa
   * [ ] Zephyr
   * [x] Ncurses
   * [ ] Arduino
+* [ ] Colors are (at least for now) represented as simple integers. Color 1 == normal, Color 2 == highlighted / special. Rename color to Style, make 2 styles : regular, highlighted
+ 
 
 Document TODO:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.

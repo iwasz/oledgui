@@ -5,10 +5,10 @@ include_directories(src)
 # To make clangd happy
 SET(CMAKE_CXX_FLAGS "-std=c++2a -Werror -fconcepts-diagnostics-depth=10")
 
-add_executable("ncurses" test/ncurses.cc )
+add_executable("ncurses" test/component/ncurses.cc )
 target_link_libraries("ncurses" ncursesw)
 
-add_executable("terminal" test/terminal.cc )
+add_executable("terminal" test/component/terminal.cc )
 
-add_executable("test" test/test.cc)
+add_executable("test" test/unit/test.cc)
 target_link_libraries("test" ncursesw)

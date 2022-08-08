@@ -6,14 +6,13 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
+#pragma once
 #include <algorithm>
 #include <array>
 #include <bits/utility.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <iomanip>
-#include <iostream>
 #include <iterator>
 #include <limits>
 #include <string>
@@ -29,8 +28,7 @@ enum class Visibility {
         nonDrawable // Widget is does not draw anything by itself.
 };
 
-struct Empty {
-};
+struct Empty {};
 
 using Coordinate = int16_t;
 using Dimension = uint16_t;
@@ -1425,54 +1423,6 @@ namespace detail {
 } // namespace detail
 
 /*--------------------------------------------------------------------------*/
-
-namespace detail::augment {
-        template <typename T> void log (T const &t, int indent = 0)
-        {
-                auto l = [indent]<typename Wrapper> (auto &itself, Wrapper const &w, auto const &...ws) {
-                        using Wrapped = typename Wrapper::Wrapped;
-
-                        // std::string used only for debug.
-                        std::cout << std::string (indent, ' ') << "focusIndex: ";
-
-                        if constexpr (requires {
-                                              Wrapped::canFocus;
-                                              requires Wrapped::canFocus == 1;
-                                      }) {
-                                std::cout << w.getFocusIndex ();
-                        }
-                        else {
-                                std::cout << "NA";
-                        }
-
-                        std::cout << ", radioIndex: ";
-
-                        if constexpr (is_radio<Wrapped>::value) {
-                                std::cout << int (w.getRadioIndex ());
-                        }
-                        else {
-                                std::cout << "NA";
-                        }
-
-                        std::string name (typeid (w.widget).name ());
-                        name.resize (std::min (32UL, name.size ()));
-                        std::cout << ", x: " << w.getX () << ", y: " << w.getY () << ", w: " << w.getWidth () << ", h: " << w.getHeight ()
-                                  << ", " << name << std::endl;
-
-                        if constexpr (requires (decltype (w) x) { x.children; }) {
-                                log (w.children, indent + 2);
-                        }
-
-                        if constexpr (sizeof...(ws) > 0) {
-                                itself (itself, ws...);
-                        }
-                };
-
-                std::apply ([&l] (auto const &...widgets) { l (l, widgets...); }, t);
-        }
-} // namespace detail::augment
-
-template <typename T> void log (T &&t) { detail::augment::log (std::make_tuple (std::forward<T> (t))); }
 
 /**
  * Container for other widgets.
