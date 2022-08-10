@@ -8,6 +8,7 @@
 
 #include "cfb_font_oldschool.h"
 #include "kernel.h"
+#include "key.h"
 #include <cstddef>
 #include <device.h>
 #include <devicetree.h>
@@ -29,102 +30,6 @@
 LOG_MODULE_REGISTER (main);
 
 const struct device *display;
-
-namespace zephyr {
-
-class Key;
-
-class Keyboard {
-public:
-        Keyboard () { k_timer_init (&debounceTimer, onDebounceElapsed, NULL); }
-
-        // void onPressed (auto const);
-        static void onDebounceElapsed (struct k_timer *timer_id);
-
-        friend class Key;
-
-private:
-        k_timer debounceTimer{};
-};
-
-/****************************************************************************/
-
-/* template <auto Code>  */ class Key {
-public:
-        explicit Key (gpio_dt_spec devTr, Keyboard *keyb, og::Key val); // TODO val -> template
-        ~Key ();
-
-        bool isPressed () const { return gpio_pin_get_dt (&deviceTree); }
-        og::Key value () const { return value_; };
-
-private:
-        static void onPressed (const struct device *dev, struct gpio_callback *cb, uint32_t pins);
-
-        gpio_dt_spec deviceTree;
-
-        struct Envelope {
-                gpio_callback buttonCb{};
-                Key *that{};
-        };
-
-        Envelope data{{}, this};
-        Keyboard *keyboard{};
-        og::Key value_{};
-        bool bouncing{};
-
-        static_assert (std::is_standard_layout_v<Key::Envelope>);
-};
-
-Key::Key (gpio_dt_spec devTr, Keyboard *keyb, og::Key val) : deviceTree (std::move (devTr)), keyboard{keyb}, value_{val}
-{
-
-        if (!device_is_ready (deviceTree.port)) {
-                LOG_ERR ("Key not ready");
-                return;
-        }
-
-        int ret = gpio_pin_configure_dt (&deviceTree, GPIO_INPUT | deviceTree.dt_flags);
-
-        if (ret != 0) {
-                LOG_ERR ("Error %d: failed to configure %s pin %d\n", ret, deviceTree.port->name, deviceTree.pin);
-                return;
-        }
-
-        ret = gpio_pin_interrupt_configure_dt (&deviceTree, GPIO_INT_EDGE_TO_ACTIVE);
-        if (ret != 0) {
-                LOG_ERR ("Error %d: failed to configure interrupt on %s pin %d\n", ret, deviceTree.port->name, deviceTree.pin);
-                return;
-        }
-
-        gpio_init_callback (&data.buttonCb, onPressed, BIT (deviceTree.pin));
-        gpio_add_callback (deviceTree.port, &data.buttonCb);
-}
-
-Key::~Key () { gpio_remove_callback (deviceTree.port, &data.buttonCb); }
-
-void Key::onPressed (const struct device *dev, struct gpio_callback *cb, uint32_t pins)
-{
-        Key::Envelope *data = CONTAINER_OF (cb, Key::Envelope, buttonCb);
-
-        if (data && data->that && data->that->keyboard) {
-                data->that->bouncing = true;
-                k_timer_user_data_set (&data->that->keyboard->debounceTimer, data->that);
-                k_timer_start (&data->that->keyboard->debounceTimer, K_MSEC (32), K_NO_WAIT);
-        }
-}
-
-/****************************************************************************/
-
-void Keyboard::onDebounceElapsed (struct k_timer *timer_id)
-{
-        auto *key = reinterpret_cast<Key *> (k_timer_user_data_get (timer_id));
-
-        if (key->isPressed ()) {
-                LOG_INF ("P %d", int (key->value ()));
-        }
-}
-
-} // namespace zephyr
 
 void init ()
 {
@@ -171,36 +76,8 @@ void init ()
         //         cfb_get_display_parameter (dev, CFB_DISPLAY_HEIGH), ppt, rows, cfb_get_display_parameter (dev, CFB_DISPLAY_COLS));
 
         cfb_framebuffer_set_font (display, 0);
-        // cfb_framebuffer_invert (display);
+        cfb_framebuffer_invert (display);
 }
-
-// og::Key getKey (int ch)
-// {
-//         // TODO characters must be customizable (compile time)
-//         switch (ch) {
-//         case KEY_DOWN:
-//                 return Key::incrementFocus;
-
-//         case KEY_UP:
-//                 return Key::decrementFocus;
-
-//         case int (' '):
-//                 return Key::select;
-
-//         default:
-//                 return Key::unknown;
-//         }
-// }
-
-// enum class Input : uint8_t { down, up, enter, esc };
-
-// uint8_t getInputs ()
-// {
-//         uint8_t event = (gpio_pin_get (buttonDown, BUTTON_DOWN_PIN) << int (Input::down)) | (gpio_pin_get (buttonUp, BUTTON_UP_PIN) << int
-//         (Input::up)) | gpio_pin_get (buttonEnter, BUTTON_ENTER_PIN) gpio_pin_get (buttonEnter, BUTTON_ESCAPE_PIN)
-// }
-
-og::Key getKey () { return og::Key::unknown; }
 
 int main ()
 {
@@ -211,9 +88,9 @@ int main ()
         // TODO IRQ collision
         // zephyr::Key escKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_escape), gpios));
         zephyr::Keyboard keyboard;
-        zephyr::Key upKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios), &keyboard, og::Key::decrementFocus);
-        zephyr::Key downKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios), &keyboard, og::Key::incrementFocus);
-        zephyr::Key enterKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios), &keyboard, og::Key::select);
+        zephyr::Key upKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios), og::Key::decrementFocus);
+        zephyr::Key downKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios), og::Key::incrementFocus);
+        zephyr::Key enterKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios), og::Key::select);
 
         /*--------------------------------------------------------------------------*/
 
@@ -264,7 +141,6 @@ the first element of the sequence at position zero.)"};
         // log (dialog);
 
         while (true) {
-                // cfb_invert_area (display, 119, 0, 7, 8);
 
                 if (showDialog) {
                         draw (d1, x, dialog);

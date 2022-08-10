@@ -101,6 +101,11 @@ Layouts:
   * tip : you can use std::ref
 
 * utf8 strings can confuse the length calculation (no UTF8 library is used here, and in general utf8 is not supported). If this is a case, use layout: hbox<1> (label ("▲"))
+* Button input implementation. To consider:
+  * PC style keyboard : an event is generated on key-press, and consecutive events are automatically generated when a button is held down.
+  * Cellphone keyboard : an event is generated on key-up. When a buttion is held down for prolonged period of time, different type of event is generated (so called long-press). 
+  * Apart of the above two we can detect multiple keystrokes at once or only single one.
+  * Apart of everything else we can do it in an ISR or by polling (the latter seems to have more sense when there's many buttons, but energy efficiency has to be considered as well). [See this library](https://github.com/thomasfredericks/Bounce2)
 
 # A short code description
 There are two layers of class templates.

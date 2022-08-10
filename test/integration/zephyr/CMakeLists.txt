@@ -14,6 +14,7 @@ include_directories (../../../src)
 
 target_sources(app PRIVATE 
     src/main.cc
+    src/key.cc
 )
 
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)
