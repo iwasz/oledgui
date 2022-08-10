@@ -28,6 +28,7 @@
 #include <zephyr/zephyr.h>
 
 LOG_MODULE_REGISTER (main);
+K_SEM_DEFINE (userInput, 0, 1);
 
 const struct device *display;
 
@@ -77,7 +78,15 @@ void init ()
         cfb_framebuffer_invert (display);
 }
 
-og::Key getKey () { return og::Key::unknown; }
+og::Key currentKey{og::Key::unknown};
+og::Key getKey ()
+{
+        if (k_sem_take (&userInput, K_FOREVER) == 0) {
+                auto tmp = currentKey;
+                currentKey = og::Key::unknown;
+                return tmp;
+        }
+}
 
 int main ()
 {
@@ -86,13 +95,31 @@ int main ()
         // TODO IRQ collision
         // zephyr::Key escKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_escape), gpios));
         zephyr::Key upKey (
-                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios), [] { LOG_INF ("df short"); }, [] { LOG_INF ("df long"); });
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios),
+                [] {
+                        LOG_INF ("decrementFocus event");
+                        currentKey = og::Key::decrementFocus;
+                        k_sem_give (&userInput);
+                },
+                [] { LOG_INF ("df long"); });
 
         zephyr::Key downKey (
-                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios), [] { LOG_INF ("if short"); }, [] { LOG_INF ("if long"); });
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios),
+                [] {
+                        LOG_INF ("incrementFocus event");
+                        currentKey = og::Key::incrementFocus;
+                        k_sem_give (&userInput);
+                },
+                [] { LOG_INF ("if long"); });
 
         zephyr::Key enterKey (
-                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios), [] { LOG_INF ("en short"); }, [] { LOG_INF ("en long"); });
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios),
+                [] {
+                        LOG_INF ("select event");
+                        currentKey = og::Key::select;
+                        k_sem_give (&userInput);
+                },
+                [] { LOG_INF ("en long"); });
 
         /*--------------------------------------------------------------------------*/
 
@@ -153,6 +180,6 @@ the first element of the sequence at position zero.)"};
                         input (d1, x, getKey ());
                 }
 
-                k_sleep (K_SECONDS (3));
+                LOG_INF ("redraw");
         }
 }
