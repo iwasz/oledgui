@@ -1,6 +1,7 @@
 Modern C++ GUI library for small displays with 3 button input. Developed with microcontrollers in mind. Stabilising the API.
 
 ![Demo](demo.gif)
+![Demo2](demo2.gif)
 
 * [Character based](https://en.wikipedia.org/wiki/Box-drawing_character), platform independent, [immediate mode](https://en.wikipedia.org/wiki/Immediate_mode_(computer_graphics)). Works as long as a character can be printed in x,y coordinates (for instance in [ncurses](https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/index.html), [Zephyr RTOS cfb](https://docs.zephyrproject.org/latest/reference/display/index.html), etc).
 * Cursor (x,y).
