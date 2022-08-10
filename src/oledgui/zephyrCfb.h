@@ -6,7 +6,9 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
+#pragma once
 #include "oledgui.h"
+#include "sys/printk.h"
 #include <type_traits>
 #include <zephyr/display/cfb.h>
 #include <zephyr/zephyr.h>
@@ -32,10 +34,24 @@ public:
                         s.data ()
                         } -> std::convertible_to<const char *>;
         }
+
         void print (String const &str)
         {
-                cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7, cursor ().y () * 8);
-                // cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x (), cursor ().y ());
+                if (cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7, cursor ().y () * 8)
+                    != 0) {
+                        printk ("cfb_print is unable to print\r\n");
+                }
+
+                if (color_ == 2) {
+                        if (int err = cfb_invert_area (display, cursor ().x () * 7, cursor ().y () * 8, str.size () * 7, 8); err != 0) {
+                                printk ("Could not invert (err %d)\n", err);
+                        }
+
+                        printk ("color %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
+                }
+
+                printk ("print (%s), %d,%d\r\n", const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7,
+                        cursor ().y () * 8);
         }
 
         void clear ()
@@ -46,25 +62,23 @@ public:
 
                 cursor ().x () = 0;
                 cursor ().y () = 0;
+                printk ("clear\r\n");
         }
 
-        void color (Color c)
-        {
-                if (c == 2) {
-                        // cfb_invert_area (display, cursor ().x (), cursor ().y (), 7, 0);
-                }
-        }
+        void color (Color color) { color_ = color; }
 
         void refresh ()
         {
                 if (int err = cfb_framebuffer_finalize (display); err) {
                         printk ("Could not finalize framebuffer (err %d)\n", err);
                 }
+                printk ("refresh\r\n");
         }
 
 private:
         using Base::child;
         device const *display{};
+        Color color_{};
 };
 
 template <Dimension widthV, Dimension heightV, typename Child>

@@ -598,7 +598,7 @@ template <typename String, typename Callback> auto button (String &&str, Callbac
 template <std::integral Id> struct Option { // TODO consider other types than std::integrals, and write an unit test
         Option (Id const &i, const char *l) : id{i}, label{l} {}
         Id id;
-        const char *label;
+        const char *label; // TODO refactor to std::string_view
 };
 
 template <typename Id> auto option (Id &&id, const char *label) { return Option (std::forward<Id> (id), label); }

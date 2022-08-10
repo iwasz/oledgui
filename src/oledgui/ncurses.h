@@ -6,6 +6,7 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
+#pragma once
 #include "oledgui.h"
 #include <ncurses.h>
 #include <type_traits>

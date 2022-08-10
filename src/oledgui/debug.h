@@ -6,6 +6,7 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
+#pragma once
 #include "oledgui.h"
 #include <iomanip>
 #include <iostream>

@@ -7,6 +7,7 @@
  ****************************************************************************/
 
 #include "cfb_font_oldschool.h"
+#include "kernel.h"
 #include <cstddef>
 #include <device.h>
 #include <devicetree.h>
@@ -170,7 +171,7 @@ void init ()
         //         cfb_get_display_parameter (dev, CFB_DISPLAY_HEIGH), ppt, rows, cfb_get_display_parameter (dev, CFB_DISPLAY_COLS));
 
         cfb_framebuffer_set_font (display, 0);
-        cfb_framebuffer_invert (display);
+        // cfb_framebuffer_invert (display);
 }
 
 // og::Key getKey (int ch)
@@ -263,6 +264,8 @@ the first element of the sequence at position zero.)"};
         // log (dialog);
 
         while (true) {
+                // cfb_invert_area (display, 119, 0, 7, 8);
+
                 if (showDialog) {
                         draw (d1, x, dialog);
                         input (d1, dialog, getKey ()); // Blocking call.
