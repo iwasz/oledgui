@@ -35,8 +35,6 @@ void init ()
 {
         uint16_t rows;
         uint8_t ppt;
-        uint8_t font_width;
-        uint8_t font_height;
 
         display = device_get_binding ("SSD1306");
 
@@ -79,18 +77,22 @@ void init ()
         cfb_framebuffer_invert (display);
 }
 
+og::Key getKey () { return og::Key::unknown; }
+
 int main ()
 {
-        int err;
-
         init ();
 
         // TODO IRQ collision
         // zephyr::Key escKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_escape), gpios));
-        zephyr::Keyboard keyboard;
-        zephyr::Key upKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios), og::Key::decrementFocus);
-        zephyr::Key downKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios), og::Key::incrementFocus);
-        zephyr::Key enterKey (GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios), og::Key::select);
+        zephyr::Key upKey (
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_up), gpios), [] { LOG_INF ("df short"); }, [] { LOG_INF ("df long"); });
+
+        zephyr::Key downKey (
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_down), gpios), [] { LOG_INF ("if short"); }, [] { LOG_INF ("if long"); });
+
+        zephyr::Key enterKey (
+                GPIO_DT_SPEC_GET (DT_PATH (ui_buttons, button_enter), gpios), [] { LOG_INF ("en short"); }, [] { LOG_INF ("en long"); });
 
         /*--------------------------------------------------------------------------*/
 
