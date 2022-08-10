@@ -13,6 +13,8 @@
 #include <zephyr/display/cfb.h>
 #include <zephyr/zephyr.h>
 
+#define debugMacro printk
+
 namespace og::zephyr::cfb {
 
 /**
@@ -46,12 +48,10 @@ public:
                         if (int err = cfb_invert_area (display, cursor ().x () * 7, cursor ().y () * 8, str.size () * 7, 8); err != 0) {
                                 printk ("Could not invert (err %d)\n", err);
                         }
-
-                        printk ("color %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
                 }
 
-                printk ("print (%s), %d,%d\r\n", const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7,
-                        cursor ().y () * 8);
+                // printk ("print (%s), %d,%d\r\n", const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7,
+                //         cursor ().y () * 8);
         }
 
         void clear ()
@@ -62,17 +62,21 @@ public:
 
                 cursor ().x () = 0;
                 cursor ().y () = 0;
-                printk ("clear\r\n");
+                // printk ("clear\r\n");
         }
 
-        void color (Color color) { color_ = color; }
+        void color (Color color)
+        {
+                color_ = color;
+                // printk ("color %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
+        }
 
         void refresh ()
         {
                 if (int err = cfb_framebuffer_finalize (display); err) {
                         printk ("Could not finalize framebuffer (err %d)\n", err);
                 }
-                printk ("refresh\r\n");
+                // printk ("refresh\r\n");
         }
 
 private:
@@ -88,15 +92,6 @@ Display<widthV, heightV, Child>::Display (device const *disp, Child c) : Base (c
                 printk ("Display device not ready\n");
                 return;
         }
-
-        // if (display_set_pixel_format (display, PIXEL_FORMAT_MONO10) != 0) {
-        //         printk ("Failed to set required pixel format\n");
-        //         return;
-        // }
-
-        // if (int err = cfb_framebuffer_init (display); err) {
-        //         printk ("Could not initialize framebuffer (err %d)\n", err);
-        // }
 }
 
 template <Dimension widthV, Dimension heightV> auto zephyrCfb (auto &&child)
