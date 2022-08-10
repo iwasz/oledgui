@@ -19,6 +19,10 @@
 
 namespace zephyr {
 
+/**
+ * Single key (button) implemented using an ISR.
+ * OnPress and OnLongPress callbacks are run in an ISR context!
+ */
 template <std::invocable OnPress, std::invocable OnLongPress> class Key {
 public:
         Key (gpio_dt_spec const &devTr, OnPress onp, OnLongPress olp);
@@ -43,7 +47,7 @@ private:
         bool lastPressedStatus{};
         k_timer debounceTimer{};
 
-        enum class State { idle, down, up };
+        enum class State { idle, down };
         State state{};
 
         OnPress onPress;
@@ -117,10 +121,14 @@ template <std::invocable OnPress, std::invocable OnLongPress> void Key<OnPress, 
 
         if (key->state == State::idle && key->lastPressedStatus) {
                 key->state = State::down;
+                k_timer_start (&key->debounceTimer, K_MSEC (1000), K_NO_WAIT);
+        }
+        else if (key->state == State::down && key->lastPressedStatus) {
+                key->state = State::idle;
+                key->onLongPress ();
         }
         else if (key->state == State::down && !key->lastPressedStatus) {
                 key->state = State::idle;
-                // printk ("EVENT id: %d", int (key->value ()));
                 key->onPress ();
         }
 }
