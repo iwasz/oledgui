@@ -45,8 +45,10 @@ aaa
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
 * [ ] Stabilize the API
+  * [ ] Resolve TODOs in rado and group (about this ID template argument)
+    * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
+  * [ ] Make radioGroup and combo APIS simmilar.
   * [ ] callbacks and / or references - for all widgets that have input. 
-  * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [ ] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.

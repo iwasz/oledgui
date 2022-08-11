@@ -83,41 +83,42 @@ int test2 ()
 
         NcursesDisplay<18, 7> d1;
 
-        enum class Windows : int { dialog, xWindow };
-        og::detail::augment::ISuite<Windows> *suite{};
+        enum class Windows : int { allFeatures, dialog, textReferences };
+        ISuite<Windows> *mySuite{};
 
-        bool showDialog{};
+        /*--------------------------------------------------------------------------*/
 
-        // auto x = window<0, 0, 18, 7> (
-        //         vbox (hbox (label ("Hello "), check (" 1 "), check (" 2 ")),                                                        //
-        //               hbox (label ("World "), check (" 5 "), check (" 6 ")),                                                        //
-        //               button ("Open dialog", [&showDialog] { showDialog = true; }),                                                 //
-        //               line<18>,                                                                                                     //
-        //               group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A ")),        //
-        //               line<18>,                                                                                                     //
-        //               hbox (group ([] (auto const &o) {}, radio (0, " R "), radio (1, " G "), radio (1, " B "), radio (1, " A "))), //
-        //               line<18>,                                                                                                     //
-        //               Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}),          //
-        //               line<18>,                                                                                                     //
-        //               hbox (button ("Aaa", [] {}), hspace<1>, button ("Bbb", [] {}), hspace<1>, button ("Ccc", [] {})),             //
-        //               line<18>,                                                                                                     //
-        //               check (" 1 "),                                                                                                //
-        //               check (" 2 "),                                                                                                //
-        //               check (" 3 "),                                                                                                //
-        //               check (" 4 "),                                                                                                //
-        //               check (" 5 "),                                                                                                //
-        //               check (" 6 "),                                                                                                //
-        //               check (" 7 "),                                                                                                //
-        //               check (" 8 "),                                                                                                //
-        //               check (" 9 "),                                                                                                //
-        //               check (" 10 "),                                                                                               //
-        //               check (" 11 "),                                                                                               //
-        //               check (" 12 "),                                                                                               //
-        //               check (" 13 "),                                                                                               //
-        //               check (" 14 "),                                                                                               //
-        //               check (" 15 ")                                                                                                //
-        //               ));                                                                                                           //
+        auto allFeatures = window<0, 0, 18, 7> (
+                vbox (hbox (label ("Hello "sv), check (" 1 "sv), check (" 2 "sv)),                                                          //
+                      hbox (label ("World "sv), check (" 5 "sv), check (" 6 "sv)),                                                          //
+                      button ("Open dialog"sv, [&mySuite] { mySuite->current () = Windows::textReferences; }),                              //
+                      line<18>,                                                                                                             //
+                      group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv)),        //
+                      line<18>,                                                                                                             //
+                      hbox (group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv))), //
+                      line<18>,                                                                                                             //
+                      //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}), //
+                      //       line<18>,                                                                                               //
+                      hbox (button ("Aaa"sv, [] {}), hspace<1>, button ("Bbb"sv, [] {}), hspace<1>, button ("Ccc"sv, [] {})), //
+                      line<18>,                                                                                               //
+                      check (" 1 "sv),                                                                                        //
+                      check (" 2 "sv),                                                                                        //
+                      check (" 3 "sv),                                                                                        //
+                      check (" 4 "sv),                                                                                        //
+                      check (" 5 "sv),                                                                                        //
+                      check (" 6 "sv),                                                                                        //
+                      check (" 7 "sv),                                                                                        //
+                      check (" 8 "sv),                                                                                        //
+                      check (" 9 "sv),                                                                                        //
+                      check (" 10 "sv),                                                                                       //
+                      check (" 11 "sv),                                                                                       //
+                      check (" 12 "sv),                                                                                       //
+                      check (" 13 "sv),                                                                                       //
+                      check (" 14 "sv),                                                                                       //
+                      check (" 15 "sv)                                                                                        //
+                      ));                                                                                                     //
 
+        // auto allFeatures = window<0, 0, 18, 7> (vbox (line<18>));
         // log (x);
         /*--------------------------------------------------------------------------*/
 
@@ -148,52 +149,46 @@ the first element of the sequence at position zero.)"};
         //                 std::ref (grp)                          //
         // );
 
-        auto x = window<0, 0, 18, 7> (std::ref (txtComp));
+        auto textReferences = window<0, 0, 18, 7> (std::ref (txtComp));
         // log (x);
 
         /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (" 15 "sv));
+                       hbox (button ("[OK]"sv, [/* &showDialog */] { /* showDialog = false; */ }), button ("[Cl]"sv, [] {})), check (" 15 "sv));
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
-        // auto s = og::detail::augment::suite<Windows> (og::detail::augment::eleX (Windows::dialog, std::ref (dialog), std::ref (x)),
-        //                                               og::detail::augment::eleX (Windows::xWindow, std::ref (x)));
-        auto s = og::detail::augment::suite<Windows> (og::detail::augment::eleX (Windows::xWindow, std::ref (x)),
-                                                      og::detail::augment::eleX (Windows::dialog, std::ref (dialog)));
-        suite = &s;
+        // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
+        //                                               element (Windows::xWindow, std::ref (x)));
+        auto s = suite<Windows> (element (Windows::textReferences, std::ref (textReferences)), element (Windows::dialog, std::ref (dialog)),
+                                 element (Windows::allFeatures, std::ref (allFeatures)));
+        mySuite = &s;
 
         // log (dialog);
 
         while (true) {
-                if (showDialog) {
-                        draw (d1, x, dialog);
-                        input (d1, dialog, getKey ()); // Blocking call.
-                }
-                else {
-                        draw (d1, s);
-                        int ch = getch ();
+                draw (d1, s);
+                int ch = getch ();
 
-                        switch (ch) {
-                        case 'w':
-                                // startLine = txt.setStartLine (--startLine);
-                                --x.context.currentScroll;
-                                break;
-                        case 's':
-                                // startLine = txt.setStartLine (++startLine);
-                                ++x.context.currentScroll;
-                                break;
-                        case 'a':
-                                buff = "ala ma kota";
-                                break;
-                        case 'c':
-                                chk.checked () = !chk.checked ();
-                                break;
-                        default:
-                                input (d1, x, getKey (ch));
-                                break;
-                        }
+                switch (ch) {
+                case 'w':
+                        // startLine = txt.setStartLine (--startLine);
+                        --textReferences.context.currentScroll;
+                        break;
+                case 's':
+                        // startLine = txt.setStartLine (++startLine);
+                        ++textReferences.context.currentScroll;
+                        break;
+                case 'a':
+                        buff = "ala ma kota";
+                        break;
+                case 'c':
+                        chk.checked () = !chk.checked ();
+                        break;
+                default:
+                        input (d1, s, getKey (ch));
+                        break;
                 }
         }
 
