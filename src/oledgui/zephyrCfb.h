@@ -19,6 +19,8 @@ namespace og::zephyr::cfb {
 
 /**
  * Ncurses backend.
+ * TODO make character width and height customizable (template param)
+ * TODO optimize this "old-school" font because now there are 2 pixel vertical spaces between the glyphs.
  */
 template <Dimension widthV, Dimension heightV, typename Child = Empty>
 class Display : public og::Display<Display<widthV, heightV, Child>, widthV, heightV, Child> {

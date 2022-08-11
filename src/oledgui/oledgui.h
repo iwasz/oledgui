@@ -393,7 +393,7 @@ template <typename String, typename Id> struct is_radio<Radio<String, Id>> : pub
 
 /**
  * Multiline text
- * TODO multiline is not supported! Implement!
+ * TODO do not allow scrolling so the text inside is not visible. Stop scrolling when the last line is reached.
  */
 template <Dimension widthV, Dimension heightV, typename Buffer>
 requires c::text_buffer<std::remove_reference_t<Buffer>>
@@ -878,7 +878,7 @@ public:
                 d.cursor () = {ox, oy};
 
                 if constexpr (frame) {
-                        d.print ("┌"sv);
+                        d.print ("┌"sv); // TODO characters customizable
                         d.cursor () += {1, 0};
                         detail::line (d, width - F::cut);
                         d.print ("┐"sv);
@@ -942,7 +942,7 @@ namespace detail {
 /****************************************************************************/
 
 // Forward declaration for is_layout
-template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0> struct Layout;
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0> class Layout;
 
 template <typename Wtu> class DefaultDecor {
 };
@@ -1254,8 +1254,107 @@ namespace detail {
                 template <typename T, typename Child> class is_window_wrapper<Window<T, Child>> : public std::bool_constant<true> {
                 };
 
+                // template <typename T>
+                // concept window_wrapper = is_window_wrapper<T>::value;
+
                 template <typename T>
-                concept window_wrapper = is_window_wrapper<T>::value;
+                concept window_wrapper = requires (T type, EmptyDisplay<Empty> const &disp, Key key)
+                {
+                        type.incrementFocus (disp);
+                        type.decrementFocus (disp);
+                        type.input (disp, key);
+
+                        {
+                                type.operator() (disp)
+                                } -> std::same_as<Visibility>;
+                };
+
+                /****************************************************************************/
+
+                /**
+                 * Common interface for easy polymorphism.
+                 * TODO constrain KeyT with some concept, like std::integral but allowing enums.
+                 */
+                template <typename KeyT> class ISuite {
+                public:
+                        KeyT &current () { return current_; }
+                        KeyT const &current () const { return current_; }
+
+                private:
+                        KeyT current_{};
+                };
+
+                /**
+                 *
+                 */
+                template <typename KeyT, typename Win>
+                requires window_wrapper<std::remove_reference_t<Win>>
+                class Element {
+                public:
+                        using WinType = std::remove_reference_t<Win>;
+                        Element (KeyT key, Win const &win) : key_{key}, win_{win} {}
+
+                        KeyT key () const { return key_; };
+                        Win const &win () const { return win_; };
+
+                private:
+                        KeyT key_{};
+                        Win win_{}; // Wrapper41 (this can be T or T&)
+                };
+
+                /**
+                 * Facotry method
+                 */
+                template <typename KeyT, typename Win> auto eleX (KeyT key, Win &&win)
+                {
+                        return Element<KeyT, std::unwrap_ref_decay_t<Win>>{key, std::forward<Win> (win)};
+                }
+
+                /**
+                 * Suite of windows. Allows you to switch currently displayed window by setting a single
+                 * integer. Thanks to common interface class ISuite, you can easilly pass pointers to it
+                 * to your handlers.
+                 */
+                template <typename KeyT, typename WindowElementTuple> class WindowSuite : public ISuite<KeyT> {
+                public:
+                        using ISuite<KeyT>::current;
+
+                        explicit WindowSuite (WindowElementTuple wins) : windows{std::move (wins)} {}
+
+                        Visibility operator() (auto &disp) const
+                        {
+                                auto condition = [&disp, currentKey = current ()] (auto const &elem) -> bool {
+                                        if (elem.key () == currentKey) {
+                                                elem.win () (disp);
+                                                return true;
+                                        }
+
+                                        return false;
+                                };
+
+                                std::apply ([&disp, &condition] (auto const &...elms) { (condition (elms) || ...); }, windows);
+                                return Visibility::visible;
+                        }
+
+                        void input (auto &disp, Key key) {}
+                        void incrementFocus (auto & /* display */) const {}
+                        void decrementFocus (auto & /* display */) const {}
+
+                private:
+                        WindowElementTuple windows;
+                };
+
+                /**
+                 * Facotry method
+                 */
+                template <typename KeyT, typename... Win> auto suite (Element<KeyT, Win> &&...el)
+                {
+                        using Tuple = decltype (std::tuple{std::forward<Element<KeyT, Win>> (el)...});
+
+                        return WindowSuite<KeyT, Tuple>{std::tuple{std::forward<Element<KeyT, Win>> (el)...}};
+                }
+
+                /****************************************************************************/
 
                 /**
                  * Group

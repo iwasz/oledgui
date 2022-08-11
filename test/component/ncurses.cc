@@ -83,6 +83,9 @@ int test2 ()
 
         NcursesDisplay<18, 7> d1;
 
+        enum class Windows : int { dialog, xWindow };
+        og::detail::augment::ISuite<Windows> *suite{};
+
         bool showDialog{};
 
         // auto x = window<0, 0, 18, 7> (
@@ -155,6 +158,12 @@ the first element of the sequence at position zero.)"};
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
+        // auto s = og::detail::augment::suite<Windows> (og::detail::augment::eleX (Windows::dialog, std::ref (dialog), std::ref (x)),
+        //                                               og::detail::augment::eleX (Windows::xWindow, std::ref (x)));
+        auto s = og::detail::augment::suite<Windows> (og::detail::augment::eleX (Windows::xWindow, std::ref (x)),
+                                                      og::detail::augment::eleX (Windows::dialog, std::ref (dialog)));
+        suite = &s;
+
         // log (dialog);
 
         while (true) {
@@ -163,7 +172,7 @@ the first element of the sequence at position zero.)"};
                         input (d1, dialog, getKey ()); // Blocking call.
                 }
                 else {
-                        draw (d1, x);
+                        draw (d1, s);
                         int ch = getch ();
 
                         switch (ch) {

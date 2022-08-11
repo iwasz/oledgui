@@ -29,7 +29,7 @@ aaa
 * [x] screen wide/tall
 * [x] current focus
 * [ ] text wrapping widget (without scrolling up - only for showinng bigger chunkgs of text, like logs)
-* [ ] scrolling container - as the above, but has a buffer (license, help message).
+* [x] scrolling container - as the above, but has a buffer (license, help message).
 * [x] checkboxes
 * [x] radiobutons (no state)
 * [x] radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
@@ -44,19 +44,16 @@ aaa
   * [ ] Test with std::string_view, std::string and etl::string. Test with std::refs
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
-* [ ] callbacks and / or references - for all widgets that have input. 
+* [ ] Stabilize the API
+  * [ ] callbacks and / or references - for all widgets that have input. 
   * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
+  * [ ] Combo box accepts only `const char *` instead of templatized `c::string` concept.
+  * [ ] Styling (external template class impacting various aspects of the output)
+  * [ ] AND / OR Widget parameters dictating the looks.
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
   * [x] Dialog
-* [ ] Prepare for compile time optimization
-  * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
-    * [ ] Debug, release and -OS targets
-  * [ ] Benchmark compilation size.
-  * [ ] Benchmark cpu?
 * [x] Console backend (with or even without input)
-* [ ] Styling (external template class impacting various aspects of the output)
-* [ ] AND / OR Widget parameters dictating the looks.
 * [x] Implement a test widget which is more than 1 character tall.
   * [x] Test this widget in the vertical and horizontal layouts.
     * [x] Widgets having height > 1 have to implement their own scrolling. I haven't anticipated that a widget can be half visible.
@@ -64,23 +61,27 @@ aaa
 * [x] Write concepts for widgtes, layouts, widgteTuples, groups etc and use them instead of raw typename.
 * [x] Describe how the code works in a comment on the top.
 * [x] Make the functions std::ref aware
-* [ ] Separate directory for tests, and static_assert tests.
+* [x] Separate directory for tests, and static_assert tests.
 * [x] Composite widgets as a possibility (or implement the text widget with scroll buttons).
 * [x] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
 * [x] vspace
 * [ ] Prepare backends for:
-  * [ ] Zephyr
+  * [x] Zephyr
   * [x] Ncurses
   * [ ] Arduino
 * [ ] Colors are (at least for now) represented as simple integers. Color 1 == normal, Color 2 == highlighted / special. Rename color to Style, make 2 styles : regular, highlighted
- 
+* [ ] Prepare for compile time optimization
+  * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
+    * [ ] Debug, release and -OS targets
+  * [ ] Benchmark compilation size.
+  * [ ] Benchmark cpu?
 
-Document TODO:
+# Documentation TODO:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
-* Display has its own context, so you don;t have to use a window???
+* ~~Display has its own context, so you don;t have to use a window???~~ It was removed.
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
 * Only '\n's are recognized as newline characters by text widget.
-* No window in a window should be possible. Just display two one after another.
+* No window in a window should be possible. Just display two, one after another.
 * Glossary : 
   * container widget : layout, group & window. 
   * composite widget : widgets returned by special factory methods which was designed to compose few other widgets in a container (for instance a text widget with buttons to scroll the contents up and down.)
