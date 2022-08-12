@@ -310,7 +310,17 @@ Visibility Check<String, Callback>::operator() (auto &d, Context const &ctx) con
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String, typename Callback = decltype ([] (bool) {})> constexpr auto check (String &&str, Callback &&clb = {})
+struct EmptyUnaryBool {
+        void operator() (bool) {}
+};
+
+template <typename String> constexpr auto check (String &&str)
+{
+        // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryBool clangd 14.0.3 and 14.0.6 crashes.
+        return Check<std::unwrap_ref_decay_t<String>, EmptyUnaryBool> (std::forward<String> (str), {});
+}
+
+template <typename String, typename Callback> constexpr auto check (String &&str, Callback &&clb)
 {
         return Check<std::unwrap_ref_decay_t<String>, std::remove_cvref_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
