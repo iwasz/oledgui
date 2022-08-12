@@ -249,19 +249,20 @@ template <Dimension heightV> Space<1, heightV> const vspace;
 /* Check                                                                    */
 /****************************************************************************/
 
-template <typename String>
+template <typename String, typename Callback>
 requires c::string<std::remove_reference_t<String>>
 class Check : public Focusable {
 public:
         static constexpr Dimension height = 1;
 
-        constexpr Check (String const &s, bool c) : label_{s}, checked_{c} {}
+        constexpr Check (String const &s, Callback clb) : label_{s}, callback{std::move (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
         template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key c)
         {
                 if (c == Key::select) {
                         checked_ = !checked_;
+                        callback (checked_);
                 }
         }
 
@@ -272,13 +273,16 @@ public:
         String &label () const { return label_; }
 
 private:
-        String label_{};
+        String label_;
         bool checked_{};
+        Callback callback;
 };
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String> template <typename Wrapper> Visibility Check<String>::operator() (auto &d, Context const &ctx) const
+template <typename String, typename Callback>
+template <typename Wrapper>
+Visibility Check<String, Callback>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
@@ -306,9 +310,9 @@ template <typename String> template <typename Wrapper> Visibility Check<String>:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String> constexpr auto check (String &&str, bool checked = false)
+template <typename String, typename Callback = decltype ([] (bool) {})> constexpr auto check (String &&str, Callback &&clb = {})
 {
-        return Check<std::unwrap_ref_decay_t<String>> (std::forward<String> (str), checked);
+        return Check<std::unwrap_ref_decay_t<String>, std::remove_cvref_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
 
 /****************************************************************************/

@@ -35,7 +35,7 @@ aaa
 * [x] radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
 * [ ] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
   * [ ] Demo - menu 
-  * [ ] Navigation between screens - research how to do it the best from the API perspective.
+  * [x] Navigation between screens - research how to do it the best from the API perspective.
   * [ ] Show how to make a table-like layout (preferably with dynamic content - like 2 colums of temperature readings with labels etc.).
 * [x] combo - "action" key changes the value (works for numbers as well)
   * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
@@ -45,7 +45,7 @@ aaa
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
 * [ ] Stabilize the API
-  * [ ] Resolve TODOs in rado and group (about this ID template argument)
+  * [ ] Resolve TODOs in radio and group (about this ID template argument)
     * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [ ] Make radioGroup and combo APIS simmilar.
   * [ ] callbacks and / or references - for all widgets that have input. 
