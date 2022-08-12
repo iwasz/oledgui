@@ -329,7 +329,7 @@ template <typename String, typename Callback> constexpr auto check (String &&str
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::integral Id> // TODO remove Id! It is not used - or better still, fix so that it is used.
+template <typename String, std::integral Id>
 requires c::string<std::remove_reference_t<String>>
 class Radio : public Focusable {
 public:
@@ -337,7 +337,7 @@ public:
 
         constexpr Radio (Id i, String const &l) : id_{std::move (i)}, label_{l} {}
         template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto &d, Context const &ctx, Key c);
+        template <typename Wrapper, typename Callback> void input (auto &d, Context const &ctx, Key c, Callback &clb);
 
         Id &id () { return id_; }
         Id const &id () const { return id_; }
@@ -381,11 +381,12 @@ Visibility Radio<String, Id>::operator() (auto &d, Context const &ctx) const
 }
 
 template <typename String, std::integral Id>
-template <typename Wrapper>
-void Radio<String, Id>::input (auto & /* d */, Context const &ctx, Key c)
+template <typename Wrapper, typename Callback>
+void Radio<String, Id>::input (auto & /* d */, Context const &ctx, Key c, Callback &clb)
 {
         if (ctx.radioSelection != nullptr && c == Key::select) {
                 *ctx.radioSelection = Wrapper::getRadioIndex ();
+                clb (id ());
         }
 }
 
@@ -833,7 +834,7 @@ namespace detail {
  */
 template <typename Callback, typename WidgetTuple> class Group {
 public:
-        Group (Callback const &c, WidgetTuple wt) : widgets_{std::move (wt)}, callback{c} {}
+        Group (Callback const &c, WidgetTuple wt) : widgets_{std::move (wt)}, callback_{c} {}
 
         static constexpr Focus focusableWidgetCount = detail::Sum<WidgetTuple, detail::FocusableWidgetCountField>::value;
 
@@ -842,9 +843,12 @@ public:
         Children &widgets () { return widgets_; }
         Children const &widgets () const { return widgets_; }
 
+        Callback &callback () { return callback_; }
+        Callback const &callback () const { return callback_; }
+
 private:
         WidgetTuple widgets_;
-        Callback callback;
+        Callback callback_;
 };
 
 template <typename T> struct is_group : public std::bool_constant<false> {
@@ -858,6 +862,7 @@ namespace c {
         concept group = is_group<T>::value;
 } // namespace c
 
+// TODO it accepts everything as the 1st param. Add a concept or sth
 template <typename Callback, typename... W> auto group (Callback &&c, W &&...widgets)
 {
         return Group{std::forward<Callback> (c), std::tuple{std::forward<W> (widgets)...}};
@@ -1009,11 +1014,11 @@ namespace detail {
                                 return widget.template operator()<Widget> (d, *ctx);
                         }
 
-                        void input (auto &d, Context const &ctx, Key c)
+                        template <typename... Callback> void input (auto &d, Context const &ctx, Key c, Callback &...clb)
                         {
                                 if (ctx.currentFocus == getFocusIndex ()) {
-                                        if constexpr (requires { widget.template input<Widget> (d, ctx, c); }) {
-                                                widget.template input<Widget> (d, ctx, c);
+                                        if constexpr (requires { widget.template input<Widget> (d, ctx, c, clb...); }) {
+                                                widget.template input<Widget> (d, ctx, c, clb...);
                                         }
                                 }
                         }
@@ -1070,7 +1075,7 @@ namespace detail {
                  */
                 template <typename ConcreteClass, typename Decor> struct ContainerWidget {
                 protected:
-                        Visibility operator() (auto &d, Context *ctx) const
+                        Visibility operator() (auto &d, Context *ctx) const // TODO move method body out
                         {
                                 // Groups contain radioSelection
                                 if constexpr (requires { ConcreteClass::radioSelection; }) {
@@ -1125,8 +1130,16 @@ namespace detail {
                                         ctx.radioSelection = &static_cast<ConcreteClass *> (this)->radioSelection;
                                 }
 
-                                auto l = [&d, &ctx, c] (auto &itself, auto &child, auto &...children) {
-                                        child.input (d, ctx, c);
+                                auto l = [&d, &ctx, c, concrete = static_cast<ConcreteClass *> (this)] (auto &itself, auto &child,
+                                                                                                        auto &...children) {
+                                        // If layer-1 container widget (like og::Group or og::Layout) has a method called `callback` it will be
+                                        // passed to children (in input 4th argument).
+                                        if constexpr (requires { concrete->widget.callback (); }) {
+                                                child.input (d, ctx, c, concrete->widget.callback ());
+                                        }
+                                        else {
+                                                child.input (d, ctx, c);
+                                        }
 
                                         if constexpr (sizeof...(children) > 0) {
                                                 itself (itself, children...);
@@ -1281,91 +1294,6 @@ namespace detail {
                                 type.operator() (disp)
                                 } -> std::same_as<Visibility>;
                 };
-
-                /****************************************************************************/
-
-                /**
-                 * Common interface for easy polymorphism.
-                 * TODO constrain KeyT with some concept, like std::integral but allowing enums.
-                 */
-                template <typename KeyT> class ISuite {
-                public:
-                        KeyT &current () { return current_; }
-                        KeyT const &current () const { return current_; }
-
-                private:
-                        KeyT current_{};
-                };
-
-                /**
-                 *
-                 */
-                template <typename KeyT, typename Win>
-                requires window_wrapper<std::remove_reference_t<Win>>
-                class Element {
-                public:
-                        using WinType = std::remove_reference_t<Win>;
-                        Element (KeyT key, Win const &win) : key_{key}, win_{win} {}
-
-                        KeyT key () const { return key_; };
-                        Win const &win () const { return win_; };
-
-                private:
-                        KeyT key_{};
-                        Win win_{}; // Wrapper41 (this can be T or T&)
-                };
-
-                /**
-                 * Facotry method
-                 */
-                template <typename KeyT, typename Win> auto eleX (KeyT key, Win &&win)
-                {
-                        return Element<KeyT, std::unwrap_ref_decay_t<Win>>{key, std::forward<Win> (win)};
-                }
-
-                /**
-                 * Suite of windows. Allows you to switch currently displayed window by setting a single
-                 * integer. Thanks to common interface class ISuite, you can easilly pass pointers to it
-                 * to your handlers.
-                 */
-                template <typename KeyT, typename WindowElementTuple> class WindowSuite : public ISuite<KeyT> {
-                public:
-                        using ISuite<KeyT>::current;
-
-                        explicit WindowSuite (WindowElementTuple wins) : windows{std::move (wins)} {}
-
-                        Visibility operator() (auto &disp) const
-                        {
-                                auto condition = [&disp, currentKey = current ()] (auto const &elem) -> bool {
-                                        if (elem.key () == currentKey) {
-                                                elem.win () (disp);
-                                                return true;
-                                        }
-
-                                        return false;
-                                };
-
-                                std::apply ([&disp, &condition] (auto const &...elms) { (condition (elms) || ...); }, windows);
-                                return Visibility::visible;
-                        }
-
-                        void input (auto &disp, Key key) {}
-                        void incrementFocus (auto & /* display */) const {}
-                        void decrementFocus (auto & /* display */) const {}
-
-                private:
-                        WindowElementTuple windows;
-                };
-
-                /**
-                 * Facotry method
-                 */
-                template <typename KeyT, typename... Win> auto suite (Element<KeyT, Win> &&...el)
-                {
-                        using Tuple = decltype (std::tuple{std::forward<Element<KeyT, Win>> (el)...});
-
-                        return WindowSuite<KeyT, Tuple>{std::tuple{std::forward<Element<KeyT, Win>> (el)...}};
-                }
 
                 /****************************************************************************/
 

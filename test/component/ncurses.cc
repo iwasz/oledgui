@@ -100,10 +100,17 @@ int test2 ()
         /*--------------------------------------------------------------------------*/
 
         std::string chkBxLabel = "false";
+        std::string rdoBxLabel = "0";
 
         auto callbacks = window<0, 0, 18, 7> (
                 vbox (hbox (check (" chkbx "sv, [&chkBxLabel] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }),
-                            label (std::ref (chkBxLabel)))));
+                            label (std::ref (chkBxLabel))),
+
+                      hbox (group ([&rdoBxLabel] (auto selected) { rdoBxLabel = std::to_string (selected); }, radio (6, " R "sv),
+                                   radio (7, " G "sv), radio (8, " B "sv)),
+                            label (std::ref (rdoBxLabel)))
+
+                              ));
 
         /*--------------------------------------------------------------------------*/
 

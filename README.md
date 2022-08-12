@@ -1,4 +1,4 @@
-Modern C++ GUI library for small displays with 3 button input. Developed with microcontrollers in mind. Stabilising the API.
+Experimental, C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. Stabilising the API.
 
 ![Demo](demo.gif)
 ![Demo2](demo2.gif)
@@ -45,13 +45,14 @@ aaa
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
 * [ ] Stabilize the API
-  * [ ] Resolve TODOs in radio and group (about this ID template argument)
-    * [ ] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
+  * [x] Resolve TODOs in radio and group (about this ID template argument)
+    * [x] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [ ] Make radioGroup and combo APIS simmilar.
   * [ ] callbacks and / or references - for all widgets that have input. 
   * [ ] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
+  * [ ] Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts garding as soon ass possible).
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
   * [x] Dialog
