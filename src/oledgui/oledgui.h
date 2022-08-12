@@ -1490,11 +1490,12 @@ public:
 
 private:
         KeyT key_{};
-        Win win_{}; // Wrapper41 (this can be T or T&)
+        Win win_{}; // Wrapper41 (this can be T or T&) // TODO change to tuple.
 };
 
 /**
  * Facotry method
+ * TODO It should accept Win &&...
  */
 template <typename KeyT, typename Win> auto element (KeyT key, Win &&win)
 {

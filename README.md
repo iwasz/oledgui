@@ -52,7 +52,7 @@ aaa
   * [ ] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
-  * [ ] Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts garding as soon ass possible).
+  * [ ] Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
   * [x] Dialog
@@ -78,6 +78,9 @@ aaa
     * [ ] Debug, release and -OS targets
   * [ ] Benchmark compilation size.
   * [ ] Benchmark cpu?
+* [ ] Have short think if, and remove the child field (and API) from Display* classes.
+* [ ] Implement something more than a dummy examples, and test the API in real life. 
+  * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 
 # Documentation TODO:
 * When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.

@@ -114,36 +114,36 @@ int test2 ()
 
         /*--------------------------------------------------------------------------*/
 
-        // auto allFeatures = window<0, 0, 18, 7> (
-        //         vbox (hbox (label ("Hello "sv), check (" 1 "sv),  check (" 2 "sv))//, //
-        //         //       hbox (label ("World "sv), check (" 5 "sv), check (" 6 "sv)), //
-        //         //       button ("Open dialog"sv, [&mySuite] { mySuite->current () = Windows::textReferences; }), //
-        //         //       line<18>, //
-        //         //       group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv)), //
-        //         //       line<18>, //
-        //         //       hbox (group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv))),
-        //         //
-        //         //       line<18>, //
-        //         //       //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}), //
-        //         //       //       line<18>,                                                                                               //
-        //         //       hbox (button ("Aaa"sv, [] {}), hspace<1>, button ("Bbb"sv, [] {}), hspace<1>, button ("Ccc"sv, [] {})), //
-        //         //       line<18>,                                                                                               //
-        //         //       check (" 1 "sv, [] (bool checked) { /* ... */ }),                                                       //
-        //         //       check (" 2 "sv),                                                                                        //
-        //         //       check (" 3 "sv),                                                                                        //
-        //         //       check (" 4 "sv),                                                                                        //
-        //         //       check (" 5 "sv),                                                                                        //
-        //         //       check (" 6 "sv),                                                                                        //
-        //         //       check (" 7 "sv),                                                                                        //
-        //         //       check (" 8 "sv),                                                                                        //
-        //         //       check (" 9 "sv),                                                                                        //
-        //         //       check (" 10 "sv),                                                                                       //
-        //         //       check (" 11 "sv),                                                                                       //
-        //         //       check (" 12 "sv),                                                                                       //
-        //         //       check (" 13 "sv),                                                                                       //
-        //         //       check (" 14 "sv),                                                                                       //
-        //         //       check (" 15 "sv)                                                                                        //
-        //               ));                                                                                                     //
+        auto allFeatures = window<0, 0, 18, 7> (
+                vbox (hbox (label ("Hello "sv), check (" 1 "sv), check (" 2 "sv)),                             //
+                      hbox (label ("World "sv), check (" 5 "sv), check (" 6 "sv)),                             //
+                      button ("Open dialog"sv, [&mySuite] { mySuite->current () = Windows::textReferences; }), //
+                      //       line<18>,                                                                                                      //
+                      group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv)), //
+                      //       line<18>,                                                                                                      //
+                      hbox (group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv))),
+
+                      //       line<18>, //
+                      //       Combo (Options (option (0, "red"), option (1, "green"), option (1, "blue")), [] (auto const &o) {}), //
+                      //       line<18>,                                                                                               //
+                      hbox (button ("Aaa"sv, [] {}), hspace<1>, button ("Bbb"sv, [] {}), hspace<1>, button ("Ccc"sv, [] {})), //
+                      //       line<18>,                                                                                               //
+                      check (" 1 "sv, [] (bool checked) { /* ... */ }), //
+                      check (" 2 "sv),                                  //
+                      check (" 3 "sv),                                  //
+                      check (" 4 "sv),                                  //
+                      check (" 5 "sv),                                  //
+                      check (" 6 "sv),                                  //
+                      check (" 7 "sv),                                  //
+                      check (" 8 "sv),                                  //
+                      check (" 9 "sv),                                  //
+                      check (" 10 "sv),                                 //
+                      check (" 11 "sv),                                 //
+                      check (" 12 "sv),                                 //
+                      check (" 13 "sv),                                 //
+                      check (" 14 "sv),                                 //
+                      check (" 15 "sv)                                  //
+                      ));                                               //
 
         // log (x);
         /*--------------------------------------------------------------------------*/
@@ -188,9 +188,10 @@ the first element of the sequence at position zero.)"};
         // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
         //                                               element (Windows::xWindow, std::ref (x)));
         auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)),
-                                 element (Windows::textReferences, std::ref (textReferences)), element (Windows::dialog, std::ref (dialog)) //,
-                                 /* element (Windows::allFeatures, std::ref (allFeatures)) */);
+                                 element (Windows::textReferences, std::ref (textReferences)), element (Windows::dialog, std::ref (dialog)),
+                                 element (Windows::allFeatures, std::ref (allFeatures)));
         mySuite = &s;
+        s.current () = Windows::allFeatures;
 
         // log (dialog);
 
