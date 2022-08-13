@@ -609,30 +609,42 @@ template <typename String, typename Callback> auto button (String &&str, Callbac
 /**
  * Single combo option.
  */
-template <std::integral Id> struct Option { // TODO consider other types than std::integrals, and write an unit test
-        Option (Id const &i, const char *l) : id{i}, label{l} {}
-        Id id;
-        const char *label; // TODO refactor to std::string_view
+template <std::integral Id, c::string String> struct Option { // TODO consider other types than std::integrals, and write an unit test
+public:
+        Option (Id id, String const &lbl) : id_{std::move (id)}, label_{lbl} {}
+
+        Id &id () { return id_; }
+        Id const &id () const { return id_; }
+
+        String &label () { return label_; }
+        String const &label () const { return label_; }
+
+private:
+        Id id_;
+        String label_;
 };
 
-template <typename Id> auto option (Id &&id, const char *label) { return Option (std::forward<Id> (id), label); }
+template <typename Id, c::string String> auto option (Id &&id, String &&label)
+{
+        return Option<std::remove_reference_t<Id>, std::unwrap_ref_decay_t<String>> (std::forward<Id> (id), std::forward<String> (label));
+}
 
 /**
  * A container for options.
  */
-template <std::integral I, size_t Num> struct Options {
+template <std::integral I, size_t Num, c::string String> struct Options {
 
-        using OptionType = Option<I>;
+        using OptionType = Option<I, String>;
         using Id = I;
-        using ContainerType = std::array<Option<I>, Num>;
+        using ContainerType = std::array<OptionType, Num>;
         using SelectionIndex = typename ContainerType::size_type; // std::array::at accepts this
 
-        template <typename... J> constexpr Options (Option<J> &&...e) : elms{std::forward<Option<J>> (e)...} {}
+        template <typename... J> constexpr Options (Option<J, String> &&...elms) : elms{std::forward<Option<J, String>> (elms)...} {}
 
         ContainerType elms;
 };
 
-template <typename... J> Options (Option<J> &&...e) -> Options<First_t<J...>, sizeof...(J)>;
+template <typename String, typename... J> Options (Option<J, String> &&...elms) -> Options<First_t<J...>, sizeof...(J), String>;
 
 /**
  *
@@ -667,14 +679,14 @@ Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const
                 d.color (2);
         }
 
-        const char *label = options.elms.at (currentSelection).label;
+        auto &label = options.elms.at (currentSelection).label ();
         d.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
         }
 
-        d.move (strlen (label), 0);
+        d.cursor () += {Coordinate (label.size ()), 0};
         return Visibility::visible;
 }
 

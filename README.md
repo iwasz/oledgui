@@ -49,7 +49,7 @@ aaa
     * [x] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [ ] Make radioGroup and combo APIS simmilar.
   * [ ] callbacks and / or references - for all widgets that have input. 
-  * [ ] Combo box accepts only `const char *` instead of templatized `c::string` concept.
+  * [x] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
   * [ ] Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
