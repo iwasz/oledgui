@@ -83,7 +83,7 @@ aaa
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 
 # Documentation TODO:
-* When you implemnt a custom widget, bu default it is not focusable. Inherit from og::Focusable to change it.
+* When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.
 * ~~Display has its own context, so you don;t have to use a window???~~ It was removed.
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
 * Only '\n's are recognized as newline characters by text widget.
@@ -98,7 +98,7 @@ Layouts:
   * Thus widgets are responsible for moving the cursor accordingly after drawing themselves.
 * Layer 1 requires height field, but width is optional. If no width is present in a widget, 0 is assumed
 * Show (on a diagram) where the cursor ends up after drawing various configurations of layouts and widgets
-* All widgets have their heights defined (either as a variable or calculated) and available at compile time. Width at the other hand, is trickier, as widgets don't have to provide it at compile time. For example it would be impossible for a label to know its with based on its run time contents.
+* All widgets have their heights defined (either as a variable or calculated) and available at compile time. Width at the other hand, is trickier, as widgets don't have to provide it at compile time. For example it would be impossible for a label to know its with based on its run-time contents.
   * As a result it is easy (easy as C++ meta-programing goes) to calculate layout's height (you sum all the contained widgets' heights) but not that easy to do the same with width. This is why you can explicitly specify the width of a layout. However it sums the contained children' widths but then gets the max of the sum and explicit value.
 
 * `c::string` concept.

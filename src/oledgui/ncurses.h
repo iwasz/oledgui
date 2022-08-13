@@ -66,7 +66,6 @@ private:
 
 template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
 {
-        // return;
         setlocale (LC_ALL, "");
         initscr ();
         curs_set (0);

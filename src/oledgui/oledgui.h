@@ -1117,9 +1117,17 @@ namespace detail {
                                         },
                                         concreteChildren);
 
-                                // Move the cursor to the bottom right corner
-                                d.cursor () = tmpCursor;
-                                d.cursor () += {ConcreteClass::getWidth (), std::max (ConcreteClass::getHeight () - 1, 0)};
+                                /**
+                                 * Move the cursor to the bottom right corner, buut only if width of the container widget
+                                 * is defined. This is kind of a hack which works when somebody either defines the layout
+                                 * width explicitly using template argument (example : vbox <4>(xxx)), or when Layout's
+                                 * contents have the width defined which is usually not the case. Most widgets display dynamic
+                                 * contents like std::string and thus cannot figure out the width at compile time.
+                                 */
+                                if (ConcreteClass::getWidth ()) {
+                                        d.cursor () = tmpCursor;
+                                        d.cursor () += {ConcreteClass::getWidth (), std::max (ConcreteClass::getHeight () - 1, 0)};
+                                }
 
                                 return Visibility::visible;
                         }
