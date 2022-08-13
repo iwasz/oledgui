@@ -669,6 +669,11 @@ private:
         Callback callback;
 };
 
+template <typename Callback, typename... Opts> auto combo (Callback &&clb, Opts &&...opts)
+{
+        return Combo (Options (std::forward<Opts> (opts)...), std::forward<Callback> (clb));
+}
+
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
@@ -699,6 +704,7 @@ void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ct
         if (ctx.currentFocus == Wrapper::getFocusIndex () && c == Key::select) {
                 ++currentSelection;
                 currentSelection %= options.elms.size ();
+                callback (options.elms.at (currentSelection).id ());
         }
 }
 

@@ -47,7 +47,7 @@ aaa
 * [ ] Stabilize the API
   * [x] Resolve TODOs in radio and group (about this ID template argument)
     * [x] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
-  * [ ] Make radioGroup and combo APIS simmilar.
+  * [x] Make radioGroup and combo APIS simmilar.
   * [ ] callbacks and / or references - for all widgets that have input. 
   * [x] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
@@ -79,8 +79,12 @@ aaa
   * [ ] Benchmark compilation size.
   * [ ] Benchmark cpu?
 * [ ] Have short think if, and remove the child field (and API) from Display* classes.
+  * [ ] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
+    * [ ] Then check if og::detail::augment::Window and og::Suite can inherit the same interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
+
+
 
 # Documentation TODO:
 * When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.
