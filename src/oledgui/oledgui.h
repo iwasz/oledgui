@@ -281,8 +281,8 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename String, typename Callback>
-template <typename Wrapper>
-Visibility Check<String, Callback>::operator() (auto &d, Context const &ctx) const
+requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper> Visibility Check<String, Callback>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
@@ -314,13 +314,13 @@ struct EmptyUnaryBool {
         void operator() (bool) {}
 };
 
-template <typename String> constexpr auto check (String &&str)
+template <c::string String> constexpr auto check (String &&str)
 {
         // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryBool clangd 14.0.3 and 14.0.6 crashes.
         return Check<std::unwrap_ref_decay_t<String>, EmptyUnaryBool> (std::forward<String> (str), {});
 }
 
-template <typename String, typename Callback> constexpr auto check (String &&str, Callback &&clb)
+template <c::string String, std::invocable<bool> Callback> constexpr auto check (String &&str, Callback &&clb)
 {
         return Check<std::unwrap_ref_decay_t<String>, std::remove_cvref_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
@@ -353,8 +353,8 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename String, std::integral Id>
-template <typename Wrapper>
-Visibility Radio<String, Id>::operator() (auto &d, Context const &ctx) const
+requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper> Visibility Radio<String, Id>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
@@ -381,8 +381,8 @@ Visibility Radio<String, Id>::operator() (auto &d, Context const &ctx) const
 }
 
 template <typename String, std::integral Id>
-template <typename Wrapper, typename Callback>
-void Radio<String, Id>::input (auto & /* d */, Context const &ctx, Key c, Callback &clb)
+requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper, typename Callback> void Radio<String, Id>::input (auto & /* d */, Context const &ctx, Key c, Callback &clb)
 {
         if (ctx.radioSelection != nullptr && c == Key::select) {
                 *ctx.radioSelection = Wrapper::getRadioIndex ();
@@ -469,8 +469,8 @@ private:
 };
 
 template <Dimension widthV, Dimension heightV, typename Buffer>
-template <typename Wrapper>
-Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
+requires c::text_buffer<std::remove_reference_t<Buffer>>
+template <typename Wrapper> Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
 {
         size_t widgetScroll = std::max (ctx.currentScroll - Wrapper::getY (), 0);
         size_t heightToPrint = heightV - widgetScroll;
@@ -580,8 +580,8 @@ private:
 };
 
 template <typename String, typename Callback>
-template <typename Wrapper>
-Visibility Button<String, Callback>::operator() (auto &d, Context const &ctx) const
+requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
@@ -677,8 +677,8 @@ template <typename Callback, typename... Opts> auto combo (Callback &&clb, Opts 
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-template <typename Wrapper>
-Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx) const
+requires std::invocable<Callback, typename OptionCollection::Id>
+template <typename Wrapper> Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (2);
@@ -698,8 +698,8 @@ Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const
 /*--------------------------------------------------------------------------*/
 
 template <typename OptionCollection, typename Callback>
-template <typename Wrapper>
-void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Key c)
+requires std::invocable<Callback, typename OptionCollection::Id>
+template <typename Wrapper> void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Key c)
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex () && c == Key::select) {
                 ++currentSelection;
@@ -1059,6 +1059,7 @@ namespace detail {
                 concept widget_wrapper = is_widget_wrapper<T>::value;
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
+                requires c::widget<std::remove_reference_t<T>>
                 constexpr Dimension Widget<T, focusIndexV, radioIndexV, xV, yV>::getWidth ()
                 {
                         if constexpr (requires {
@@ -1074,6 +1075,7 @@ namespace detail {
                 }
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
+                requires c::widget<std::remove_reference_t<T>>
                 void Widget<T, focusIndexV, radioIndexV, xV, yV>::scrollToFocus (Context *ctx) const
                 {
                         if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {

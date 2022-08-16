@@ -6,8 +6,11 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
-#include "oledgui/ncurses.h"
+/**
+ * All functionalities in one place. Manual regression testing
+ */
 #include "oledgui/debug.h"
+#include "oledgui/ncurses.h"
 
 // int test1 ()
 // {
@@ -103,7 +106,12 @@ int test2 ()
         std::string chkBxLabel = "-";
         std::string rdoBxLabel = "-";
         std::string cboLabel = "-";
+        std::string buttonLabel = "-";
+        int buttonCnt{};
 
+        /**
+         * All available inputs with callbacks.
+         */
         auto callbacks = window<0, 0, 18, 7> (
                 vbox (hbox (check (" chkbx "sv, [&chkBxLabel] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }),
                             label (std::ref (chkBxLabel))),
@@ -119,7 +127,12 @@ int test2 ()
                                    option (777, "green"sv),                                               //
                                    option (8, "blue"sv)),                                                 //
                             hspace<1>,                                                                    //
-                            label (std::ref (cboLabel)))));
+                            label (std::ref (cboLabel))),
+
+                      hbox (button ("[OK]"sv, [&buttonLabel, &buttonCnt] { buttonLabel = std::to_string (++buttonCnt); }), hspace<1>,
+                            label (std::ref (buttonLabel)))
+
+                              ));
 
         /*--------------------------------------------------------------------------*/
 
