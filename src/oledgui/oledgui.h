@@ -249,19 +249,19 @@ template <Dimension heightV> Space<1, heightV> const vspace;
 /* Check                                                                    */
 /****************************************************************************/
 
-template <typename String, typename Callback>
+template <typename Callback, typename ChkT, typename String>
 requires c::string<std::remove_reference_t<String>>
 class Check : public Focusable {
 public:
         static constexpr Dimension height = 1;
 
-        constexpr Check (String const &s, Callback clb) : label_{s}, callback{std::move (clb)} {}
+        constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
 
-        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key c)
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
+        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key)
         {
-                if (c == Key::select) {
-                        checked_ = !checked_;
+                if (key == Key::select) {
+                        static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
                         callback (checked_);
                 }
         }
@@ -274,15 +274,15 @@ public:
 
 private:
         String label_;
-        bool checked_{};
+        ChkT checked_{};
         Callback callback;
 };
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String, typename Callback>
+template <typename Callback, typename ChkT, typename String>
 requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Check<String, Callback>::operator() (auto &d, Context const &ctx) const
+template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
@@ -317,12 +317,26 @@ struct EmptyUnaryBool {
 template <c::string String> constexpr auto check (String &&str)
 {
         // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryBool clangd 14.0.3 and 14.0.6 crashes.
-        return Check<std::unwrap_ref_decay_t<String>, EmptyUnaryBool> (std::forward<String> (str), {});
+        return Check<EmptyUnaryBool, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
 }
 
-template <c::string String, std::invocable<bool> Callback> constexpr auto check (String &&str, Callback &&clb)
+template <std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
 {
-        return Check<std::unwrap_ref_decay_t<String>, std::remove_cvref_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
+        return Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>> (std::forward<Callback> (clb), {},
+                                                                                            std::forward<String> (str));
+}
+
+template <std::convertible_to<bool> ChkT, c::string String> constexpr auto check (ChkT &&chk, String &&str)
+{
+        return Check<EmptyUnaryBool, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
+                                                                                                      std::forward<String> (str));
+}
+
+template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
+constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
+{
+        return Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> (
+                std::forward<Callback> (clb), std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
 /****************************************************************************/

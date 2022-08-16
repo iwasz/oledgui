@@ -98,8 +98,10 @@ int test2 ()
 
         NcursesDisplay<18, 7> d1;
 
-        enum class Windows : int { callbacks, allFeatures, dialog, textReferences, layouts };
+        enum class Windows : int { callbacks, dataReferences, allFeatures, dialog, textReferences, layouts };
         ISuite<Windows> *mySuite{};
+
+        /*--------------------------------------------------------------------------*/
 
         /*--------------------------------------------------------------------------*/
 
@@ -113,7 +115,7 @@ int test2 ()
          * All available inputs with callbacks.
          */
         auto callbacks = window<0, 0, 18, 7> (
-                vbox (hbox (check (" chkbx "sv, [&chkBxLabel] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }),
+                vbox (hbox (check ([&chkBxLabel] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }, " chkbx "sv),
                             label (std::ref (chkBxLabel))),
 
                       hbox (group ([&rdoBxLabel] (auto selected) { rdoBxLabel = std::to_string (selected); }, //
@@ -133,6 +135,15 @@ int test2 ()
                             label (std::ref (buttonLabel)))
 
                               ));
+
+        /*--------------------------------------------------------------------------*/
+
+        bool bbb{true};
+
+        auto dataReferences = window<0, 0, 18, 7> (vbox (check (" No output"sv),                  //
+                                                         check (true, " PR value "sv),            //
+                                                         check (std::ref (bbb), " std::ref 1"sv), //
+                                                         check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
 
         /*--------------------------------------------------------------------------*/
 
@@ -223,16 +234,16 @@ the first element of the sequence at position zero.)"};
 
         // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
         //                                               element (Windows::xWindow, std::ref (x)));
-        auto s = suite<Windows> (element (Windows::callbacks,
-                                          std::ref (callbacks)) //,
-                                                                //                  element (Windows::textReferences, std::ref (textReferences)),
-                                                                //                  // element (Windows::dialog, std::ref (dialog)), //
-                                                                // element (Windows::allFeatures, std::ref (allFeatures)) //,       //
-                                                                //  element (Windows::layouts, std::ref (layouts))                //
+        auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)), element (Windows::dataReferences, std::ref (dataReferences))
+
+                                 //                  element (Windows::textReferences, std::ref (textReferences)),
+                                 //                  // element (Windows::dialog, std::ref (dialog)), //
+                                 // element (Windows::allFeatures, std::ref (allFeatures)) //,       //
+                                 //  element (Windows::layouts, std::ref (layouts))                //
         );
 
         mySuite = &s;
-        s.current () = Windows::callbacks;
+        s.current () = Windows::dataReferences;
 
         // log (dialog);
 
