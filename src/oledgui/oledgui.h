@@ -695,14 +695,14 @@ typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toInde
 /**
  *
  */
-template <typename Callback, typename IdExtT, typename OptionCollection>
+template <typename Callback, typename ValueContainerT, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
 class Combo : public Focusable {
 public:
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Value = typename OptionCollection::Value;
-        using ValueContainer = IdExtT;
+        using ValueContainer = ValueContainerT;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
         constexpr Combo (Callback clb, ValueContainer cid, OptionCollection const &opts)
@@ -727,21 +727,22 @@ private:
 
         OptionCollection options;
         ValueContainer valueContainer; // Can be int, can be std::ref (int)
-        SelectionIndex index_{};
+        mutable SelectionIndex index_{};
         Callback callback;
 };
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename IdExtT, typename OptionCollection>
+template <typename Callback, typename ValueContainer, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
-template <typename Wrapper> Visibility Combo<Callback, IdExtT, OptionCollection>::operator() (auto &disp, Context const &ctx) const
+template <typename Wrapper> Visibility Combo<Callback, ValueContainer, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 disp.color (2);
         }
 
-        auto &label = options.getOptionByValue (value ()).label ();
+        index_ = options.toIndex (value ());
+        auto &label = options.getOptionByIndex (index_).label ();
         disp.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
@@ -754,15 +755,15 @@ template <typename Wrapper> Visibility Combo<Callback, IdExtT, OptionCollection>
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename IdExtT, typename OptionCollection>
+template <typename Callback, typename ValueContainer, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
-template <typename Wrapper> void Combo<Callback, IdExtT, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
+template <typename Wrapper> void Combo<Callback, ValueContainer, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                 ++index_;
                 index_ %= options.size ();
-                value () = options.getOptionByIndex (index_).value ();
-                callback (value ());
+                toValue () = options.getOptionByIndex (index_).value ();
+                callback (toValue ());
         }
 }
 
@@ -772,16 +773,17 @@ template <typename Wrapper> void Combo<Callback, IdExtT, OptionCollection>::inpu
 // requires std::invocable<Callback, typename First_t<Opts...>::Id>
 // auto combo (Callback &&clb, Opts &&...opts) { return Combo (std::forward<Callback> (clb), {}, Options (std::forward<Opts> (opts)...)); }
 
-template <typename IdExtT, typename... Opts>
-requires std::convertible_to<IdExtT, typename First_t<Opts...>::Value> &&(!std::invocable<IdExtT, typename First_t<Opts...>::Value>)auto combo (
-        IdExtT &&cid, Opts &&...opts)
+template <typename ValueContainerT, typename... Opts>
+requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> &&(
+        !std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)auto combo (ValueContainerT &&cid, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
         using Callback = EmptyUnaryInvocable<Value>;
-        using IdExt = std::remove_reference_t<IdExtT>;
+        using ValueContainer = std::remove_reference_t<ValueContainerT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, IdExt, OptionCollection> ({}, std::forward<IdExtT> (cid), Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, ValueContainer, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
+                                                                  Options (std::forward<Opts> (opts)...));
 }
 
 /****************************************************************************/
