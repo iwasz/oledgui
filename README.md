@@ -83,7 +83,7 @@ aaa
     * [ ] Then check if og::detail::augment::Window and og::Suite can inherit the same interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
-* [ ] Try to break the API. Is there a way to pass something that the concepts pass it, but then it causes an error somewhere deeper?
+* [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
 
 
 

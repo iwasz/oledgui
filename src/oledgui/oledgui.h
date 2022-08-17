@@ -310,14 +310,14 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
 
 /*--------------------------------------------------------------------------*/
 
-struct EmptyUnaryBool {
-        void operator() (bool) {}
+template <typename T> struct EmptyUnaryInvocable {
+        void operator() (T) {}
 };
 
 template <c::string String> constexpr auto check (String &&str)
 {
-        // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryBool clangd 14.0.3 and 14.0.6 crashes.
-        return Check<EmptyUnaryBool, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
+        // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryInvocable clangd 14.0.3 and 14.0.6 crashes.
+        return Check<EmptyUnaryInvocable<bool>, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
 }
 
 template <std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
@@ -328,8 +328,8 @@ template <std::invocable<bool> Callback, c::string String> constexpr auto check 
 
 template <std::convertible_to<bool> ChkT, c::string String> constexpr auto check (ChkT &&chk, String &&str)
 {
-        return Check<EmptyUnaryBool, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
-                                                                                                      std::forward<String> (str));
+        return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
+                                                                                                                 std::forward<String> (str));
 }
 
 template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
@@ -623,31 +623,33 @@ template <typename String, typename Callback> auto button (String &&str, Callbac
 /**
  * Single combo option.
  */
-template <std::integral Id, c::string String> struct Option { // TODO consider other types than std::integrals, and write an unit test
+template <std::integral IdT, c::string String> struct Option {
 public:
-        Option (Id id, String const &lbl) : id_{std::move (id)}, label_{lbl} {}
+        using Id = IdT;
 
-        Id &id () { return id_; }
-        Id const &id () const { return id_; }
+        Option (IdT id, String const &lbl) : id_{std::move (id)}, label_{lbl} {}
+
+        IdT &id () { return id_; }
+        IdT const &id () const { return id_; }
 
         String &label () { return label_; }
         String const &label () const { return label_; }
 
 private:
-        Id id_;
+        IdT id_;
         String label_;
 };
 
-template <typename Id, c::string String> auto option (Id &&id, String &&label)
+template <std::integral Id, c::string String> auto option (Id &&cid, String &&label)
 {
-        return Option<std::remove_reference_t<Id>, std::unwrap_ref_decay_t<String>> (std::forward<Id> (id), std::forward<String> (label));
+        return Option<std::remove_reference_t<Id>, std::unwrap_ref_decay_t<String>> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
 /**
  * A container for options.
  */
 template <std::integral I, size_t Num, c::string String> struct Options {
-
+public:
         using OptionType = Option<I, String>;
         using Id = I;
         using ContainerType = std::array<OptionType, Num>;
@@ -655,71 +657,129 @@ template <std::integral I, size_t Num, c::string String> struct Options {
 
         template <typename... J> constexpr Options (Option<J, String> &&...elms) : elms{std::forward<Option<J, String>> (elms)...} {}
 
+        SelectionIndex toIndex (Id const &cid) const;
+
+        auto &getOptionByValue (Id const &cid) { return getOptionByIndex (toIndex (cid)); }
+        auto const &getOptionByValue (Id const &cid) const { return getOptionByIndex (toIndex (cid)); }
+
+        auto &getOptionByIndex (SelectionIndex idx) { return elms.at (idx); }
+        auto const &getOptionByIndex (SelectionIndex idx) const { return elms.at (idx); }
+
+        size_t size () const { return elms.size (); }
+
+private:
         ContainerType elms;
 };
 
 template <typename String, typename... J> Options (Option<J, String> &&...elms) -> Options<First_t<J...>, sizeof...(J), String>;
 
+/*--------------------------------------------------------------------------*/
+
+template <std::integral I, size_t Num, c::string String>
+typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toIndex (Id const &cid) const
+{
+        size_t ret{};
+        for (auto const &opt : elms) {
+                if (opt.id () == cid) {
+                        return ret;
+                }
+
+                ++ret;
+        }
+
+        return 0;
+}
+
 /**
  *
  */
-template <typename OptionCollection, typename Callback>
+template <typename Callback, typename IdExtT, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Id>
 class Combo : public Focusable {
 public:
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Id = typename OptionCollection::Id;
+        using ExtId = IdExtT;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
-        constexpr Combo (OptionCollection const &o, Callback c) : options{o}, callback{c} {}
+        constexpr Combo (Callback clb, ExtId cid, OptionCollection const &opts)
+            : options{opts}, currentId (std::move (cid)), callback{std::move (clb)}
+        {
+                // Id type (for currentId only) should be passed as a template arg, and compared with OptionCollection::Id
+        }
+        // constexpr Combo (Callback clb, Id cid, OptionCollection const &opts) : options{opts}, currentId (std::move (cid)), callback{std::move
+        // (clb)} {}
 
-        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
-        template <typename Wrapper> void input (auto &d, Context const &ctx, Key c);
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
+        template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);
+
+        ExtId &value () { return currentId; }
+        ExtId const &value () const { return currentId; }
+
+        SelectionIndex index () const { return index_; };
 
 private:
+        Id &toValue () { return static_cast<Id &> (currentId); }
+        Id const &toValue () const { return static_cast<Id const &> (currentId); }
+
         OptionCollection options;
-        SelectionIndex currentSelection{};
+        ExtId currentId;
+        SelectionIndex index_{};
         Callback callback;
 };
 
-template <typename Callback, typename... Opts> auto combo (Callback &&clb, Opts &&...opts)
-{
-        return Combo (Options (std::forward<Opts> (opts)...), std::forward<Callback> (clb));
-}
-
 /*--------------------------------------------------------------------------*/
 
-template <typename OptionCollection, typename Callback>
+template <typename Callback, typename IdExtT, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Id>
-template <typename Wrapper> Visibility Combo<OptionCollection, Callback>::operator() (auto &d, Context const &ctx) const
+template <typename Wrapper> Visibility Combo<Callback, IdExtT, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                disp.color (2);
         }
 
-        auto &label = options.elms.at (currentSelection).label ();
-        d.print (label);
+        auto &label = options.getOptionByValue (value ()).label ();
+        disp.print (label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                disp.color (1);
         }
 
-        d.cursor () += {Coordinate (label.size ()), 0};
+        disp.cursor () += {Coordinate (label.size ()), 0};
         return Visibility::visible;
 }
 
 /*--------------------------------------------------------------------------*/
 
-template <typename OptionCollection, typename Callback>
+template <typename Callback, typename IdExtT, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Id>
-template <typename Wrapper> void Combo<OptionCollection, Callback>::input (auto & /* d */, Context const &ctx, Key c)
+template <typename Wrapper> void Combo<Callback, IdExtT, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if (ctx.currentFocus == Wrapper::getFocusIndex () && c == Key::select) {
-                ++currentSelection;
-                currentSelection %= options.elms.size ();
-                callback (options.elms.at (currentSelection).id ());
+        if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
+                ++index_;
+                index_ %= options.size ();
+                value () = options.getOptionByIndex (index_).id ();
+                callback (value ());
         }
+}
+
+/*--------------------------------------------------------------------------*/
+
+// template <typename Callback, typename... Opts>
+// requires std::invocable<Callback, typename First_t<Opts...>::Id>
+// auto combo (Callback &&clb, Opts &&...opts) { return Combo (std::forward<Callback> (clb), {}, Options (std::forward<Opts> (opts)...)); }
+
+template <typename IdExtT, typename... Opts>
+requires std::convertible_to<IdExtT, typename First_t<Opts...>::Id> &&(!std::invocable<IdExtT, typename First_t<Opts...>::Id>)auto combo (
+        IdExtT &&cid, Opts &&...opts)
+{
+        using Id = typename First_t<Opts...>::Id;
+        using Callback = EmptyUnaryInvocable<Id>;
+        using IdExt = std::remove_reference_t<IdExtT>;
+        using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
+
+        return Combo<Callback, IdExt, OptionCollection> ({}, std::forward<IdExtT> (cid), Options (std::forward<Opts> (opts)...));
 }
 
 /****************************************************************************/

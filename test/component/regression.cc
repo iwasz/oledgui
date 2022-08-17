@@ -98,7 +98,7 @@ int test2 ()
 
         NcursesDisplay<18, 7> d1;
 
-        enum class Windows : int { callbacks, dataReferences, allFeatures, dialog, textReferences, layouts };
+        enum class Windows : int { callbacks, dataReferencesCheck, dataReferencesCombo, allFeatures, dialog, textReferences, layouts };
         ISuite<Windows> *mySuite{};
 
         /*--------------------------------------------------------------------------*/
@@ -124,12 +124,12 @@ int test2 ()
                                    radio (8, " B "sv)),                                                       //
                             label (std::ref (rdoBxLabel))),                                                   //
 
-                      hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
-                                   option (666, "red"sv),                                                 //
-                                   option (777, "green"sv),                                               //
-                                   option (8, "blue"sv)),                                                 //
-                            hspace<1>,                                                                    //
-                            label (std::ref (cboLabel))),
+                      //       hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
+                      //                    option (666, "red"sv),                                                 //
+                      //                    option (777, "green"sv),                                               //
+                      //                    option (8, "blue"sv)),                                                 //
+                      //             hspace<1>,                                                                    //
+                      //             label (std::ref (cboLabel))),
 
                       hbox (button ("[OK]"sv, [&buttonLabel, &buttonCnt] { buttonLabel = std::to_string (++buttonCnt); }), hspace<1>,
                             label (std::ref (buttonLabel)))
@@ -140,10 +140,18 @@ int test2 ()
 
         bool bbb{true};
 
-        auto dataReferences = window<0, 0, 18, 7> (vbox (check (" No output"sv),                  //
-                                                         check (true, " PR value "sv),            //
-                                                         check (std::ref (bbb), " std::ref 1"sv), //
-                                                         check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+        auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (check (" No output"sv),                  //
+                                                              check (true, " PR value "sv),            //
+                                                              check (std::ref (bbb), " std::ref 1"sv), //
+                                                              check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+
+        /*--------------------------------------------------------------------------*/
+
+        int cid{777};
+
+        auto dataReferencesCombo
+                = window<0, 0, 18, 7> (vbox (/* combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)), */
+                                             combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv))));
 
         /*--------------------------------------------------------------------------*/
 
@@ -234,7 +242,8 @@ the first element of the sequence at position zero.)"};
 
         // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
         //                                               element (Windows::xWindow, std::ref (x)));
-        auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)), element (Windows::dataReferences, std::ref (dataReferences))
+        auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)),
+                                 element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo))
 
                                  //                  element (Windows::textReferences, std::ref (textReferences)),
                                  //                  // element (Windows::dialog, std::ref (dialog)), //
@@ -243,7 +252,7 @@ the first element of the sequence at position zero.)"};
         );
 
         mySuite = &s;
-        s.current () = Windows::dataReferences;
+        s.current () = Windows::dataReferencesCombo;
 
         // log (dialog);
 
@@ -270,6 +279,8 @@ the first element of the sequence at position zero.)"};
                         input (d1, s, getKey (ch));
                         break;
                 }
+
+                // std::cout << cid << std::endl;
         }
 
         return 0;

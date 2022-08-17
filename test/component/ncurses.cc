@@ -114,11 +114,11 @@ int test2 ()
                                    radio (8, " B "sv)),                                                       //
                             label (std::ref (rdoBxLabel))),                                                   //
 
-                      hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
-                                   option (666, "red"sv),                                                 //
-                                   option (777, "green"sv),                                               //
-                                   option (8, "blue"sv)),                                                 //
-                            hspace<1>,                                                                    //
+                      hbox (cid ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
+                                 option (666, "red"sv),                                                 //
+                                 option (777, "green"sv),                                               //
+                                 option (8, "blue"sv)),                                                 //
+                            hspace<1>,                                                                  //
                             label (std::ref (cboLabel)))));
 
         /*--------------------------------------------------------------------------*/
