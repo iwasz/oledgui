@@ -98,7 +98,16 @@ int test2 ()
 
         NcursesDisplay<18, 7> d1;
 
-        enum class Windows : int { callbacks, dataReferencesCheck, dataReferencesCombo, allFeatures, dialog, textReferences, layouts };
+        enum class Windows : int {
+                callbacks,
+                dataReferencesCheck,
+                dataReferencesCombo,
+                dataReferencesComboEnum,
+                allFeatures,
+                dialog,
+                textReferences,
+                layouts
+        };
         ISuite<Windows> *mySuite{};
 
         /*--------------------------------------------------------------------------*/
@@ -124,12 +133,12 @@ int test2 ()
                                    radio (8, " B "sv)),                                                       //
                             label (std::ref (rdoBxLabel))),                                                   //
 
-                      //       hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
-                      //                    option (666, "red"sv),                                                 //
-                      //                    option (777, "green"sv),                                               //
-                      //                    option (8, "blue"sv)),                                                 //
-                      //             hspace<1>,                                                                    //
-                      //             label (std::ref (cboLabel))),
+                      hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
+                                   option (6, "red"sv),                                                   //
+                                   option (7, "green"sv),                                                 //
+                                   option (8, "blue"sv)),                                                 //
+                            hspace<1>,                                                                    //
+                            label (std::ref (cboLabel))),
 
                       hbox (button ("[OK]"sv, [&buttonLabel, &buttonCnt] { buttonLabel = std::to_string (++buttonCnt); }), hspace<1>,
                             label (std::ref (buttonLabel)))
@@ -140,8 +149,7 @@ int test2 ()
 
         bool bbb{true};
 
-        auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (check (" No output"sv),                  //
-                                                              check (true, " PR value "sv),            //
+        auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (check (true, " PR value "sv),            //
                                                               check (std::ref (bbb), " std::ref 1"sv), //
                                                               check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
 
@@ -149,12 +157,18 @@ int test2 ()
 
         int cid{777};
 
-        auto dataReferencesCombo
-                = window<0, 0, 18, 7> (vbox (/* combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)), */
-                                             combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
-                                             combo (std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)))
+        auto dataReferencesCombo = window<0, 0, 18, 7> (
+                vbox (combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
+                      combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
+                      combo ([] (int) {}, std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)))
 
-                );
+        );
+
+        enum class Color { red, green, blue };
+        Color clr{Color::blue};
+
+        auto dataReferencesComboEnum = window<0, 0, 18, 7> (hbox (combo ([] (Color clr) {}, std::ref (clr), option (Color::red, "red"sv),
+                                                                         option (Color::green, "green"sv), option (Color::blue, "blue"sv))));
 
         /*--------------------------------------------------------------------------*/
 
@@ -246,7 +260,8 @@ the first element of the sequence at position zero.)"};
         // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
         //                                               element (Windows::xWindow, std::ref (x)));
         auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)),
-                                 element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo))
+                                 element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo)),
+                                 element (Windows::dataReferencesComboEnum, std::ref (dataReferencesComboEnum))
 
                                  //                  element (Windows::textReferences, std::ref (textReferences)),
                                  //                  // element (Windows::dialog, std::ref (dialog)), //
@@ -255,7 +270,7 @@ the first element of the sequence at position zero.)"};
         );
 
         mySuite = &s;
-        s.current () = Windows::dataReferencesCombo;
+        s.current () = Windows::dataReferencesComboEnum;
 
         // log (dialog);
 

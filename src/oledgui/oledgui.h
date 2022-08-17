@@ -314,11 +314,11 @@ template <typename T> struct EmptyUnaryInvocable {
         void operator() (T) {}
 };
 
-template <c::string String> constexpr auto check (String &&str)
-{
-        // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryInvocable clangd 14.0.3 and 14.0.6 crashes.
-        return Check<EmptyUnaryInvocable<bool>, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
-}
+// template <c::string String> constexpr auto check (String &&str)
+// {
+//         // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryInvocable clangd 14.0.3 and 14.0.6 crashes.
+//         return Check<EmptyUnaryInvocable<bool>, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
+// }
 
 template <std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
 {
@@ -708,10 +708,7 @@ public:
         constexpr Combo (Callback clb, ValueContainer cid, OptionCollection const &opts)
             : options{opts}, valueContainer (std::move (cid)), callback{std::move (clb)}
         {
-                // Id type (for currentId only) should be passed as a template arg, and compared with OptionCollection::Id
         }
-        // constexpr Combo (Callback clb, Id cid, OptionCollection const &opts) : options{opts}, currentId (std::move (cid)), callback{std::move
-        // (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);
@@ -769,9 +766,28 @@ template <typename Wrapper> void Combo<Callback, ValueContainer, OptionCollectio
 
 /*--------------------------------------------------------------------------*/
 
-// template <typename Callback, typename... Opts>
-// requires std::invocable<Callback, typename First_t<Opts...>::Id>
-// auto combo (Callback &&clb, Opts &&...opts) { return Combo (std::forward<Callback> (clb), {}, Options (std::forward<Opts> (opts)...)); }
+template <typename Callback, typename... Opts>
+requires std::invocable<Callback, typename First_t<Opts...>::Value>
+auto combo (Callback &&clb, Opts &&...opts)
+{
+        using Value = typename First_t<Opts...>::Value;
+        return Combo (std::forward<Callback> (clb), Value{}, Options (std::forward<Opts> (opts)...));
+}
+
+template <typename CallbackT, typename ValueContainerT, typename... Opts>
+requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&           //
+        std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> && //
+        (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)      //
+
+        auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
+{
+        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using Callback = std::remove_reference_t<CallbackT>;
+        using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
+
+        return Combo<Callback, ValueContainer, OptionCollection> (std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value),
+                                                                  Options (std::forward<Opts> (opts)...));
+}
 
 template <typename ValueContainerT, typename... Opts>
 requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> &&(
