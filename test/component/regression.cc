@@ -151,7 +151,10 @@ int test2 ()
 
         auto dataReferencesCombo
                 = window<0, 0, 18, 7> (vbox (/* combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)), */
-                                             combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv))));
+                                             combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
+                                             combo (std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)))
+
+                );
 
         /*--------------------------------------------------------------------------*/
 

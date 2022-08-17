@@ -623,44 +623,44 @@ template <typename String, typename Callback> auto button (String &&str, Callbac
 /**
  * Single combo option.
  */
-template <std::integral IdT, c::string String> struct Option {
+template <std::regular ValueT, c::string String> struct Option {
 public:
-        using Id = IdT;
+        using Value = ValueT;
 
-        Option (IdT id, String const &lbl) : id_{std::move (id)}, label_{lbl} {}
+        Option (Value val, String const &lbl) : value_{std::move (val)}, label_{lbl} {}
 
-        IdT &id () { return id_; }
-        IdT const &id () const { return id_; }
+        Value &value () { return value_; }
+        Value const &value () const { return value_; }
 
         String &label () { return label_; }
         String const &label () const { return label_; }
 
 private:
-        IdT id_;
+        Value value_;
         String label_;
 };
 
-template <std::integral Id, c::string String> auto option (Id &&cid, String &&label)
+template <std::regular Value, c::string String> auto option (Value &&val, String &&label)
 {
-        return Option<std::remove_reference_t<Id>, std::unwrap_ref_decay_t<String>> (std::forward<Id> (cid), std::forward<String> (label));
+        return Option<std::remove_reference_t<Value>, std::unwrap_ref_decay_t<String>> (std::forward<Value> (val), std::forward<String> (label));
 }
 
 /**
  * A container for options.
  */
-template <std::integral I, size_t Num, c::string String> struct Options {
+template <std::regular ValueT, size_t Num, c::string String> struct Options {
 public:
-        using OptionType = Option<I, String>;
-        using Id = I;
+        using OptionType = Option<ValueT, String>;
+        using Value = ValueT;
         using ContainerType = std::array<OptionType, Num>;
         using SelectionIndex = typename ContainerType::size_type; // std::array::at accepts this
 
         template <typename... J> constexpr Options (Option<J, String> &&...elms) : elms{std::forward<Option<J, String>> (elms)...} {}
 
-        SelectionIndex toIndex (Id const &cid) const;
+        SelectionIndex toIndex (Value const &cid) const;
 
-        auto &getOptionByValue (Id const &cid) { return getOptionByIndex (toIndex (cid)); }
-        auto const &getOptionByValue (Id const &cid) const { return getOptionByIndex (toIndex (cid)); }
+        auto &getOptionByValue (Value const &cid) { return getOptionByIndex (toIndex (cid)); }
+        auto const &getOptionByValue (Value const &cid) const { return getOptionByIndex (toIndex (cid)); }
 
         auto &getOptionByIndex (SelectionIndex idx) { return elms.at (idx); }
         auto const &getOptionByIndex (SelectionIndex idx) const { return elms.at (idx); }
@@ -675,12 +675,14 @@ template <typename String, typename... J> Options (Option<J, String> &&...elms) 
 
 /*--------------------------------------------------------------------------*/
 
-template <std::integral I, size_t Num, c::string String>
-typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toIndex (Id const &cid) const
+template <std::regular I, size_t Num, c::string String>
+typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toIndex (Value const &cid) const
 {
         size_t ret{};
+
+        // This is brute-force. Can be improved.
         for (auto const &opt : elms) {
-                if (opt.id () == cid) {
+                if (opt.value () == cid) {
                         return ret;
                 }
 
@@ -694,17 +696,17 @@ typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toInde
  *
  */
 template <typename Callback, typename IdExtT, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Id>
+requires std::invocable<Callback, typename OptionCollection::Value>
 class Combo : public Focusable {
 public:
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
-        using Id = typename OptionCollection::Id;
-        using ExtId = IdExtT;
+        using Value = typename OptionCollection::Value;
+        using ValueContainer = IdExtT;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
-        constexpr Combo (Callback clb, ExtId cid, OptionCollection const &opts)
-            : options{opts}, currentId (std::move (cid)), callback{std::move (clb)}
+        constexpr Combo (Callback clb, ValueContainer cid, OptionCollection const &opts)
+            : options{opts}, valueContainer (std::move (cid)), callback{std::move (clb)}
         {
                 // Id type (for currentId only) should be passed as a template arg, and compared with OptionCollection::Id
         }
@@ -714,17 +716,17 @@ public:
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);
 
-        ExtId &value () { return currentId; }
-        ExtId const &value () const { return currentId; }
+        ValueContainer &value () { return valueContainer; }
+        ValueContainer const &value () const { return valueContainer; }
 
         SelectionIndex index () const { return index_; };
 
 private:
-        Id &toValue () { return static_cast<Id &> (currentId); }
-        Id const &toValue () const { return static_cast<Id const &> (currentId); }
+        Value &toValue () { return static_cast<Value &> (valueContainer); }
+        Value const &toValue () const { return static_cast<Value const &> (valueContainer); }
 
         OptionCollection options;
-        ExtId currentId;
+        ValueContainer valueContainer; // Can be int, can be std::ref (int)
         SelectionIndex index_{};
         Callback callback;
 };
@@ -732,7 +734,7 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename IdExtT, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Id>
+requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper> Visibility Combo<Callback, IdExtT, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
@@ -753,13 +755,13 @@ template <typename Wrapper> Visibility Combo<Callback, IdExtT, OptionCollection>
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename IdExtT, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Id>
+requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper> void Combo<Callback, IdExtT, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                 ++index_;
                 index_ %= options.size ();
-                value () = options.getOptionByIndex (index_).id ();
+                value () = options.getOptionByIndex (index_).value ();
                 callback (value ());
         }
 }
@@ -771,11 +773,11 @@ template <typename Wrapper> void Combo<Callback, IdExtT, OptionCollection>::inpu
 // auto combo (Callback &&clb, Opts &&...opts) { return Combo (std::forward<Callback> (clb), {}, Options (std::forward<Opts> (opts)...)); }
 
 template <typename IdExtT, typename... Opts>
-requires std::convertible_to<IdExtT, typename First_t<Opts...>::Id> &&(!std::invocable<IdExtT, typename First_t<Opts...>::Id>)auto combo (
+requires std::convertible_to<IdExtT, typename First_t<Opts...>::Value> &&(!std::invocable<IdExtT, typename First_t<Opts...>::Value>)auto combo (
         IdExtT &&cid, Opts &&...opts)
 {
-        using Id = typename First_t<Opts...>::Id;
-        using Callback = EmptyUnaryInvocable<Id>;
+        using Value = typename First_t<Opts...>::Value;
+        using Callback = EmptyUnaryInvocable<Value>;
         using IdExt = std::remove_reference_t<IdExtT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
