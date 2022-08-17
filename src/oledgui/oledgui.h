@@ -574,13 +574,13 @@ class Button : public Focusable {
 public:
         static constexpr Dimension height = 1;
 
-        constexpr explicit Button (String const &l, Callback c) : label_{l}, callback{std::move (c)} {}
+        constexpr explicit Button (String const &lbl, Callback clb) : label_{lbl}, callback{std::move (clb)} {}
 
-        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const;
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
 
-        template <typename> void input (auto & /* d */, Context const & /* ctx */, Key c)
+        template <typename> void input (auto & /* d */, Context const & /* ctx */, Key key)
         {
-                if (c == Key::select) {
+                if (key == Key::select) {
                         callback ();
                 }
         }
@@ -595,25 +595,25 @@ private:
 
 template <typename String, typename Callback>
 requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &d, Context const &ctx) const
+template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                disp.color (2);
         }
 
-        d.print (label_);
-        d.cursor () += {Coordinate (label_.size ()), 0};
+        disp.print (label_);
+        disp.cursor () += {Coordinate (label_.size ()), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                disp.color (1);
         }
 
         return Visibility::visible;
 }
 
-template <typename String, typename Callback> auto button (String &&str, Callback &&c)
+template <typename String, typename Callback> auto button (String &&str, Callback &&clb)
 {
-        return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (c));
+        return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
 
 /****************************************************************************/
