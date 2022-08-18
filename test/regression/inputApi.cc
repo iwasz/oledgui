@@ -6,10 +6,8 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
-/**
- * All functionalities in one place. Manual regression testing
- */
 #include "inputApi.h"
+#include "regression.h"
 
 namespace {
 using namespace og;
@@ -31,7 +29,8 @@ std::string cboLabel = "-";
 std::string buttonLabel = "-";
 int buttonCnt{};
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("Callbacks"sv, [] { mySuite->current () = Windows::callbacks; }),
+auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }), //
+                                       button ("Callbacks"sv, [] { mySuite->current () = Windows::callbacks; }),
                                        button ("Check API"sv, [] { mySuite->current () = Windows::dataReferencesCheck; }),
                                        button ("Combo API"sv, [] { mySuite->current () = Windows::dataReferencesCombo; }),
                                        button ("Combo enum"sv, [] { mySuite->current () = Windows::dataReferencesComboEnum; }),

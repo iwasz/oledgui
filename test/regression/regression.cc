@@ -12,24 +12,27 @@
 #include "inputApi.h"
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
+#include "textWidget.h"
 
-/****************************************************************************/
+using namespace og;
+using namespace std::string_view_literals;
 
-struct MyConfiguration {
+// struct MyConfiguration {
 
-        bool light0{};
-        bool light1{};
+//         bool light0{};
+//         bool light1{};
 
-        enum class Color { red, green, blue, alpha };
-        Color color{};
-};
+//         enum class Color { red, green, blue, alpha };
+//         Color color{};
+// };
+
+enum class Windows { menu, inputApi, textWidget };
+ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
 
 int main ()
 {
-        using namespace og;
-        using namespace std::string_view_literals;
 
         NcursesDisplay<18, 7> d1;
 
@@ -45,16 +48,16 @@ int main ()
         // auto allFeatures = window<0, 0, 18, 7> (vbox (
         //         hbox (label ("Hello "sv), check (" 1 "sv),
         //               check (" 2 "sv)), //
-        //                                 //       hbox (label ("World "sv), check (" 5 "sv), check (" 6 "sv)), // button ("Text widget"sv,
-        //                                 //       [&mySuite] { mySuite->current () = Windows::textReferences; }),                       //
-        //                                 button
+        //                                 //       hbox (label ("World "sv), check (" 5 "sv), check (" 6 "sv)), // button ("Text
+        //                                 widget"sv,
+        //                                 //       [&mySuite] { mySuite->current () = Windows::textReferences; }), // button
         //                                 //       ("Layouts"sv, [&mySuite] { mySuite->current () = Windows::layouts; }), // button
         //                                 ("Callbacks"sv,
-        //                                 //       [&mySuite] { mySuite->current () = Windows::callbacks; }),                              //
+        //                                 //       [&mySuite] { mySuite->current () = Windows::callbacks; }), //
         //         line<18>,               //
-        //         group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv)),        //
-        //         line<18>,                                                                                                             //
-        //         hbox (group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv))), //
+        //         group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv)), //
+        //         line<18>, // hbox (group ([] (auto const &o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1,
+        //         " A "sv))), //
 
         //         line<18>, //
         //         // Combo (Options (option (0, "red"sv), option (1, "green"sv), option (1, "blue"sv)), [] (auto const &o) {}) //
@@ -82,46 +85,22 @@ int main ()
         // log (x);
         /*--------------------------------------------------------------------------*/
 
-        std::string buff{R"(The
-class
-template
-basic_string_view describes an object that can refer to a constant contiguous sequence of
-char-like
-objects
-with
-the first element of the sequence at position zero.)"};
-        // std::string buff{"aaa"};
-
-        // auto txt = text<17, 7> (std::ref (buff));
-        // LineOffset startLine{};
-        // auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        // auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
-        // auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<5>, std::ref (dwn)));
-
-        // auto chk = check (" 1 "sv);
-
-        // auto grp = group ([] (auto o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv), radio (1, " C "sv),
-        //                   radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
-
-        // auto vv = vbox (txtComp, //
-        //                 hbox (hbox<1> (label ("▲"sv)), label ("▲"sv), label ("▲"sv)), vbox ());
-        // //                 hbox (std::ref (chk), check (" 2 "sv)), //
-        // //                 std::ref (grp)                          //
-        // // );
-
-        // auto textReferences = window<0, 0, 18, 7> (std::ref (txtComp));
-        // // log (x);
-
         // /*--------------------------------------------------------------------------*/
 
         // auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-        //                hbox (button ("[OK]"sv, [/* &showDialog */] { /* showDialog = false; */ }), button ("[Cl]"sv, [] {})), check (" 15
-        //                "sv));
+        //                hbox (button ("[OK]"sv, [/* &showDialog */] { /* showDialog = false; */ }), button ("[Cl]"sv, [] {})), check ("
+        //                15 "sv));
 
         // auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
-        // auto s = suite<Windows> (element (Windows::dialog, std::ref (dialog), std::ref (x)),
-        //                                               element (Windows::xWindow, std::ref (x)));
+        auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
+                                               button ("inputApi"sv, [] { mySuiteP->current () = Windows::inputApi; }),
+                                               button ("textWidget"sv, [] { mySuiteP->current () = Windows::textWidget; })));
+
+        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),            //
+                                       element (Windows::inputApi, std::ref (inputApi ())), //
+                                       element (Windows::textWidget, std::ref (textWidget ())));
+        mySuiteP = &mySuite;
 
         // s.current () = Windows::dataReferencesRadio;
 
@@ -130,31 +109,12 @@ the first element of the sequence at position zero.)"};
         // log (dialog);
 
         while (true) {
-                draw (d1, inputApi ());
-                int ch = getch ();
-
-                switch (ch) {
-                // case 'w':
-                //         // startLine = txt.setStartLine (--startLine);
-                //         --textReferences.context.currentScroll;
-                //         break;
-                // case 's':
-                //         // startLine = txt.setStartLine (++startLine);
-                //         ++textReferences.context.currentScroll;
-                //         break;
-                // case 'a':
-                //         buff = "ala ma kota";
-                //         break;
-                // case 'c':
-                //         chk.checked () = !chk.checked ();
-                //         break;
-                default:
-                        input (d1, inputApi (), getKey (ch));
-                        break;
-                }
-
-                // std::cout << cid << std::endl;
+                draw (d1, mySuite);
+                input (d1, mySuite, getKey ());
         }
 
         return 0;
 }
+
+/// Global functions help to implement "go back to main" menu button
+void mainMenu () { mySuiteP->current () = Windows::menu; }

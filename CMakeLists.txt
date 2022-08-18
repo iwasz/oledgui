@@ -12,6 +12,7 @@ target_link_libraries("ncurses" ncursesw)
 add_executable("regression" 
     test/regression/regression.cc 
     test/regression/inputApi.cc
+    test/regression/textWidget.cc
 )
 target_link_libraries("regression" ncursesw)
 
