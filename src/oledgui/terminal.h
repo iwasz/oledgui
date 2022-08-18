@@ -16,15 +16,16 @@ namespace og {
  * Simplest dumb terminal backend.
  */
 template <Dimension widthV, Dimension heightV, typename Child = Empty>
-class TerminalDisplay : public Display<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
+class TerminalDisplay : public AbstractDisplay<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
 public:
-        using Base = Display<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base = AbstractDisplay<TerminalDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
         using Base::cursor;
         using Base::width, Base::height;
 
-        template <typename String>
-        requires requires (String s) { std::cout << s; }
-        void print (String const &str) { std::cout << "\033[" << cursor ().y () + 1 << ";" << cursor ().x () + 1 << "H" << str << std::flush; }
+        void print (std::span<const char> const &str) override
+        {
+                std::cout << "\033[" << cursor ().y () + 1 << ";" << cursor ().x () + 1 << "H" << str.data () << std::flush;
+        }
 
         void clear ()
         {

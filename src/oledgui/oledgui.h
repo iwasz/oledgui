@@ -15,6 +15,7 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -94,7 +95,6 @@ struct Dimensions {
  * Runtime context for all the recursive loops.
  */
 struct Context {
-        // Point *cursor{};
         Point const origin{};
         Dimensions const dimensions{};
         Focus currentFocus{};
@@ -156,27 +156,61 @@ template <typename... T> struct First {
 
 template <typename... T> using First_t = typename First<T...>::type;
 
-template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename Child = Empty> class Display {
-public:
-        explicit Display (Child const &c = {}) : child{c} {}
+struct IDisplay {
+        IDisplay () = default;
+        IDisplay (IDisplay const &) = default;
+        IDisplay &operator= (IDisplay const &) = default;
+        IDisplay (IDisplay &&) = default;
+        IDisplay &operator= (IDisplay &&) = default;
+        virtual ~IDisplay () = default;
 
-        static constexpr Dimension width = widthV;   // Dimensions in characters
-        static constexpr Dimension height = heightV; // Dimensions in characters
+        constexpr virtual Dimension width () const = 0;
+        constexpr virtual Dimension height () const = 0;
+        virtual void print (std::span<const char> const &str) = 0;
+        virtual void clear () = 0;
+        virtual void color (Color clr) = 0;
+        virtual void refresh () = 0;
+};
+
+namespace detail {
+
+        // TODO export this mess to a named concept, and use a placeholder.
+        template <typename Disp, typename String>
+        requires requires (String str)
+        {
+                {
+                        // TODO not acurate
+                        str.data ()
+                        } -> std::convertible_to<const char *>;
+        }
+        void print (Disp &disp, String const &str) { disp.print (std::span<const char> (str.begin (), str.end ())); }
+
+} // namespace detail
+
+/**
+ * Abstract
+ */
+template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename Child = Empty> class AbstractDisplay : public IDisplay {
+public:
+        static constexpr Dimension width_ = widthV;   // Dimensions in characters
+        static constexpr Dimension height_ = heightV; // Dimensions in characters
+
+        constexpr Dimension width () const final { return width_; }
+        constexpr Dimension height () const final { return height_; }
 
         Point &cursor () { return cursor_; }
         Point const &cursor () const { return cursor_; }
 
-protected:
+private:
         Point cursor_{};
-        Child child;
 };
 
-template <typename Child> struct EmptyDisplay : public Display<EmptyDisplay<Child>, 0, 0, Child> {
+template <typename Child> struct EmptyDisplay : public AbstractDisplay<EmptyDisplay<Child>, 0, 0, Child> {
 
-        template <typename String> void print (String const &str) {}
-        void clear () {}
-        void color (Color c) {}
-        void refresh () {}
+        void print (std::span<char> const &str) final {}
+        void clear () final {}
+        void color (Color clr) final {}
+        void refresh () final {}
 };
 
 /****************************************************************************/
@@ -188,7 +222,7 @@ namespace detail {
         void line (auto &d, uint16_t len, String const &ch = std::string_view ("-"))
         {
                 for (uint16_t i = 0; i < len; ++i) {
-                        d.print (ch);
+                        detail::print (d, ch);
                         d.cursor ().x () += 1;
                 }
         }
@@ -290,14 +324,14 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
         }
 
         if (checked_) {
-                d.print ("☑"sv);
+                detail::print (d, "☑"sv);
         }
         else {
-                d.print ("☐"sv);
+                detail::print (d, "☐"sv);
         }
 
         d.cursor () += {1, 0};
-        d.print (label_);
+        detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -377,14 +411,14 @@ template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &
         }
 
         if (id () == value) {
-                d.print ("◉"sv);
+                detail::print (d, "◉"sv);
         }
         else {
-                d.print ("○"sv);
+                detail::print (d, "○"sv);
         }
 
         d.cursor () += {1, 0};
-        d.print (label_);
+        detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 d.color (1);
@@ -519,7 +553,7 @@ template <typename Wrapper> Visibility Text<widthV, heightV, Buffer>::operator()
                 std::advance (iter, lineCharactersToCopy + int (newLine)); // Skip the '\n' if necessary
 
                 totalCharactersCopied += lineCharactersToCopy + int (newLine);
-                d.print (line);
+                detail::print (d, line);
         }
 
         d.cursor ().x () += widthV;
@@ -548,7 +582,7 @@ public:
 
         template <typename /* Wrapper */> Visibility operator() (auto &d, Context const & /* ctx */) const
         {
-                d.print (label_);
+                detail::print (d, label_);
                 d.cursor () += {Coordinate (label_.size ()), 0};
                 return Visibility::visible;
         }
@@ -602,7 +636,7 @@ template <typename Wrapper> Visibility Button<String, Callback>::operator() (aut
                 disp.color (2);
         }
 
-        disp.print (label_);
+        detail::print (disp, label_);
         disp.cursor () += {Coordinate (label_.size ()), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
@@ -741,7 +775,7 @@ template <typename Wrapper> Visibility Combo<Callback, ValueContainer, OptionCol
 
         index_ = options.toIndex (value ());
         auto &label = options.getOptionByIndex (index_).label ();
-        disp.print (label);
+        detail::print (disp, label);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                 disp.color (1);
@@ -1058,26 +1092,26 @@ public:
                 disp.cursor () = {ox, oy};
 
                 if constexpr (frame) {
-                        disp.print ("┌"sv); // TODO characters customizable
+                        detail::print (disp, "┌"sv); // TODO characters customizable
                         disp.cursor () += {1, 0};
                         detail::line (disp, width - F::cut);
-                        disp.print ("┐"sv);
+                        detail::print (disp, "┐"sv);
 
                         for (int i = 0; i < height - F::cut; ++i) {
                                 disp.cursor ().x () = ox;
                                 disp.cursor () += {0, 1};
-                                disp.print ("│"sv);
+                                detail::print (disp, "│"sv);
                                 disp.cursor () += {1, 0};
                                 detail::line (disp, width - F::cut, " "sv);
-                                disp.print ("│"sv);
+                                detail::print (disp, "│"sv);
                         }
 
                         disp.cursor ().x () = ox;
                         disp.cursor () += {0, 1};
-                        disp.print ("└"sv);
+                        detail::print (disp, "└"sv);
                         disp.cursor () += {1, 0};
                         detail::line (disp, width - F::cut);
-                        disp.print ("┘"sv);
+                        detail::print (disp, "┘"sv);
 
                         disp.cursor () = {ox + F::offset, oy + F::offset};
                 }

@@ -16,55 +16,48 @@ namespace og {
 /**
  * Ncurses backend.
  */
-template <Dimension widthV, Dimension heightV, typename Child = Empty>
-class NcursesDisplay : public Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child> {
+template <Dimension widthV, Dimension heightV> class NcursesDisplay : public AbstractDisplay<NcursesDisplay<widthV, heightV>, widthV, heightV> {
 public:
-        using Base = Display<NcursesDisplay<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base = AbstractDisplay<NcursesDisplay<widthV, heightV>, widthV, heightV>;
         using Base::cursor;
         using Base::width, Base::height;
 
-        explicit NcursesDisplay (Child c = {});
+        NcursesDisplay ();
         NcursesDisplay (NcursesDisplay const &) = default;
         NcursesDisplay &operator= (NcursesDisplay const &) = default;
         NcursesDisplay (NcursesDisplay &&) noexcept = default;
         NcursesDisplay &operator= (NcursesDisplay &&) noexcept = default;
-        ~NcursesDisplay () noexcept
+        virtual ~NcursesDisplay () noexcept
         {
                 clrtoeol ();
                 refresh ();
                 endwin ();
         }
 
-        template <typename String>
-        requires requires (String s)
-        {
-                {
-                        s.data ()
-                        } -> std::convertible_to<const char *>;
-        }
-        void print (String const &str) { mvwprintw (win, cursor ().y (), cursor ().x (), static_cast<const char *> (str.data ())); }
+        void print (std::span<const char> const &str) override { mvwprintw (win, cursor ().y (), cursor ().x (), str.data ()); }
 
-        void clear ()
+        void clear () override
         {
                 wclear (win);
                 cursor ().x () = 0;
                 cursor ().y () = 0;
         }
 
-        void color (Color c) { wattron (win, COLOR_PAIR (c)); }
+        void color (Color clr) override { wattron (win, COLOR_PAIR (clr)); }
 
-        void refresh ()
+        void refresh () override
         {
                 ::refresh ();
                 wrefresh (win);
         }
 
 private:
-        using Base::child;
         WINDOW *win{};
 };
 
-template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<widthV, heightV, Child>::NcursesDisplay (Child c) : Base (c)
+/****************************************************************************/
+
+template <Dimension widthV, Dimension heightV> NcursesDisplay<widthV, heightV>::NcursesDisplay ()
 {
         setlocale (LC_ALL, "");
         initscr ();
@@ -76,20 +69,21 @@ template <Dimension widthV, Dimension heightV, typename Child> NcursesDisplay<wi
         init_pair (1, COLOR_WHITE, COLOR_BLUE);
         init_pair (2, COLOR_BLUE, COLOR_WHITE);
         keypad (stdscr, true);
-        win = newwin (height, width, 0, 0);
+        win = newwin (height (), width (), 0, 0);
         wbkgd (win, COLOR_PAIR (1));
         refresh ();
 }
 
-template <Dimension widthV, Dimension heightV> auto ncurses (auto &&child)
-{
-        return NcursesDisplay<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
-}
+/****************************************************************************/
 
-og::Key getKey (int ch)
+template <Dimension widthV, Dimension heightV> auto ncurses () { return NcursesDisplay<widthV, heightV>{}; }
+
+/****************************************************************************/
+
+inline og::Key getKey (int chr)
 {
         // TODO characters must be customizable (compile time)
-        switch (ch) {
+        switch (chr) {
         case KEY_DOWN:
                 return Key::incrementFocus;
 
@@ -104,6 +98,6 @@ og::Key getKey (int ch)
         }
 }
 
-og::Key getKey () { return getKey (getch ()); }
+inline og::Key getKey () { return getKey (getch ()); }
 
 } // namespace og

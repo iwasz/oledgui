@@ -1,4 +1,4 @@
-Experimental, C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. Stabilising the API.
+Experimental, C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
 
 ![Demo](demo.gif)
 ![Demo2](demo2.gif)
@@ -9,6 +9,7 @@ Experimental, C++20 GUI library for small displays with 3 button input. Develope
 * Input handling hooks for easy integration.
 * C++20, no dependencies.
 * No dynamic allocation (apart of std::string used only for optional debug).
+* (Almost) single header.
 
 # Hooks
 * print at cursor's possition with clipping (clips to the viewport area even if passed coordinates are **negative**).
@@ -78,9 +79,9 @@ aaa
     * [ ] Debug, release and -OS targets
   * [ ] Benchmark compilation size.
   * [ ] Benchmark cpu?
-* [ ] Have short think if, and remove the child field (and API) from Display* classes.
-  * [ ] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
-    * [ ] Then check if og::detail::augment::Window and og::Suite can inherit the same interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
+* [x] Have short think if, and remove the child field (and API) from Display* classes.
+  * [x] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
+    * [ ] Then check if og::detail::augment::Window and og::Suite can inherit common interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
