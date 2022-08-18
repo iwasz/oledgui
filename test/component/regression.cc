@@ -103,6 +103,7 @@ int test2 ()
                 dataReferencesCheck,
                 dataReferencesCombo,
                 dataReferencesComboEnum,
+                dataReferencesRadio,
                 allFeatures,
                 dialog,
                 textReferences,
@@ -127,11 +128,11 @@ int test2 ()
                 vbox (hbox (check ([&chkBxLabel] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }, " chkbx "sv),
                             label (std::ref (chkBxLabel))),
 
-                      hbox (group ([&rdoBxLabel] (auto selected) { rdoBxLabel = std::to_string (selected); }, //
-                                   radio (6, " R "sv),                                                        //
-                                   radio (7, " G "sv),                                                        //
-                                   radio (8, " B "sv)),                                                       //
-                            label (std::ref (rdoBxLabel))),                                                   //
+                      //       hbox (group ([&rdoBxLabel] (auto selected) { rdoBxLabel = std::to_string (selected); }, //
+                      //                    radio (0, " R "sv),                                                        //
+                      //                    radio (1, " G "sv),                                                        //
+                      //                    radio (2, " B "sv)),                                                       //
+                      //             label (std::ref (rdoBxLabel))),                                                   //
 
                       hbox (combo ([&cboLabel] (auto selected) { cboLabel = std::to_string (selected); }, //
                                    option (6, "red"sv),                                                   //
@@ -169,6 +170,17 @@ int test2 ()
 
         auto dataReferencesComboEnum = window<0, 0, 18, 7> (hbox (combo ([] (Color clr) {}, std::ref (clr), option (Color::red, "red"sv),
                                                                          option (Color::green, "green"sv), option (Color::blue, "blue"sv))));
+
+        /*--------------------------------------------------------------------------*/
+
+        int gid{2};
+
+        auto dataReferencesRadio = window<0, 0, 18, 7> (
+                vbox (hbox (group ([] (int) {}, std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
+                      hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))),
+                      hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))))
+
+        );
 
         /*--------------------------------------------------------------------------*/
 
@@ -261,7 +273,8 @@ the first element of the sequence at position zero.)"};
         //                                               element (Windows::xWindow, std::ref (x)));
         auto s = suite<Windows> (element (Windows::callbacks, std::ref (callbacks)),
                                  element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo)),
-                                 element (Windows::dataReferencesComboEnum, std::ref (dataReferencesComboEnum))
+                                 element (Windows::dataReferencesComboEnum, std::ref (dataReferencesComboEnum)),
+                                 element (Windows::dataReferencesRadio, std::ref (dataReferencesRadio))
 
                                  //                  element (Windows::textReferences, std::ref (textReferences)),
                                  //                  // element (Windows::dialog, std::ref (dialog)), //
@@ -270,7 +283,7 @@ the first element of the sequence at position zero.)"};
         );
 
         mySuite = &s;
-        s.current () = Windows::dataReferencesComboEnum;
+        s.current () = Windows::dataReferencesRadio;
 
         // log (dialog);
 

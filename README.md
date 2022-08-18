@@ -84,7 +84,7 @@ aaa
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
-
+* [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
 
 
 # Documentation TODO:
