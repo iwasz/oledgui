@@ -99,7 +99,6 @@ struct Context {
         Dimensions const dimensions{};
         Focus currentFocus{};
         Coordinate currentScroll{};
-        Selection *radioSelection{};
 };
 
 enum class Key { unknown, incrementFocus, decrementFocus, select };
@@ -377,7 +376,6 @@ template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &
                 d.color (2);
         }
 
-        // if (ctx.radioSelection != nullptr && Wrapper::getRadioIndex () == *ctx.radioSelection) {
         if (id () == value) {
                 d.print ("◉"sv);
         }
@@ -399,10 +397,9 @@ template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &
 template <typename String, std::regular ValueT>
 requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
-void Radio<String, ValueT>::input (auto & /* d */, Context const &ctx, Key c, Callback &clb, ValueT &value)
+void Radio<String, ValueT>::input (auto & /* d */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
-        if (/* ctx.radioSelection != nullptr && */ c == Key::select) {
-                // *ctx.radioSelection = Wrapper::getRadioIndex ();
+        if (key == Key::select) {
                 value = id ();
                 clb (id ());
         }
@@ -1002,6 +999,21 @@ auto group (CallbackT &&clb, W &&...widgets)
         return Group<Callback, Selection, RadioCollection>{std::forward<CallbackT> (clb), {}, std::tuple{std::forward<W> (widgets)...}};
 }
 
+template <typename ValueContainerT, typename... W>
+requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&  //
+        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
+        std::conjunction_v<is_radio<W>...>                                     //
+
+        auto group (ValueContainerT &&val, W &&...widgets)
+{
+        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
+        using Value = typename First_t<W...>::Value;
+
+        return Group<EmptyUnaryInvocable<Value>, ValueContainer, RadioCollection>{
+                {}, std::forward<ValueContainerT> (val), std::tuple{std::forward<W> (widgets)...}};
+}
+
 template <typename CallbackT, typename ValueContainerT, typename... W>
 requires std::invocable<CallbackT, typename First_t<W...>::Value> &&           //
         (!std::invocable<ValueContainerT, typename First_t<W...>::Value>)&&    //
@@ -1010,12 +1022,12 @@ requires std::invocable<CallbackT, typename First_t<W...>::Value> &&           /
 
         auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {
-        // TODO Use:
-        // using Callback = std::remove_reference_t<CallbackT>;
-        // using Value = std::remove_reference_t<ValueContainerT>;
-        // using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
+        using Callback = std::remove_reference_t<CallbackT>;
+        using Value = std::remove_reference_t<ValueContainerT>;
+        using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
 
-        return Group{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val), std::tuple{std::forward<W> (widgets)...}};
+        return Group<Callback, Value, RadioCollection>{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val),
+                                                       std::tuple{std::forward<W> (widgets)...}};
 }
 
 /****************************************************************************/
@@ -1038,36 +1050,36 @@ namespace detail {
 template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> class Window {
 public:
         using Child = std::remove_reference_t<std::unwrap_ref_decay_t<ChildT>>;
-        explicit Window (ChildT c) : child_{std::move (c)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
+        explicit Window (ChildT wgt) : child_{std::move (wgt)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
 
-        template <typename Wrapper> Visibility operator() (auto &d, Context & /* ctx */) const
+        template <typename Wrapper> Visibility operator() (auto &disp, Context & /* ctx */) const
         {
                 using namespace std::string_view_literals;
-                d.cursor () = {ox, oy};
+                disp.cursor () = {ox, oy};
 
                 if constexpr (frame) {
-                        d.print ("┌"sv); // TODO characters customizable
-                        d.cursor () += {1, 0};
-                        detail::line (d, width - F::cut);
-                        d.print ("┐"sv);
+                        disp.print ("┌"sv); // TODO characters customizable
+                        disp.cursor () += {1, 0};
+                        detail::line (disp, width - F::cut);
+                        disp.print ("┐"sv);
 
                         for (int i = 0; i < height - F::cut; ++i) {
-                                d.cursor ().x () = ox;
-                                d.cursor () += {0, 1};
-                                d.print ("│"sv);
-                                d.cursor () += {1, 0};
-                                detail::line (d, width - F::cut, " "sv);
-                                d.print ("│"sv);
+                                disp.cursor ().x () = ox;
+                                disp.cursor () += {0, 1};
+                                disp.print ("│"sv);
+                                disp.cursor () += {1, 0};
+                                detail::line (disp, width - F::cut, " "sv);
+                                disp.print ("│"sv);
                         }
 
-                        d.cursor ().x () = ox;
-                        d.cursor () += {0, 1};
-                        d.print ("└"sv);
-                        d.cursor () += {1, 0};
-                        detail::line (d, width - F::cut);
-                        d.print ("┘"sv);
+                        disp.cursor ().x () = ox;
+                        disp.cursor () += {0, 1};
+                        disp.print ("└"sv);
+                        disp.cursor () += {1, 0};
+                        detail::line (disp, width - F::cut);
+                        disp.print ("┘"sv);
 
-                        d.cursor () = {ox + F::offset, oy + F::offset};
+                        disp.cursor () = {ox + F::offset, oy + F::offset};
                 }
 
                 return Visibility::visible;
@@ -1101,9 +1113,9 @@ namespace c {
 }
 
 namespace detail {
-        template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&c)
+        template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&wgt)
         {
-                return Window<ox, oy, widthV, heightV, frame, std::decay_t<decltype (c)>> (std::forward<decltype (c)> (c));
+                return Window<ox, oy, widthV, heightV, frame, std::decay_t<decltype (wgt)>> (std::forward<decltype (wgt)> (wgt));
         }
 } // namespace detail
 
@@ -1142,7 +1154,7 @@ namespace detail {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
 
-                        constexpr Widget (T const &t) : widget{t} {}
+                        constexpr Widget (T const &wgt) : widget{wgt} {}
 
                         static constexpr Dimension getWidth ();                             /// Width in characters.
                         static constexpr Dimension getHeight () { return Wrapped::height; } /// Height in characters.
@@ -1155,13 +1167,13 @@ namespace detail {
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
 
-                        Visibility operator() (auto &d, Context const *ctx) const
+                        Visibility operator() (auto &disp, Context const *ctx) const
                         {
                                 if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
                                         return Visibility::outside;
                                 }
 
-                                return widget.template operator()<Widget> (d, *ctx);
+                                return widget.template operator()<Widget> (disp, *ctx);
                         }
 
                         template <typename ValueT> Visibility operator() (auto &disp, Context const *ctx, ValueT const &value) const
@@ -1246,39 +1258,34 @@ namespace detail {
                  */
                 template <typename ConcreteClass, typename Decor> struct ContainerWidget {
                 protected:
-                        Visibility operator() (auto &d, Context *ctx) const // TODO move method body out
+                        Visibility operator() (auto &disp, Context *ctx) const // TODO move method body out
                         {
-                                // Groups contain radioSelection
-                                // if constexpr (requires { ConcreteClass::radioSelection; }) {
-                                //         ctx->radioSelection = &static_cast<ConcreteClass const *> (this)->radioSelection;
-                                // }
-
-                                auto tmpCursor = d.cursor ();
+                                auto tmpCursor = disp.cursor ();
 
                                 // Some container widgets have their own display method (operator ()). For instance og::Window
                                 if constexpr (requires {
                                                       static_cast<ConcreteClass const *> (this)->widget.template operator()<ConcreteClass> (
-                                                              d, *ctx);
+                                                              disp, *ctx);
                                               }) {
-                                        static_cast<ConcreteClass const *> (this)->widget.template operator()<ConcreteClass> (d, *ctx);
+                                        static_cast<ConcreteClass const *> (this)->widget.template operator()<ConcreteClass> (disp, *ctx);
                                 }
 
-                                auto lbd = [&d, &ctx, concrete = static_cast<ConcreteClass const *> (this)] (auto &itself, auto const &child,
-                                                                                                             auto const &...children) {
+                                auto lbd = [&disp, &ctx, concrete = static_cast<ConcreteClass const *> (this)] (auto &itself, auto const &child,
+                                                                                                                auto const &...children) {
                                         Visibility status{};
 
                                         if constexpr (requires { concrete->widget.value (); }) {
-                                                status = child (d, ctx, concrete->widget.value ());
+                                                status = child (disp, ctx, concrete->widget.value ());
                                         }
                                         else {
-                                                status = child (d, ctx);
+                                                status = child (disp, ctx);
                                         }
 
                                         if (status == Visibility::visible) {
                                                 constexpr bool lastWidgetInLayout = (sizeof...(children) == 0);
 
                                                 if (!lastWidgetInLayout) {
-                                                        Decor::after (d, *ctx, Point (ConcreteClass::getX (), ConcreteClass::getY ()));
+                                                        Decor::after (disp, *ctx, Point (ConcreteClass::getX (), ConcreteClass::getY ()));
                                                 }
                                         }
 
@@ -1306,35 +1313,26 @@ namespace detail {
                                  * contents like std::string and thus cannot figure out the width at compile time.
                                  */
                                 if (ConcreteClass::getWidth ()) {
-                                        d.cursor () = tmpCursor;
-                                        d.cursor () += {ConcreteClass::getWidth (), std::max (ConcreteClass::getHeight () - 1, 0)};
+                                        disp.cursor () = tmpCursor;
+                                        disp.cursor () += {ConcreteClass::getWidth (), std::max (ConcreteClass::getHeight () - 1, 0)};
                                 }
 
                                 return Visibility::visible;
                         }
 
-                        void input (auto &d, Context &ctx, Key c)
+                        void input (auto &disp, Context &ctx, Key key)
                         {
-                                if constexpr (requires { ConcreteClass::radioSelection; }) {
-                                        ctx.radioSelection = &static_cast<ConcreteClass *> (this)->radioSelection;
-                                }
-
-                                auto l = [&d, &ctx, c, concrete = static_cast<ConcreteClass *> (this)] (auto &itself, auto &child,
-                                                                                                        auto &...children) {
+                                auto lbd = [&disp, &ctx, key, concrete = static_cast<ConcreteClass *> (this)] (auto &itself, auto &child,
+                                                                                                               auto &...children) {
                                         if constexpr (requires {
                                                               concrete->widget.callback ();
                                                               concrete->widget.value ();
                                                       }) {
 
-                                                static_assert (requires {
-                                                        concrete->widget.callback ();
-                                                        concrete->widget.value ();
-                                                });
-
-                                                child.input (d, ctx, c, concrete->widget.callback (), concrete->widget.value ());
+                                                child.input (disp, ctx, key, concrete->widget.callback (), concrete->widget.value ());
                                         }
                                         else {
-                                                child.input (d, ctx, c);
+                                                child.input (disp, ctx, key);
                                         }
 
                                         if constexpr (sizeof...(children) > 0) {
@@ -1343,9 +1341,9 @@ namespace detail {
                                 };
 
                                 std::apply (
-                                        [&l] (auto &...children) {
+                                        [&lbd] (auto &...children) {
                                                 if constexpr (sizeof...(children) > 0) {
-                                                        l (l, children...);
+                                                        lbd (lbd, children...);
                                                 }
                                         },
                                         static_cast<ConcreteClass *> (this)->children);
@@ -1355,7 +1353,7 @@ namespace detail {
                         {
                                 // ctx = changeContext (ctx);
 
-                                auto l = [&ctx] (auto &itself, auto const &child, auto const &...children) {
+                                auto lbd = [&ctx] (auto &itself, auto const &child, auto const &...children) {
                                         child.scrollToFocus (ctx);
 
                                         if constexpr (sizeof...(children) > 0) {
@@ -1364,9 +1362,9 @@ namespace detail {
                                 };
 
                                 std::apply (
-                                        [&l] (auto const &...children) {
+                                        [&lbd] (auto const &...children) {
                                                 if constexpr (sizeof...(children) > 0) {
-                                                        l (l, children...);
+                                                        lbd (lbd, children...);
                                                 }
                                         },
                                         static_cast<ConcreteClass const *> (this)->children);
@@ -1523,7 +1521,6 @@ namespace detail {
 
                         T widget;
                         WidgetTuple children;
-                        mutable Selection radioSelection{};
                 };
 
                 template <typename T> struct is_group_wrapper : public std::bool_constant<false> {

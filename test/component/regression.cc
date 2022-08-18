@@ -176,9 +176,9 @@ int test2 ()
         int gid{2};
 
         auto dataReferencesRadio = window<0, 0, 18, 7> (
-                vbox (hbox (group ([] (int) {}, std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
-                      hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))),
-                      hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))))
+                vbox (hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
+                      hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
+                      hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
 
         );
 

@@ -48,11 +48,11 @@ aaa
   * [x] Resolve TODOs in radio and group (about this ID template argument)
     * [x] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [x] Make radioGroup and combo APIS simmilar.
-  * [ ] callbacks and / or references - for all widgets that have input. 
+  * [x] callbacks and / or references - for all widgets that have input. 
   * [x] Combo box accepts only `const char *` instead of templatized `c::string` concept.
   * [ ] Styling (external template class impacting various aspects of the output)
   * [ ] AND / OR Widget parameters dictating the looks.
-  * [ ] Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
+  * [ ] (duplicate) Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
   * [x] Dialog
@@ -85,6 +85,8 @@ aaa
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
 * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
+* [ ] Prepare composite widget for integers
+* [ ] Prepare composite widget for floats
 
 
 # Documentation TODO:
