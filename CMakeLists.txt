@@ -9,8 +9,14 @@ SET(CMAKE_CXX_FLAGS "-std=c++20 -Werror -fconcepts-diagnostics-depth=0 -ftemplat
 add_executable("ncurses" test/component/ncurses.cc )
 target_link_libraries("ncurses" ncursesw)
 
-add_executable("regression" test/component/regression.cc )
+add_executable("regression" 
+    test/regression/regression.cc 
+    test/regression/inputApi.cc
+)
 target_link_libraries("regression" ncursesw)
+
+add_executable("demo" test/demo/demo.cc )
+target_link_libraries("demo" ncursesw)
 
 add_executable("terminal" test/component/terminal.cc )
 

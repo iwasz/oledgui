@@ -103,7 +103,7 @@ struct Context {
 
 enum class Key { unknown, incrementFocus, decrementFocus, select };
 
-template <typename Child> struct EmptyDisplay;
+struct EmptyDisplay;
 
 namespace c {
 
@@ -111,7 +111,7 @@ namespace c {
          * Layer 1 widget.
          */
         template <typename T>
-        concept widget = requires (T const t, EmptyDisplay<Empty> &d, Context const &c)
+        concept widget = requires (T const t, EmptyDisplay &d, Context const &c)
         {
                 {
                         T::height
@@ -164,18 +164,22 @@ struct IDisplay {
         IDisplay &operator= (IDisplay &&) = default;
         virtual ~IDisplay () = default;
 
-        constexpr virtual Dimension width () const = 0;
-        constexpr virtual Dimension height () const = 0;
         virtual void print (std::span<const char> const &str) = 0;
         virtual void clear () = 0;
         virtual void color (Color clr) = 0;
         virtual void refresh () = 0;
+
+        constexpr virtual Dimension width () const = 0;
+        constexpr virtual Dimension height () const = 0;
+
+        virtual Point &cursor () = 0;
+        virtual Point const &cursor () const = 0;
 };
 
 namespace detail {
 
         // TODO export this mess to a named concept, and use a placeholder.
-        template <typename Disp, typename String>
+        template <typename String>
         requires requires (String str)
         {
                 {
@@ -183,14 +187,14 @@ namespace detail {
                         str.data ()
                         } -> std::convertible_to<const char *>;
         }
-        void print (Disp &disp, String const &str) { disp.print (std::span<const char> (str.begin (), str.end ())); }
+        void print (IDisplay &disp, String const &str) { disp.print (std::span<const char> (str.begin (), str.end ())); }
 
 } // namespace detail
 
 /**
  * Abstract
  */
-template <typename ConcreteClass, Dimension widthV, Dimension heightV, typename Child = Empty> class AbstractDisplay : public IDisplay {
+template <typename ConcreteClass, Dimension widthV, Dimension heightV> class AbstractDisplay : public IDisplay {
 public:
         static constexpr Dimension width_ = widthV;   // Dimensions in characters
         static constexpr Dimension height_ = heightV; // Dimensions in characters
@@ -198,16 +202,16 @@ public:
         constexpr Dimension width () const final { return width_; }
         constexpr Dimension height () const final { return height_; }
 
-        Point &cursor () { return cursor_; }
-        Point const &cursor () const { return cursor_; }
+        Point &cursor () final { return cursor_; }
+        Point const &cursor () const final { return cursor_; }
 
 private:
         Point cursor_{};
 };
 
-template <typename Child> struct EmptyDisplay : public AbstractDisplay<EmptyDisplay<Child>, 0, 0, Child> {
+struct EmptyDisplay : public AbstractDisplay<EmptyDisplay, 0, 0> {
 
-        void print (std::span<char> const &str) final {}
+        void print (std::span<const char> const &str) final {}
         void clear () final {}
         void color (Color clr) final {}
         void refresh () final {}
@@ -359,7 +363,8 @@ template <std::invocable<bool> Callback, c::string String> constexpr auto check 
                                                                                             std::forward<String> (str));
 }
 
-template <std::convertible_to<bool> ChkT, c::string String> constexpr auto check (ChkT &&chk, String &&str)
+template <std::convertible_to<bool> ChkT, c::string String>
+requires (!std::invocable<ChkT, bool>) constexpr auto check (ChkT &&chk, String &&str)
 {
         return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
                                                                                                                  std::forward<String> (str));
@@ -646,6 +651,7 @@ template <typename Wrapper> Visibility Button<String, Callback>::operator() (aut
         return Visibility::visible;
 }
 
+// TODO switch parameters wit echa other. This is to be consistent with the resto of the API
 template <typename String, typename Callback> auto button (String &&str, Callback &&clb)
 {
         return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
@@ -1452,9 +1458,21 @@ namespace detail {
                 concept layout_wrapper = is_layout_wrapper<T>::value;
 
                 /**
+                 * Interface for dynamic polypomphism (see docs).
+                 */
+                struct IWindow {
+                        virtual ~IWindow () = default;
+
+                        virtual Visibility operator() (IDisplay &disp) const = 0;
+                        virtual void input (IDisplay &disp, Key key) = 0;
+                        virtual void incrementFocus (IDisplay &disp) const = 0;
+                        virtual void decrementFocus (IDisplay &disp) const = 0;
+                };
+
+                /**
                  * Window
                  */
-                template <typename T, typename Child> class Window : public ContainerWidget<Window<T, Child>, NoDecoration> {
+                template <typename T, typename Child> class Window : public IWindow, public ContainerWidget<Window<T, Child>, NoDecoration> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
                         constexpr explicit Window (T const &t, Child c) : widget{t}, children{std::move (c)} {}
@@ -1464,11 +1482,11 @@ namespace detail {
                         static constexpr Coordinate getX () { return Wrapped::x; }
                         static constexpr Coordinate getY () { return Wrapped::y; }
 
-                        Visibility operator() (auto &d) const { return BaseClass::operator() (d, &context); }
+                        Visibility operator() (IDisplay &disp) const override { return BaseClass::operator() (disp, &context); }
 
-                        void input (auto &d, Key c) { BaseClass::input (d, context, c); }
+                        void input (IDisplay &disp, Key key) override { BaseClass::input (disp, context, key); }
 
-                        void incrementFocus (auto & /* display */) const
+                        void incrementFocus (IDisplay & /* disp */) const override
                         {
                                 if (context.currentFocus < Wrapped::focusableWidgetCount - 1) {
                                         ++context.currentFocus;
@@ -1476,7 +1494,7 @@ namespace detail {
                                 }
                         }
 
-                        void decrementFocus (auto & /* display */) const
+                        void decrementFocus (IDisplay & /* disp */) const override
                         {
                                 if (context.currentFocus > 0) {
                                         --context.currentFocus;
@@ -1512,7 +1530,7 @@ namespace detail {
                 // concept window_wrapper = is_window_wrapper<T>::value;
 
                 template <typename T>
-                concept window_wrapper = requires (T type, EmptyDisplay<Empty> const &disp, Key key)
+                concept window_wrapper = requires (T type, EmptyDisplay &disp, Key key)
                 {
                         type.incrementFocus (disp);
                         type.decrementFocus (disp);
@@ -1734,30 +1752,30 @@ template <typename KeyT, typename Win> auto element (KeyT key, Win &&win)
  * integer. Thanks to common interface class ISuite, you can easilly pass pointers to it
  * to your handlers.
  */
-template <typename KeyT, typename WindowElementTuple> class WindowSuite : public ISuite<KeyT> {
+template <typename KeyT, typename WindowElementTuple> class WindowSuite : public detail::augment::IWindow, public ISuite<KeyT> {
 public:
         using ISuite<KeyT>::current;
 
         explicit WindowSuite (WindowElementTuple wins) : windows{std::move (wins)} {}
 
-        Visibility operator() (auto &display) const
+        Visibility operator() (IDisplay &display) const override
         {
                 Visibility ret{};
                 applyForOne ([&display, &ret] (auto const &elem) { ret = elem.win () (display); });
                 return ret;
         }
 
-        void input (auto &display, Key key)
+        void input (IDisplay &display, Key key) override
         {
                 applyForOne ([&display, key] (auto const &elem) { elem.win ().input (display, key); });
         }
 
-        void incrementFocus (auto &display) const
+        void incrementFocus (IDisplay &display) const override
         {
                 applyForOne ([&display] (auto const &elem) { elem.win ().incrementFocus (display); });
         }
 
-        void decrementFocus (auto &display) const
+        void decrementFocus (IDisplay &display) const override
         {
                 applyForOne ([&display] (auto const &elem) { elem.win ().decrementFocus (display); });
         }

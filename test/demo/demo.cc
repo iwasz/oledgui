@@ -285,10 +285,12 @@ the first element of the sequence at position zero.)"};
         mySuite = &s;
         s.current () = Windows::dataReferencesRadio;
 
+        og::detail::augment::IWindow &window = s;
+
         // log (dialog);
 
         while (true) {
-                draw (d1, s);
+                draw (d1, window);
                 int ch = getch ();
 
                 switch (ch) {
@@ -307,7 +309,7 @@ the first element of the sequence at position zero.)"};
                 //         chk.checked () = !chk.checked ();
                 //         break;
                 default:
-                        input (d1, s, getKey (ch));
+                        input (d1, window, getKey (ch));
                         break;
                 }
 
