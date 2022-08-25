@@ -17,6 +17,7 @@ enum class Windows {
         menu,
         callbacks,
         dataReferencesCheck,
+        dataReferencesCheckCtad,
         dataReferencesCombo,
         dataReferencesComboEnum,
         dataReferencesRadio,
@@ -32,6 +33,7 @@ int buttonCnt{};
 auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }), //
                                        button ("Callbacks"sv, [] { mySuite->current () = Windows::callbacks; }),
                                        button ("Check API"sv, [] { mySuite->current () = Windows::dataReferencesCheck; }),
+                                       button ("Check API CTAD"sv, [] { mySuite->current () = Windows::dataReferencesCheckCtad; }),
                                        button ("Combo API"sv, [] { mySuite->current () = Windows::dataReferencesCombo; }),
                                        button ("Combo enum"sv, [] { mySuite->current () = Windows::dataReferencesComboEnum; }),
                                        button ("Radio API"sv, [] { mySuite->current () = Windows::dataReferencesRadio; })));
@@ -73,6 +75,13 @@ auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),    
 
 /*--------------------------------------------------------------------------*/
 
+auto dataReferencesCheckCtad = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
+                                                          check (true, " PR value "sv),            //
+                                                          check (std::ref (bbb), " std::ref 1"sv), //
+                                                          Check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+
+/*--------------------------------------------------------------------------*/
+
 int cid{777};
 
 auto dataReferencesCombo
@@ -82,6 +91,8 @@ auto dataReferencesCombo
                                      combo ([] (int) {}, std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)))
 
         );
+
+/*--------------------------------------------------------------------------*/
 
 enum class Color { red, green, blue };
 Color clr{Color::blue};
@@ -108,6 +119,7 @@ auto s = suite<Windows> (element (Windows::menu, std::ref (menu)), //
                          element (Windows::callbacks, std::ref (callbacks)),
                          element (Windows::dataReferencesCheck, std::ref (dataReferencesCheck)),
                          element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo)),
+                         element (Windows::dataReferencesCheckCtad, std::ref (dataReferencesCheckCtad)),
                          element (Windows::dataReferencesComboEnum, std::ref (dataReferencesComboEnum)),
                          element (Windows::dataReferencesRadio, std::ref (dataReferencesRadio)));
 

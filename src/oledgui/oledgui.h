@@ -351,11 +351,8 @@ template <typename T> struct EmptyUnaryInvocable {
         void operator() (T) {}
 };
 
-// template <c::string String> constexpr auto check (String &&str)
-// {
-//         // Workaround for crashing clangd. When passing decltype ([](bool){}) instead of EmptyUnaryInvocable clangd 14.0.3 and 14.0.6 crashes.
-//         return Check<EmptyUnaryInvocable<bool>, bool, std::unwrap_ref_decay_t<String>> ({}, {}, std::forward<String> (str));
-// }
+template <std::invocable<bool> Callback, c::string String>
+Check (Callback clb, String const &lbl) -> Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>>;
 
 template <std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
 {
@@ -369,6 +366,10 @@ requires (!std::invocable<ChkT, bool>) constexpr auto check (ChkT &&chk, String 
         return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
                                                                                                                  std::forward<String> (str));
 }
+
+// template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
+// Check (Callback clb, ChkT chk, String const &str)
+//         -> Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>>;
 
 template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
 constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
@@ -1177,9 +1178,16 @@ struct is_layout<Layout<Decor, WidgetsTuple, widthV>> : public std::bool_constan
 };
 
 namespace c {
-        template <typename T>
-        concept layout = is_layout<T>::value;
-}
+        // template <typename T>
+        // concept layout = is_layout<T>::value;
+
+        template <typename L>
+        concept layout = requires
+        {
+                // TODO is widget etc, the rest of stuff required.
+                typename L::DecoratorType;
+        };
+} // namespace c
 
 namespace detail {
 

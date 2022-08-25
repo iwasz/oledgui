@@ -124,6 +124,20 @@ Layouts:
   * Cellphone keyboard : an event is generated on key-up. When a buttion is held down for prolonged period of time, different type of event is generated (so called long-press). 
   * Apart of the above two we can detect multiple keystrokes at once or only single one.
   * Apart of everything else we can do it in an ISR or by polling (the latter seems to have more sense when there's many buttons, but energy efficiency has to be considered as well). [See this library](https://github.com/thomasfredericks/Bounce2)
+* Minimum widget API is defined by `c::widget` concept but what about full feature set of this API? I have to document that:
+
+```cpp
+struct Custom : public Focusable /* or use `static constexpr bool canFocus = true;` */ {
+        static constexpr Dimension height = 1;
+        static constexpr Dimension width = 1;
+
+        template <typename Wrapper> Visibility operator() (IDisplay &disp, Context const &ctx) const { return Visibility::visible; }
+
+        template <typename Wrapper> void input (IDisplay &disp, Context const &ctx, Key key);
+        // template <typename Wrapper, typename Callback> void input (IDisplay &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
+};
+```
+
 
 # A short code description
 There are two layers of class templates.
