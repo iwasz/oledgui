@@ -8,6 +8,7 @@
 
 #include "inputApi.h"
 #include "regression.h"
+#include <iostream>
 
 namespace {
 using namespace og;
@@ -21,7 +22,7 @@ ISuite<Windows> *mySuite{};
 
 auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, mainMenu), //
         button ("Text widget"sv, [] {mySuite->current () = Windows::textReferences; }), //
-        button ("Composite textWidget"sv, [] { mySuite->current () = Windows::compositeTextWidget; })/*,
+        button ("Composite"sv, [] { mySuite->current () = Windows::compositeTextWidget; })/*,
                                        button ("Combo API"sv, [] { mySuite->current () = Windows::dataReferencesCombo; }),
                                        button ("Combo enum"sv, [] { mySuite->current () = Windows::dataReferencesComboEnum; }),
                                        button ("Radio API"sv, [] { mySuite->current () = Windows::dataReferencesRadio; })*/) );
@@ -42,12 +43,31 @@ the first element of the sequence at position zero.)"};
 
 auto txt = text<17, 6> (std::ref (buff));
 LineOffset startLine{};
-
 auto up = button ("▲"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (--startLine); });
 auto dwn = button ("▼"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (++startLine); });
 auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<4>, std::ref (dwn)));
 
 auto textReferences = window<0, 0, 18, 7> (vbox (std::ref (backButton), std::ref (txtComp)));
+
+/*--------------------------------------------------------------------------*/
+
+// auto newIdea ()
+// {
+//         LineOffset startLine{};
+//         auto txtComp = hbox (text<17, 6> (std::ref (buff)),
+//                              vbox<1> (button ("▲"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (--startLine); }), //
+//                                       vspace<4>,                                                                                //
+//                                       button ("▼"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (++startLine); })));
+
+//         auto &text = txtComp.getChild (0);
+//         auto &buttonUp = txtComp.getChild (1).getChild (0);
+//         auto &callback = buttonUp.callback ();
+//         callback.setText (text);
+//         callback.setStartLine (text);
+
+//         // Then it copieas references are broken
+//         return txtComp;
+// }
 
 /*--------------------------------------------------------------------------*/
 
@@ -139,34 +159,115 @@ public:
         // TxtComp txtWidget{};
 };
 
+// template <Dimension widthV, Dimension heightV, typename Buffer>
+// requires c::text_buffer<std::remove_reference_t<Buffer>>
+// class TextBox : public Focusable {
+// public:
+//         static constexpr Dimension height = heightV;
+//         static constexpr Dimension width = widthV;
+
+//         explicit TextBox (Buffer const &buf) : buf_{buf} {}
+//         TextBox (TextBox const &bbb) : buf_{bbb.buf_} {}
+
+//         auto &widgets () { return textBoxBody.widgets (); }
+//         auto const &widgets () const { return textBoxBody.widgets (); }
+
+// private:
+//         Buffer buf_; // T or T&
+//         LineOffset startLine{};
+
+//         using Text = decltype (text<width - 1, height> (std::ref (buf_)));
+//         Text textWidget = text<width - 1, height> (std::ref (buf_));
+
+//         /*--------------------------------------------------------------------------*/
+
+//         struct UpCallback {
+//                 UpCallback (LineOffset &startLine, Text &textWidget) : startLine{startLine}, textWidget{textWidget} {}
+
+//                 void operator() () { startLine = textWidget.setStartLine (--startLine); }
+
+//                 LineOffset &startLine;
+//                 Text &textWidget;
+//         };
+
+//         UpCallback upCallback{startLine, textWidget};
+
+//         using ButtonUp = decltype (button ("▲"sv, upCallback));
+//         ButtonUp buttonUp = button ("▲"sv, upCallback);
+
+//         /*--------------------------------------------------------------------------*/
+
+//         struct DnCallback {
+//                 DnCallback (LineOffset &startLine, Text &textWidget) : startLine{startLine}, textWidget{textWidget} {}
+
+//                 void operator() () { startLine = textWidget.setStartLine (++startLine); }
+
+//                 LineOffset &startLine;
+//                 Text &textWidget;
+//         };
+
+//         DnCallback dnCallback{startLine, textWidget};
+
+//         using ButtonDn = decltype (button ("▲"sv, dnCallback));
+//         ButtonDn buttonDn = button ("▲"sv, dnCallback);
+
+//         /*--------------------------------------------------------------------------*/
+
+//         using TextBoxBody = decltype (hbox (std::ref (txt), vbox<1> (std::ref (buttonUp), vspace<height - 2>, std::ref (buttonDn))));
+//         TextBoxBody textBoxBody = hbox (std::ref (txt), vbox<1> (std::ref (buttonUp), vspace<height - 2>, std::ref (buttonDn)));
+
+// public:
+//         static constexpr auto focusableWidgetCount = TextBoxBody::focusableWidgetCount;
+
+//         template <typename Wtu> using Decorator = typename TextBoxBody::template Decorator<Wtu>;
+//         using DecoratorType = typename TextBoxBody::DecoratorType;
+// };
+
+/*--------------------------------------------------------------------------*/
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+
+// TODO total mess
 template <Dimension widthV, Dimension heightV, typename Buffer>
-requires c::text_buffer<std::remove_reference_t<Buffer>>
+// requires c::text_buffer<std::remove_reference_t<Buffer>>
 class TextBox : public Focusable {
 public:
-        static constexpr Dimension height = widthV;
-        static constexpr Dimension width = heightV;
+        static constexpr Dimension height = heightV;
+        static constexpr Dimension width = widthV;
 
-        explicit TextBox (Buffer const &buf) : buf_{buf} {}
+        explicit TextBox (Buffer buf)
+            : buf_{std::move (buf)},
+              startLine{},
+              textWidget{text<width - 1, height> (std::ref (buf_))},
+              textBoxBody{hbox (std::ref (textWidget),
+                                vbox<1> (button ("▲"sv, UpCallback{startLine, textWidget}), vspace<height - 2>,
+                                         button ("▲"sv, DnCallback{startLine, textWidget})))}
+        {
+        }
+
+        TextBox (TextBox const &bbb) : TextBox (bbb.buf_) {}
+        TextBox &operator= (TextBox const &bbb) = delete;
+
+        TextBox (TextBox &&bbb) : TextBox (bbb.buf_) {}
+        TextBox &operator= (TextBox &&bbb) = delete;
+
+        ~TextBox () = default;
 
         auto &widgets () { return textBoxBody.widgets (); }
         auto const &widgets () const { return textBoxBody.widgets (); }
 
 private:
-        Buffer buf_; // T or T&
-        LineOffset startLine{};
+        Buffer buf_; // T or std::ref T
+        LineOffset startLine;
 
         using Text = decltype (text<width - 1, height> (std::ref (buf_)));
-        Text textWidget = text<width - 1, height> (std::ref (buf_));
+        Text textWidget;
 
         /*--------------------------------------------------------------------------*/
 
-        auto upCallback ()
-        {
-                return [this] { startLine = textWidget.setStartLine (--startLine); };
-        }
-
-        struct Callback {
-                Callback (LineOffset &startLine, Text &textWidget) : startLine{startLine}, textWidget{textWidget} {}
+        struct UpCallback {
+                UpCallback (LineOffset &startLine, Text &textWidget) : startLine{startLine}, textWidget{textWidget} {}
 
                 void operator() () { startLine = textWidget.setStartLine (--startLine); }
 
@@ -174,15 +275,24 @@ private:
                 Text &textWidget;
         };
 
-        Callback callback{startLine, textWidget};
+        /*--------------------------------------------------------------------------*/
 
-        using ButtonUp = decltype (button ("▲"sv, callback));
-        ButtonUp buttonUp = button ("▲"sv, callback);
+        struct DnCallback {
+                DnCallback (LineOffset &startLine, Text &textWidget) : startLine{startLine}, textWidget{textWidget} {}
+
+                void operator() () { startLine = textWidget.setStartLine (++startLine); }
+
+                LineOffset &startLine;
+                Text &textWidget;
+        };
 
         /*--------------------------------------------------------------------------*/
 
-        using TextBoxBody = decltype (hbox (std::ref (txt), vbox<1> (std::ref (buttonUp), vspace<height - 2>, std::ref (buttonUp))));
-        TextBoxBody textBoxBody = hbox (std::ref (txt), vbox<1> (std::ref (buttonUp), vspace<height - 2>, std::ref (buttonUp)));
+        using TextBoxBody = decltype (hbox (std::ref (textWidget),
+                                            vbox<1> (button ("▲"sv, UpCallback{startLine, textWidget}), vspace<height - 2>,
+                                                     button ("▼"sv, DnCallback{startLine, textWidget}))));
+
+        TextBoxBody textBoxBody;
 
 public:
         static constexpr auto focusableWidgetCount = TextBoxBody::focusableWidgetCount;
@@ -191,12 +301,44 @@ public:
         using DecoratorType = typename TextBoxBody::DecoratorType;
 };
 
-// using UpButton = std::invoke_result_t<decltype (&TextBox<0, 0, std::string_view>::up), TextBox<0, 0, std::string_view> *>;
-// UpButton upButton{up ()};
+/****************************************************************************/
+
+// template <Dimension widthV, Dimension heightV, typename Buffer>
+// requires c::text_buffer<std::remove_reference_t<Buffer>>
+// class TextBox : public Focusable {
+// public:
+//         static constexpr Dimension height = heightV;
+//         static constexpr Dimension width = widthV;
+
+//         explicit TextBox (Buffer const &buf) : buf_{buf} {}
+//         TextBox (TextBox const &bbb) : buf_{bbb.buf_} {}
+
+//         auto &widgets () { return textBoxBody.widgets (); }
+//         auto const &widgets () const { return textBoxBody.widgets (); }
+
+// private:
+//         Buffer buf_; // T or T&
+//         LineOffset startLine{};
+
+//         using Text = decltype (text<width - 1, height> (std::ref (buf_)));
+//         Text textWidget = text<width - 1, height> (std::ref (buf_));
+
+//         /*--------------------------------------------------------------------------*/
+
+//         using TextBoxBody = decltype (hbox (std::ref (textWidget), vbox<1> (button ("▲"sv, [] {}), vspace<height - 2>, button ("▲"sv, []
+//         {})))); TextBoxBody textBoxBody = hbox (std::ref (textWidget), vbox<1> (button ("▲"sv, [] {}), vspace<height - 2>, button ("▲"sv, []
+//         {})));
+
+// public:
+//         static constexpr auto focusableWidgetCount = TextBoxBody::focusableWidgetCount;
+
+//         template <typename Wtu> using Decorator = typename TextBoxBody::template Decorator<Wtu>;
+//         using DecoratorType = typename TextBoxBody::DecoratorType;
+// };
 
 template <Dimension widthV, Dimension heightV, typename Buffer> auto textBox (Buffer &&buff)
 {
-        return TextBox<widthV, heightV, std::unwrap_ref_decay_t<Buffer>>{std::forward<Buffer> (buff)};
+        return TextBox<widthV, heightV, std::remove_reference_t<Buffer>>{std::forward<Buffer> (buff)};
 }
 
 auto compositeTextWidget = window<0, 0, 18, 7> (vbox (std::ref (backButton), textBox<18, 6> (std::ref (buff))));

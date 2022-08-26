@@ -67,6 +67,7 @@ aaa
 * [x] Make the functions std::ref aware
 * [x] Separate directory for tests, and static_assert tests.
 * [x] Composite widgets as a possibility (or implement the text widget with scroll buttons).
+  * [ ] Do the same with factory method that returns such a composite...
 * [x] hbox (vbox (), vbox()) was not ever tested. But it won't work anyway, because widgets have ho width. I could add tmpl. param `width` to the container widgets however.
 * [x] vspace
 * [ ] Prepare backends for:
