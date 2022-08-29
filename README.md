@@ -34,8 +34,8 @@ aaa
 * [x] checkboxes
 * [x] radiobutons (no state)
 * [x] radiobutton group (still no state, but somehow manages the radios. Maybe integer?)
-* [ ] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
-  * [ ] Demo - menu 
+* [x] menu / list (possibly implemented using vbox and radio-s without radio icon (as an option))
+  * [x] Demo - menu 
   * [x] Navigation between screens - research how to do it the best from the API perspective.
   * [ ] Show how to make a table-like layout (preferably with dynamic content - like 2 colums of temperature readings with labels etc.).
 * [x] combo - "action" key changes the value (works for numbers as well)
@@ -88,7 +88,12 @@ aaa
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
 * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
 * [ ] Prepare composite widget for integers
+  * [ ] Convinient factory method
 * [ ] Prepare composite widget for floats
+  * [ ] Convinient factory method
+* [x] Composite widget for textBuffer with scroll bars
+  * [ ] Convinient factory method
+* [ ] How to improve copy/move elision?
 
 
 

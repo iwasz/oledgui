@@ -334,7 +334,7 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
                 detail::print (d, "☐"sv);
         }
 
-        d.cursor () += {1, 0};
+        d.cursor () += {1, 0}; // Customizable
         detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
@@ -382,7 +382,7 @@ constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::regular ValueT>
+template <typename String, std::regular ValueT, bool radioVisible = true>
 requires c::string<std::remove_reference_t<String>>
 class Radio : public Focusable {
 public:
@@ -406,9 +406,9 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String, std::regular ValueT>
+template <typename String, std::regular ValueT, bool radioVisible>
 requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &d, Context const &ctx, ValueT const &value) const
+template <typename Wrapper> Visibility Radio<String, ValueT, radioVisible>::operator() (auto &d, Context const &ctx, ValueT const &value) const
 {
         using namespace std::string_view_literals;
 
@@ -416,14 +416,17 @@ template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &
                 d.color (2);
         }
 
-        if (id () == value) {
-                detail::print (d, "◉"sv);
-        }
-        else {
-                detail::print (d, "○"sv);
+        if constexpr (radioVisible) {
+                if (id () == value) {
+                        detail::print (d, "◉"sv);
+                }
+                else {
+                        detail::print (d, "○"sv);
+                }
+
+                d.cursor () += {1, 0}; // TODO make customizable
         }
 
-        d.cursor () += {1, 0};
         detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
@@ -434,10 +437,10 @@ template <typename Wrapper> Visibility Radio<String, ValueT>::operator() (auto &
         return Visibility::visible;
 }
 
-template <typename String, std::regular ValueT>
+template <typename String, std::regular ValueT, bool radioVisible>
 requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
-void Radio<String, ValueT>::input (auto & /* d */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+void Radio<String, ValueT, radioVisible>::input (auto & /* d */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
         if (key == Key::select) {
                 value = id ();
@@ -445,15 +448,20 @@ void Radio<String, ValueT>::input (auto & /* d */, Context const & /* ctx */, Ke
         }
 }
 
-template <typename String, std::regular Id> constexpr auto radio (Id &&id, String &&label)
+template <typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
 {
-        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>> (std::forward<Id> (id), std::forward<String> (label));
+        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, true> (std::forward<Id> (cid), std::forward<String> (label));
+}
+
+template <typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
+{
+        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, false> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
 template <typename T> struct is_radio : public std::bool_constant<false> {
 };
 
-template <typename String, typename Id> struct is_radio<Radio<String, Id>> : public std::bool_constant<true> {
+template <typename String, typename Id, bool radioVisible> struct is_radio<Radio<String, Id, radioVisible>> : public std::bool_constant<true> {
 };
 
 /****************************************************************************/

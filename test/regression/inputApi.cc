@@ -30,13 +30,15 @@ std::string cboLabel = "-";
 std::string buttonLabel = "-";
 int buttonCnt{};
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }), //
-                                       button ("Callbacks"sv, [] { mySuite->current () = Windows::callbacks; }),
-                                       button ("Check API"sv, [] { mySuite->current () = Windows::dataReferencesCheck; }),
-                                       button ("Check API CTAD"sv, [] { mySuite->current () = Windows::dataReferencesCheckCtad; }),
-                                       button ("Combo API"sv, [] { mySuite->current () = Windows::dataReferencesCombo; }),
-                                       button ("Combo enum"sv, [] { mySuite->current () = Windows::dataReferencesComboEnum; }),
-                                       button ("Radio API"sv, [] { mySuite->current () = Windows::dataReferencesRadio; })));
+auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }),                               //
+                                       group ([] (Windows s) { mySuite->current () = s; }, Windows::callbacks, //
+                                              item (Windows::callbacks, "Callbacks"sv),                        //
+                                              item (Windows::dataReferencesCheck, "Check API"sv),              //
+                                              item (Windows::dataReferencesCheckCtad, "Check API CTAD"sv),     //
+                                              item (Windows::dataReferencesCombo, "Combo API"sv),              //
+                                              item (Windows::dataReferencesComboEnum, "Combo enum"sv),         //
+                                              item (Windows::dataReferencesRadio, "Radio API"sv)               //
+                                              )));
 
 auto backButton = button ("[back]"sv, [] { mySuite->current () = Windows::menu; });
 
