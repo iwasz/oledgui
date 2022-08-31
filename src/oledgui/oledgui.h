@@ -38,6 +38,12 @@ using Selection = uint8_t;
 using Color = uint16_t;
 using LineOffset = int;
 
+/// Focus for children inside a layout.
+enum class ChildFocus {
+        normal,  /// Children inside Layout can get focus if they support it.
+        suppress /// Focus is suppressed, children won't get focus even if they support it.
+};
+
 class Point {
 public:
         constexpr Point (Coordinate x = 0, Coordinate y = 0) : x_{x}, y_{y} {}
@@ -1171,7 +1177,8 @@ namespace detail {
 /****************************************************************************/
 
 // Forward declaration for is_layout
-template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0> class Layout;
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0, ChildFocus childFocus = ChildFocus::normal>
+class Layout;
 
 template <typename Wtu> class DefaultDecor {
 };
@@ -1835,9 +1842,19 @@ template <typename KeyT, typename... Win> auto suite (Element<KeyT, Win> &&...el
 /**
  * Container for other widgets.
  */
-template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV> class Layout {
+template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV, ChildFocus childFocus> class Layout {
 public:
-        static constexpr Focus focusableWidgetCount = detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
+        static constexpr Focus getFocusableWidgetCount ()
+        {
+                if constexpr (childFocus == ChildFocus::normal) {
+                        return detail::Sum<WidgetsTuple, detail::FocusableWidgetCountField>::value;
+                }
+                else {
+                        return {};
+                }
+        }
+
+        static constexpr Focus focusableWidgetCount = getFocusableWidgetCount ();
         template <typename Wtu> using Decorator = Decor<Wtu>;
         using DecoratorType = Decor<WidgetsTuple>;
         static constexpr Dimension width = widthV;
@@ -1864,6 +1881,13 @@ template <Dimension width = 0, typename... W> auto hbox (W &&...widgets)
 {
         using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
         auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple, width>{WidgetsTuple{std::forward<W> (widgets)...}};
+        return hbox;
+}
+
+template <ChildFocus childFocus, typename... W> auto hbox (W &&...widgets)
+{
+        using WidgetsTuple = decltype (std::tuple{std::forward<W> (widgets)...});
+        auto hbox = Layout<detail::HBoxDecoration, WidgetsTuple, 0, childFocus>{WidgetsTuple{std::forward<W> (widgets)...}};
         return hbox;
 }
 

@@ -49,11 +49,11 @@ auto callbacks = window<0, 0, 18, 7> (
         vbox (std::ref (backButton),
               hbox (check ([] (bool active) { chkBxLabel = (active) ? ("true") : ("false"); }, " chkbx "sv), label (std::ref (chkBxLabel))),
 
-              hbox (group ([] (auto selected) { rdoBxLabel = std::to_string (selected); }, //
-                           radio (0, " R "sv),                                             //
-                           radio (1, " G "sv),                                             //
-                           radio (2, " B "sv)),                                            //
-                    label (std::ref (rdoBxLabel))),                                        //
+              hbox<ChildFocus::suppress> (group ([] (auto selected) { rdoBxLabel = std::to_string (selected); }, //
+                                                 radio (0, " R "sv),                                             //
+                                                 radio (1, " G "sv),                                             //
+                                                 radio (2, " B "sv)),                                            //
+                                          label (std::ref (rdoBxLabel))),                                        //
 
               hbox (combo ([] (auto selected) { cboLabel = std::to_string (selected); }, //
                            option (6, "red"sv),                                          //
