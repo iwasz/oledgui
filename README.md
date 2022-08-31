@@ -94,6 +94,8 @@ aaa
 * [x] Composite widget for textBuffer with scroll bars
   * [ ] Convinient factory method
 * [ ] How to improve copy/move elision?
+* [ ] Window does not display its contents properly. See cellPhone demo.
+* [ ] radio-group when created without ID does not accept input.
 
 
 

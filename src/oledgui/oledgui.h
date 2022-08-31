@@ -1737,6 +1737,33 @@ namespace detail {
 
 } // namespace detail
 
+Visibility draw (auto &display, detail::augment::window_wrapper auto const &...window)
+{
+        display.clear ();
+        Visibility ret = (window (display), ...);
+        display.refresh ();
+        return ret;
+}
+
+void input (auto &display, detail::augment::window_wrapper auto &window, Key key)
+{
+        switch (key) {
+        case Key::incrementFocus:
+                window.incrementFocus (display);
+                break;
+
+        case Key::decrementFocus:
+                window.decrementFocus (display);
+                break;
+
+        default:
+                window.input (display, key);
+                break;
+        }
+}
+
+/****************************************************************************/
+
 /**
  * Common interface for easy polymorphism.
  * TODO constrain KeyT with some concept, like std::integral but allowing enums.
@@ -1753,28 +1780,32 @@ private:
 /**
  *
  */
-template <typename KeyT, typename Win>
-requires detail::augment::window_wrapper<std::remove_reference_t<Win>>
+template <typename KeyT, typename WinTuple>
+// requires detail::augment::window_wrapper<std::remove_reference_t<WinTuple>> // TODO move to the factory method.
 class Element {
 public:
-        using WinType = std::remove_reference_t<Win>;
-        Element (KeyT key, Win const &win) : key_{key}, win_{win} {}
+        using WinType = WinTuple;
+        Element (KeyT key, WinTuple win) : key_{key}, win_{std::move (win)} {}
 
         KeyT key () const { return key_; };
-        Win const &win () const { return win_; };
+        WinTuple const &win () const { return win_; };
+        // WinTuple &win () { return win_; };
+
+        auto &last () { return std::get<size_ - 1> (win ()); }
+        auto const &last () const { return std::get<size_ - 1> (win ()); }
 
 private:
         KeyT key_{};
-        Win win_{}; // Wrapper41 (this can be T or T&) // TODO change to tuple.
+        WinTuple win_{};
+        static constexpr auto size_ = std::tuple_size_v<WinType>;
 };
 
 /**
  * Facotry method
- * TODO It should accept Win &&...
  */
-template <typename KeyT, typename Win> auto element (KeyT key, Win &&win)
+template <typename KeyT, typename... Win> auto element (KeyT key, Win &&...win)
 {
-        return Element<KeyT, std::unwrap_ref_decay_t<Win>>{key, std::forward<Win> (win)};
+        return Element{key, std::make_tuple (std::forward<Win> (win)...)};
 }
 
 /**
@@ -1788,26 +1819,34 @@ public:
 
         explicit WindowSuite (WindowElementTuple wins) : windows{std::move (wins)} {}
 
+        /// Returns the status of the last one
         Visibility operator() (IDisplay &display) const override
         {
                 Visibility ret{};
-                applyForOne ([&display, &ret] (auto const &elem) { ret = elem.win () (display); });
+
+                applyForOne ([&display, &ret] (auto const &elem) {
+                        ret = std::apply ([&display] (auto const &...win) { return og::draw (display, win...); }, elem.win ());
+                });
+
                 return ret;
         }
 
         void input (IDisplay &display, Key key) override
         {
-                applyForOne ([&display, key] (auto const &elem) { elem.win ().input (display, key); });
+                applyForOne ([&display, key]<typename Elm> (Elm const &elem) {
+                        constexpr auto i = std::tuple_size_v<typename Elm::WinType>;
+                        std::get<i - 1> (elem.win ()).input (display, key);
+                });
         }
 
         void incrementFocus (IDisplay &display) const override
         {
-                applyForOne ([&display] (auto const &elem) { elem.win ().incrementFocus (display); });
+                applyForOne ([&display]<typename Elm> (Elm &elem) { elem.last ().incrementFocus (display); });
         }
 
         void decrementFocus (IDisplay &display) const override
         {
-                applyForOne ([&display] (auto const &elem) { elem.win ().decrementFocus (display); });
+                applyForOne ([&display]<typename Elm> (Elm &elem) { elem.last ().decrementFocus (display); });
         }
 
 private:
@@ -1887,30 +1926,6 @@ template <Dimension width = 0, typename... W> auto hbox (W &&...widgets)
 template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false, typename W = void> auto window (W &&c)
 {
         return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, frame> (std::forward<W> (c)));
-}
-
-void draw (auto &display, detail::augment::window_wrapper auto const &...window)
-{
-        display.clear ();
-        (window (display), ...);
-        display.refresh ();
-}
-
-void input (auto &display, detail::augment::window_wrapper auto &window, Key key)
-{
-        switch (key) {
-        case Key::incrementFocus:
-                window.incrementFocus (display);
-                break;
-
-        case Key::decrementFocus:
-                window.decrementFocus (display);
-                break;
-
-        default:
-                window.input (display, key);
-                break;
-        }
 }
 
 } // namespace og
