@@ -9,6 +9,7 @@
 /**
  * All functionalities in one place. Manual regression testing
  */
+#include "cellPhone.h"
 #include "inputApi.h"
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
@@ -26,7 +27,7 @@ using namespace std::string_view_literals;
 //         Color color{};
 // };
 
-enum class Windows { menu, inputApi, textWidget };
+enum class Windows { menu, inputApi, textWidget, cellPhone };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
@@ -92,12 +93,14 @@ int main ()
         // auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
-                                               button ("inputApi"sv, [] { mySuiteP->current () = Windows::inputApi; }),
-                                               button ("textWidget"sv, [] { mySuiteP->current () = Windows::textWidget; })));
+                                               button ("input API  "sv, [] { mySuiteP->current () = Windows::inputApi; }),
+                                               button ("text widget"sv, [] { mySuiteP->current () = Windows::textWidget; }),
+                                               button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; })));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),            //
                                        element (Windows::inputApi, std::ref (inputApi ())), //
-                                       element (Windows::textWidget, std::ref (textWidget ())));
+                                       element (Windows::textWidget, std::ref (textWidget ())),
+                                       element (Windows::cellPhone, std::ref (cellPhone ())));
         mySuiteP = &mySuite;
 
         // s.current () = Windows::dataReferencesRadio;

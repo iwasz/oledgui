@@ -1842,7 +1842,7 @@ public:
         using DecoratorType = Decor<WidgetsTuple>;
         static constexpr Dimension width = widthV;
 
-        explicit Layout (WidgetsTuple w) : widgets_{std::move (w)} {}
+        explicit Layout (WidgetsTuple wgts) : widgets_{std::move (wgts)} {}
 
         WidgetsTuple &widgets () { return widgets_; }
         WidgetsTuple const &widgets () const { return widgets_; }
