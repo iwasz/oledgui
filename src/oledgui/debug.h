@@ -25,7 +25,7 @@ namespace detail::augment {
 
                         if constexpr (requires {
                                               Wrapped::canFocus;
-                                              requires Wrapped::canFocus == 1;
+                                              requires Wrapped::canFocus == CanFocus::yes;
                                       }) {
                                 std::cout << w.getFocusIndex ();
                         }

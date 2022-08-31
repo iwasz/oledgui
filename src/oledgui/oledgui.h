@@ -38,6 +38,8 @@ using Selection = uint8_t;
 using Color = uint16_t;
 using LineOffset = int;
 
+enum class CanFocus { no, yes };
+
 class Point {
 public:
         constexpr Point (Coordinate x = 0, Coordinate y = 0) : x_{x}, y_{y} {}
@@ -249,7 +251,7 @@ namespace detail {
 } // namespace detail
 
 struct Focusable {
-        static constexpr bool canFocus = true;
+        static constexpr CanFocus canFocus = CanFocus::yes;
 };
 
 /****************************************************************************/
@@ -745,10 +747,11 @@ typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toInde
 /**
  *
  */
-template <typename Callback, typename ValueContainerT, typename OptionCollection>
+template <typename Callback, typename ValueContainerT, CanFocus canFocusV, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
-class Combo : public Focusable {
+class Combo {
 public:
+        static constexpr CanFocus canFocus = canFocusV;
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Value = typename OptionCollection::Value;
@@ -780,20 +783,25 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, typename OptionCollection>
+template <typename Callback, typename ValueContainer, CanFocus canFocusV, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
-template <typename Wrapper> Visibility Combo<Callback, ValueContainer, OptionCollection>::operator() (auto &disp, Context const &ctx) const
+template <typename Wrapper>
+Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (2);
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.color (2);
+                }
         }
 
         index_ = options.toIndex (value ());
         auto &label = options.getOptionByIndex (index_).label ();
         detail::print (disp, label);
 
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (1);
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.color (1);
+                }
         }
 
         disp.cursor () += {Coordinate (label.size ()), 0};
@@ -802,26 +810,32 @@ template <typename Wrapper> Visibility Combo<Callback, ValueContainer, OptionCol
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, typename OptionCollection>
+template <typename Callback, typename ValueContainer, CanFocus canFocusV, typename OptionCollection>
 requires std::invocable<Callback, typename OptionCollection::Value>
-template <typename Wrapper> void Combo<Callback, ValueContainer, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
+template <typename Wrapper>
+void Combo<Callback, ValueContainer, canFocusV, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
-                ++index_;
-                index_ %= options.size ();
-                toValue () = options.getOptionByIndex (index_).value ();
-                callback (toValue ());
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
+                        ++index_;
+                        index_ %= options.size ();
+                        toValue () = options.getOptionByIndex (index_).value ();
+                        callback (toValue ());
+                }
         }
 }
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename... Opts>
-requires std::invocable<Callback, typename First_t<Opts...>::Value>
-auto combo (Callback &&clb, Opts &&...opts)
+template <typename CallbackT, typename... Opts>
+requires std::invocable<CallbackT, typename First_t<Opts...>::Value>
+auto combo (CallbackT &&clb, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
-        return Combo (std::forward<Callback> (clb), Value{}, Options (std::forward<Opts> (opts)...));
+        using Callback = std::remove_reference_t<CallbackT>;
+        using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, Value, CanFocus::yes, OptionCollection> (std::forward<Callback> (clb), Value{},
+                                                                        Options (std::forward<Opts> (opts)...));
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... Opts>
@@ -835,11 +849,11 @@ requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&         
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, ValueContainer, OptionCollection> (std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value),
-                                                                  Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, ValueContainer, CanFocus::yes, OptionCollection> (
+                std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value), Options (std::forward<Opts> (opts)...));
 }
 
-template <typename ValueContainerT, typename... Opts>
+template <CanFocus canFocusV = CanFocus::yes, typename ValueContainerT, typename... Opts>
 requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> &&(
         !std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)auto combo (ValueContainerT &&cid, Opts &&...opts)
 {
@@ -848,8 +862,8 @@ requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> 
         using ValueContainer = std::remove_reference_t<ValueContainerT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, ValueContainer, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
-                                                                  Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, ValueContainer, canFocusV, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
+                                                                             Options (std::forward<Opts> (opts)...));
 }
 
 /****************************************************************************/
@@ -872,7 +886,7 @@ namespace detail {
                 else if constexpr (requires {
                                            {
                                                    T::canFocus
-                                                   } -> std::convertible_to<bool>;
+                                                   } -> std::convertible_to<CanFocus>;
                                    }) {
                         // This field is optional and is used in regular widgets. Its absence is treated as it were declared false.
                         return uint16_t (T::canFocus);

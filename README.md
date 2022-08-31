@@ -39,7 +39,7 @@ aaa
   * [x] Navigation between screens - research how to do it the best from the API perspective.
   * [ ] Show how to make a table-like layout (preferably with dynamic content - like 2 colums of temperature readings with labels etc.).
 * [x] combo - "action" key changes the value (works for numbers as well)
-  * [ ] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
+  * [x] icon aka indicator aka animation (icon with states) - this can be implemented using the combo (with an option).
 * [x] Button (with callback).
 * [x] std::string - like strings
   * [ ] Test with std::string_view, std::string and etl::string. Test with std::refs
