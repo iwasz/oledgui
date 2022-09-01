@@ -95,7 +95,7 @@ aaa
   * [ ] Convinient factory method
 * [ ] How to improve copy/move elision?
 * [ ] Window does not display its contents properly. See cellPhone demo.
-* [ ] radio-group when created without ID does not accept input.
+* [x] radio-group when created without ID does not accept input.
 
 
 
@@ -146,6 +146,7 @@ struct Custom : public Focusable /* or use `static constexpr bool canFocus = tru
 };
 ```
 
+* Combo has additional param now which lets you turn off the *focus ability*. This lets one map integers to labels or icons easily. Give an example (`CanFocus::no`)
 
 # A short code description
 There are two layers of class templates.

@@ -391,9 +391,9 @@ public:
         static constexpr Dimension height = 1;
         using Value = ValueT;
 
-        constexpr Radio (Value i, String const &l) : id_{std::move (i)}, label_{l} {}
-        template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx, ValueT const &value = {}) const;
-        template <typename Wrapper, typename Callback> void input (auto &d, Context const &ctx, Key c, Callback &clb, ValueT &value);
+        constexpr Radio (Value value, String const &lbl) : id_{std::move (value)}, label_{lbl} {}
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx, ValueT const &value = {}) const;
+        template <typename Wrapper, typename Callback> void input (auto &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
 
         // Value &id () { return id_; }
         Value const &id () const { return id_; }
@@ -410,39 +410,40 @@ private:
 
 template <typename String, std::regular ValueT, bool radioVisible>
 requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Radio<String, ValueT, radioVisible>::operator() (auto &d, Context const &ctx, ValueT const &value) const
+template <typename Wrapper>
+Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
 {
         using namespace std::string_view_literals;
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                disp.color (2);
         }
 
         if constexpr (radioVisible) {
                 if (id () == value) {
-                        detail::print (d, "◉"sv);
+                        detail::print (disp, "◉"sv);
                 }
                 else {
-                        detail::print (d, "○"sv);
+                        detail::print (disp, "○"sv);
                 }
 
-                d.cursor () += {1, 0}; // TODO make customizable
+                disp.cursor () += {1, 0}; // TODO make customizable
         }
 
-        detail::print (d, label_);
+        detail::print (disp, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                disp.color (1);
         }
 
-        d.cursor () += {Coordinate (label_.size ()), 0};
+        disp.cursor () += {Coordinate (label_.size ()), 0};
         return Visibility::visible;
 }
 
 template <typename String, std::regular ValueT, bool radioVisible>
 requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
-void Radio<String, ValueT, radioVisible>::input (auto & /* d */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+void Radio<String, ValueT, radioVisible>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
         if (key == Key::select) {
                 value = id ();
@@ -1053,13 +1054,14 @@ namespace c {
 /*--------------------------------------------------------------------------*/
 
 template <typename CallbackT, typename... W>
-requires std::invocable<CallbackT, Selection> && std::conjunction_v<is_radio<W>...>
+requires std::invocable<CallbackT, Selection> && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio values have the same type
 auto group (CallbackT &&clb, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
+        using ValueContainer = typename First_t<W...>::Value;
 
-        return Group<Callback, Selection, RadioCollection>{std::forward<CallbackT> (clb), {}, std::tuple{std::forward<W> (widgets)...}};
+        return Group<Callback, ValueContainer, RadioCollection>{std::forward<CallbackT> (clb), {}, std::tuple{std::forward<W> (widgets)...}};
 }
 
 template <typename ValueContainerT, typename... W>
@@ -1232,7 +1234,7 @@ namespace detail {
                         static constexpr Coordinate getY () { return yV; }                  /// Position relative to the top left corner.
 
                         /// Consecutive number in a radio group.
-                        static constexpr Selection getRadioIndex () { return radioIndexV; }
+                        static constexpr Selection getRadioIndex () { return radioIndexV; } // TODO is this used?
 
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
