@@ -14,6 +14,7 @@ add_executable("regression"
     test/regression/inputApi.cc
     test/regression/textWidget.cc
     test/regression/cellPhone.cc
+    test/regression/layout.cc
 )
 target_link_libraries("regression" ncursesw)
 

@@ -11,6 +11,7 @@
  */
 #include "cellPhone.h"
 #include "inputApi.h"
+#include "layout.h"
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
 #include "textWidget.h"
@@ -27,7 +28,7 @@ using namespace std::string_view_literals;
 //         Color color{};
 // };
 
-enum class Windows { menu, inputApi, textWidget, cellPhone };
+enum class Windows { menu, inputApi, textWidget, cellPhone, layouts };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
@@ -38,11 +39,6 @@ int main ()
         NcursesDisplay<18, 7> d1;
 
         /*--------------------------------------------------------------------------*/
-
-        auto layouts = window<0, 0, 18, 7> (vbox (                         //
-                hbox (hbox<9> (label ("h1"sv)), hbox<9> (label ("h2"sv))), //
-                hbox (hbox<9> (label ("h3"sv)), hbox<9> (label ("h4"sv)))) //
-        );
 
         /*--------------------------------------------------------------------------*/
 
@@ -95,12 +91,14 @@ int main ()
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
                                                button ("input API  "sv, [] { mySuiteP->current () = Windows::inputApi; }),
                                                button ("text widget"sv, [] { mySuiteP->current () = Windows::textWidget; }),
-                                               button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; })));
+                                               button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; }),
+                                               button ("Layouts    "sv, [] { mySuiteP->current () = Windows::layouts; })));
 
-        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),            //
-                                       element (Windows::inputApi, std::ref (inputApi ())), //
-                                       element (Windows::textWidget, std::ref (textWidget ())),
-                                       element (Windows::cellPhone, std::ref (cellPhone ())));
+        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),                //
+                                       element (Windows::inputApi, std::ref (inputApi ())),     //
+                                       element (Windows::textWidget, std::ref (textWidget ())), //
+                                       element (Windows::cellPhone, std::ref (cellPhone ())),   //
+                                       element (Windows::layouts, std::ref (layout ())));
         mySuiteP = &mySuite;
 
         // s.current () = Windows::dataReferencesRadio;

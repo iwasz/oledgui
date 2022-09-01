@@ -86,6 +86,7 @@ aaa
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
+  * [ ] A widget cannot be added directly to a window if not wrapped in a layout. You get `error: ‘focusableWidgetCount’ is not a member of ‘og::Window`. I think this illogical.
 * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
 * [ ] Prepare composite widget for integers
   * [ ] Convinient factory method
@@ -147,6 +148,7 @@ struct Custom : public Focusable /* or use `static constexpr bool canFocus = tru
 ```
 
 * Combo has additional param now which lets you turn off the *focus ability*. This lets one map integers to labels or icons easily. Give an example (`CanFocus::no`)
+* *Philosophy* Rather than introducing additional complexity in the code I usually lean toward simple workarounds if possible. For example there's no opttion for a checkbox to insert a space between the `☑` and a label automaticaly. You simply add a space to your label and that works. 
 
 # A short code description
 There are two layers of class templates.

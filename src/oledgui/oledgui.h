@@ -373,6 +373,7 @@ requires (!std::invocable<ChkT, bool>) constexpr auto check (ChkT &&chk, String 
 // Check (Callback clb, ChkT chk, String const &str)
 //         -> Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>>;
 
+// TODO change ChkT to ValueT - make this naming consistent in every widget
 template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
 constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 {
@@ -1054,7 +1055,8 @@ namespace c {
 /*--------------------------------------------------------------------------*/
 
 template <typename CallbackT, typename... W>
-requires std::invocable<CallbackT, Selection> && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio values have the same type
+requires std::invocable<CallbackT, typename First_t<W...>::Value> && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio
+                                                                                                        // values have the same type
 auto group (CallbackT &&clb, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
@@ -1117,7 +1119,7 @@ public:
         using Child = std::remove_reference_t<std::unwrap_ref_decay_t<ChildT>>;
         explicit Window (ChildT wgt) : child_{std::move (wgt)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
 
-        template <typename Wrapper> Visibility operator() (auto &disp, Context & /* ctx */) const
+        template <typename Wrapper> Visibility operator() (auto &disp, Context & /* ctx */) const // TODO Move outide the class
         {
                 using namespace std::string_view_literals;
                 disp.cursor () = {ox, oy};
@@ -1342,6 +1344,7 @@ namespace detail {
                                         static_cast<ConcreteClass const *> (this)->widget.template operator()<ConcreteClass> (disp, *ctx);
                                 }
 
+                                // This iterates over the children
                                 auto lbd = [&disp, &ctx, concrete = static_cast<ConcreteClass const *> (this)] (auto &itself, auto const &child,
                                                                                                                 auto const &...children) {
                                         Visibility status{};
