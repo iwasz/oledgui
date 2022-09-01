@@ -975,10 +975,10 @@ namespace detail {
                 static constexpr Dimension width = detail::Max<WidgetsTuple, detail::WidgetWidthField>::value;
                 static constexpr Dimension height = detail::Sum<WidgetsTuple, detail::WidgetHeightField>::value;
 
-                static void after (auto &display, Context const & /* ctx */, Point const &layoutOrigin)
+                static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
                         display.cursor ().y () += 1;
-                        display.cursor ().x () = layoutOrigin.x ();
+                        display.cursor ().x () = ctx.origin.x () + layoutOrigin.x ();
                 }
                 static constexpr Dimension getWidthIncrement (Dimension /* d */) { return 0; }
                 static constexpr Dimension getHeightIncrement (Dimension disp) { return disp; }
