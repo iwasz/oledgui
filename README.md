@@ -1,7 +1,10 @@
-Experimental, C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
+Experimental C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
 
-![Demo](demo.gif)
-![Demo2](demo2.gif)
+
+![Benchmarks](https://github.com/iwasz/oledgui/actions/workflows/cmake.yml/badge.svg)
+
+![Demo](doc/demo.gif)
+![Demo2](doc/demo2.gif)
 
 * [Character based](https://en.wikipedia.org/wiki/Box-drawing_character), platform independent, [immediate mode](https://en.wikipedia.org/wiki/Immediate_mode_(computer_graphics)). Works as long as a character can be printed in x,y coordinates (for instance in [ncurses](https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/index.html), [Zephyr RTOS cfb](https://docs.zephyrproject.org/latest/reference/display/index.html), etc).
 * Cursor (x,y).
@@ -87,7 +90,7 @@ aaa
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
   * [ ] A widget cannot be added directly to a window if not wrapped in a layout. You get `error: ‘focusableWidgetCount’ is not a member of ‘og::Window`. I think this illogical.
-* [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
+  * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
 * [ ] Prepare composite widget for integers
   * [ ] Convinient factory method
 * [ ] Prepare composite widget for floats
@@ -95,11 +98,20 @@ aaa
 * [x] Composite widget for textBuffer with scroll bars
   * [ ] Convinient factory method
 * [ ] How to improve copy/move elision?
-* [ ] Window does not display its contents properly. See cellPhone demo.
+* [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 
+# Benchmarks
+[CSV with the results](doc/benchmark.csv). You can see the workflow file [here](.github/workflows/cmake.yml). It compiles the `benchmark` target using GCC-12 (actual version is saved to the [doc/benchmark.csv](doc/benchmark.csv)). The target is configured first with `Release` build type which forces `-O2`. Binary size is obtained using the `size` command, and total reading is plotted on the picture below. Compilation time is taken using the `time -f%U ...` command (installed in additional step. Built-in `time` command takes no arguments. Explanation : `%e` gives the real time which can vary from run to run based on the system load. `%U` on the other hand gives only the "CPU seconds" spent in user mode. Probably `%S + %U` would be even better, but summing it together is too much work… EDIT : there are noticeable fluctuations even when binary was not changed. I don't know how to overcome this). Eventually the `valgrind --tool=callgrind` command is applied on the binary itself (10 key presses are simulated). Finally everything repeats for the `MinSizeRel` build type. As for the GitHub action itself, it proved to be ridiculously tedious to configure. An [ACT](https://github.com/nektos/act) tool was very helpful.
 
+Binary size:
+![Binary size](doc/binarySize.png)
 
+Compilation time:
+![Compilation time](doc/compilationTime.png)
+
+Real runtime:
+![Real runtime](doc/realTime.png)
 
 # Documentation TODO:
 * When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.

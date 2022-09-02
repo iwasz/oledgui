@@ -29,10 +29,15 @@ auto desktop = window<0, 0, 18, 7> (vbox (
 /*--------------------------------------------------------------------------*/
 
 auto dropDown = window<10, 1, 8, 6, true> (
-        vbox (label ("menu"sv),                                                                        // title
-              combo (std::ref (volumeLevel), option (0, "0"sv), option (1, "1"sv), option (2, "2"sv)), // volume option (settable)
-              button ("close"sv, [] { mySuite->current () = Win::desktop; }),                          //
-              button ("shut-dn"sv, [] { mainMenu (); })));
+        vbox (hbox<4> (label ("vol:"sv),
+                       combo (std::ref (volumeLevel), option (0, "0"sv), option (1, "1"sv), option (2, "2"sv))), // volume option (settable)
+              button ("exit"sv, [] { mySuite->current () = Win::desktop; }),                                     //
+              button ("prDn"sv, [] { mainMenu (); })));
+
+// vbox (label ("menu"sv),                                                                        // title
+//               combo (std::ref (volumeLevel), option (0, "0"sv), option (1, "1"sv), option (2, "2"sv)), // volume option (settable)
+//               button ("close"sv, [] { mySuite->current () = Win::desktop; }),                          //
+//               button ("shut-dn"sv, [] { mainMenu (); })));
 
 auto cellP = suite (element (Win::desktop, std::ref (desktop)),                      // Desktop only
                     element (Win::dropDown, std::ref (desktop), std::ref (dropDown)) // Desktop covered by the menu
