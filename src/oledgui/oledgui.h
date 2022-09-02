@@ -9,7 +9,6 @@
 #pragma once
 #include <algorithm>
 #include <array>
-#include <bits/utility.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
