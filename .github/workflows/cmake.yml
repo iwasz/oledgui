@@ -20,6 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Update GCC
+      - uses: egor-tensin/setup-gcc@v1
+        with:
+          version: latest
+          platform: x64
+
       # Setup the build machine with the most recent versions of CMake and Ninja. Both are cached if not already: on subsequent runs both will be quickly restored from GitHub cache service.
       - uses: lukka/get-cmake@latest
 
