@@ -87,7 +87,7 @@ aaa
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
   * [ ] A widget cannot be added directly to a window if not wrapped in a layout. You get `error: ‘focusableWidgetCount’ is not a member of ‘og::Window`. I think this illogical.
-* [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
+  * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
 * [ ] Prepare composite widget for integers
   * [ ] Convinient factory method
 * [ ] Prepare composite widget for floats
@@ -95,7 +95,7 @@ aaa
 * [x] Composite widget for textBuffer with scroll bars
   * [ ] Convinient factory method
 * [ ] How to improve copy/move elision?
-* [ ] Window does not display its contents properly. See cellPhone demo.
+* [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 
 

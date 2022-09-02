@@ -28,7 +28,7 @@ using namespace std::string_view_literals;
 //         Color color{};
 // };
 
-enum class Windows { menu, inputApi, textWidget, cellPhone, layouts };
+enum class Windows { menu, allFeatures, dialog, cellPhone, layouts };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
@@ -89,15 +89,15 @@ int main ()
         // auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
-                                               button ("input API  "sv, [] { mySuiteP->current () = Windows::inputApi; }),
-                                               button ("text widget"sv, [] { mySuiteP->current () = Windows::textWidget; }),
+                                               button ("input API  "sv, [] { mySuiteP->current () = Windows::allFeatures; }),
+                                               button ("text widget"sv, [] { mySuiteP->current () = Windows::dialog; }),
                                                button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; }),
                                                button ("Layouts    "sv, [] { mySuiteP->current () = Windows::layouts; })));
 
-        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),                //
-                                       element (Windows::inputApi, std::ref (inputApi ())),     //
-                                       element (Windows::textWidget, std::ref (textWidget ())), //
-                                       element (Windows::cellPhone, std::ref (cellPhone ())),   //
+        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
+                                       element (Windows::allFeatures, std::ref (inputApi ())), //
+                                       element (Windows::dialog, std::ref (textWidget ())),    //
+                                       element (Windows::cellPhone, std::ref (cellPhone ())),  //
                                        element (Windows::layouts, std::ref (layout ())));
         mySuiteP = &mySuite;
 

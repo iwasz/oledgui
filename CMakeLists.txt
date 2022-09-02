@@ -25,3 +25,7 @@ add_executable("terminal" test/component/terminal.cc )
 
 add_executable("test" test/unit/test.cc)
 target_link_libraries("test" ncursesw)
+
+add_executable("benchmark" test/benchmark/benchmark.cc)
+target_link_libraries("benchmark" ncursesw)
+

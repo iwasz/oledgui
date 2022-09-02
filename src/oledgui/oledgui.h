@@ -300,7 +300,10 @@ public:
         template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key)
         {
                 if (key == Key::select) {
+                        // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as below. But if
+                        // it's an int tha cast will fail. It shouldnt be, a concept should be more rigorous.
                         static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
+                        // checked_ = !static_cast<bool> (checked_); // This won't work either when checked_ is std::reference_wrapper <bool>
                         callback (checked_);
                 }
         }
