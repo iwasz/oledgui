@@ -9,14 +9,13 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
+
+  # Does not work.
   CC: /usr/bin/gcc-12
   CXX: /usr/bin/g++-12
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-22.04
 
     steps:
@@ -24,21 +23,32 @@ jobs:
 
       - run: sudo apt update
       # - run: sudo apt search ninja
-      - run: sudo apt install -yqq g++-12 cmake ninja-build
-      - run: find /usr -name 'g++-*'
+      - run: sudo apt install -yqq g++-12 cmake ninja-build time
+      # - run: find /usr -name 'g++-*'
+      # - run: $CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+'
 
-      - name: Configure CMake
-        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
+      - name: Build release
+        run: |
+          cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
+          /usr/bin/time -f%E -o release.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
 
-      - name: Build
-        # Build your program with the given configuration
-        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target benchmark
+      - name: Build minSizeRel
+        run: |
+          cmake -B ${{github.workspace}}/build/minSizeRel -DCMAKE_BUILD_TYPE=MinSizeRel -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
+          /usr/bin/time -f%E -o minSizeRel.time cmake --build ${{github.workspace}}/build/minSizeRel --config MinSizeRel --target benchmark
 
       - name: Test
-        working-directory: ${{github.workspace}}/build
-        # Execute tests defined by the CMake configuration.
-        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        # run: ctest -C ${{env.BUILD_TYPE}}
-        run: size ${{github.workspace}}/build/benchmark
+        run: |
+          echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> doc/benchmark.csv
+          echo -n $(cat release.time) >> doc/benchmark.csv
+          echo -n "," >> doc/benchmark.csv
+          echo -n $(size ${{github.workspace}}/build/minSizeRel/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> doc/benchmark.csv
+          echo -n $(cat minSizeRel.time) >> doc/benchmark.csv
+          echo -n "," >> doc/benchmark.csv
+          echo -n $(date) >> doc/benchmark.csv
+          echo -n "," >> doc/benchmark.csv
+          echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> doc/benchmark.csv
+          echo -n "," >> doc/benchmark.csv
+          echo -n $GITHUB_SHA >> doc/benchmark.csv
+          echo >> doc/benchmark.csv
+          cat doc/benchmark.csv
