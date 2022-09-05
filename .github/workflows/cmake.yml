@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     paths-ignore:
-      - "doc/**"
+      - "doc"
 
   pull_request:
     branches: ["main"]
@@ -27,8 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          # token: ${{ secrets.PAT }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
 
       - run: sudo apt update
       - run: sudo apt install -yqq g++-12 cmake ninja-build time gnuplot
