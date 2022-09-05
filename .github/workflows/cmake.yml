@@ -34,14 +34,14 @@ jobs:
       - name: Build release
         run: |
           cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
-          /usr/bin/time -f%e -o release.compilation.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
-          /usr/bin/time -f%e -o release.real.time ${{github.workspace}}/build/release/benchmark &> /dev/null
+          /usr/bin/time -f%U -o release.compilation.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
+          /usr/bin/time -f%U -o release.real.time ${{github.workspace}}/build/release/benchmark &> /dev/null
 
       - name: Build minSizeRel
         run: |
           cmake -B ${{github.workspace}}/build/minSizeRel -DCMAKE_BUILD_TYPE=MinSizeRel -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
-          /usr/bin/time -f%e -o minSizeRel.compilation.time cmake --build ${{github.workspace}}/build/minSizeRel --config MinSizeRel --target benchmark
-          /usr/bin/time -f%e -o minSizeRel.real.time ${{github.workspace}}/build/minSizeRel/benchmark &> /dev/null
+          /usr/bin/time -f%U -o minSizeRel.compilation.time cmake --build ${{github.workspace}}/build/minSizeRel --config MinSizeRel --target benchmark
+          /usr/bin/time -f%U -o minSizeRel.real.time ${{github.workspace}}/build/minSizeRel/benchmark &> /dev/null
 
       - name: Test
         run: |
