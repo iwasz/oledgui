@@ -1,8 +1,0 @@
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/ncurses.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/regression.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/demo.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/terminal.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/test.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/benchmark.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/edit_cache.dir
-/home/runner/work/oledgui/oledgui/build/release/CMakeFiles/rebuild_cache.dir

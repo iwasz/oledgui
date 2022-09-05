@@ -1,8 +1,0 @@
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/ncurses.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/regression.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/demo.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/terminal.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/test.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/benchmark.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/edit_cache.dir
-/home/runner/work/oledgui/oledgui/build/minSizeRel/CMakeFiles/rebuild_cache.dir
