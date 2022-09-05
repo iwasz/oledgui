@@ -1,5 +1,5 @@
 # ninja log v5
-0	8908	1662392156990016930	CMakeFiles/benchmark.dir/test/benchmark/benchmark.cc.o	b42c1d4b14c0a304
-8908	8991	1662392157070018912	benchmark	d4ea049e977a39e3
-0	8254	1662392229583096959	CMakeFiles/benchmark.dir/test/benchmark/benchmark.cc.o	b42c1d4b14c0a304
 8254	8324	1662392229651097646	benchmark	d4ea049e977a39e3
+0	8254	1662392229583096959	CMakeFiles/benchmark.dir/test/benchmark/benchmark.cc.o	b42c1d4b14c0a304
+0	9798	1662392307773474838	CMakeFiles/benchmark.dir/test/benchmark/benchmark.cc.o	b42c1d4b14c0a304
+9798	9877	1662392307853481361	benchmark	d4ea049e977a39e3
