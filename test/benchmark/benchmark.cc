@@ -107,7 +107,7 @@ the first element of the sequence at position zero.)"};
 
         mySuiteP = &mySuite;
 
-        for (int i = 0; i < 11; ++i) {
+        for (int i = 0; i < 10; ++i) {
                 draw (d1, mySuite);
                 input (d1, mySuite, Key::select);
 
