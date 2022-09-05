@@ -2,9 +2,9 @@ name: CMake gcc-12
 
 on:
   push:
-    branches: ["ciTests"]
+    branches: ["main"]
   pull_request:
-    branches: ["ciTests"]
+    branches: ["main"]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
