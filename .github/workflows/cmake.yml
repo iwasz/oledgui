@@ -36,7 +36,7 @@ jobs:
         run: |
           cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
           /usr/bin/time -f%U -o release.compilation.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
-          perf stat --no-big-num -e instructions ./benchmark 2>&1 | grep instructions
+          perf stat --no-big-num -e instructions ./benchmark
 
       # - name: Build minSizeRel
       #   run: |
