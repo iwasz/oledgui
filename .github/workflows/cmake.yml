@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     paths-ignore:
-      - "doc"
+      - "doc/**"
 
   pull_request:
     branches: ["main"]
@@ -68,4 +68,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: Update benchmark data and plots
-          file_pattern: doc/*
+          file_pattern: doc/**
