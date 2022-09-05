@@ -36,37 +36,37 @@ jobs:
         run: |
           cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
           /usr/bin/time -f%U -o release.compilation.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
-          perf stat --no-big-num -e instructions ./benchmark 2>&1 | grep instructions | awk -- '{ print $1; }' > release.real.time
+          perf stat --no-big-num -e instructions ./benchmark 2>&1 | grep instructions
 
-      - name: Build minSizeRel
-        run: |
-          cmake -B ${{github.workspace}}/build/minSizeRel -DCMAKE_BUILD_TYPE=MinSizeRel -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
-          /usr/bin/time -f%U -o minSizeRel.compilation.time cmake --build ${{github.workspace}}/build/minSizeRel --config MinSizeRel --target benchmark
-          perf stat --no-big-num -e instructions ./benchmark 2>&1 | grep instructions | awk -- '{ print $1; }' > minSizeRel.real.time
+      # - name: Build minSizeRel
+      #   run: |
+      #     cmake -B ${{github.workspace}}/build/minSizeRel -DCMAKE_BUILD_TYPE=MinSizeRel -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
+      #     /usr/bin/time -f%U -o minSizeRel.compilation.time cmake --build ${{github.workspace}}/build/minSizeRel --config MinSizeRel --target benchmark
+      #     perf stat --no-big-num -e instructions ./benchmark 2>&1 | grep instructions | awk -- '{ print $1; }' > minSizeRel.real.time
 
-      - name: Test
-        run: |
-          echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
-          echo -n $(cat release.compilation.time) >> $OUT
-          echo -n "," >> $OUT
-          echo -n $(size ${{github.workspace}}/build/minSizeRel/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
-          echo -n $(cat minSizeRel.compilation.time) >> $OUT
-          echo -n "," >> $OUT
-          echo -n $(date '+%s') >> $OUT
-          echo -n "," >> $OUT
-          echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> $OUT
-          echo -n "," >> $OUT
-          echo -n $GITHUB_SHA >> $OUT
-          echo -n ",$(cat release.real.time),$(cat minSizeRel.real.time)" >> $OUT
-          echo >> $OUT
+      # - name: Test
+      #   run: |
+      #     echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
+      #     echo -n $(cat release.compilation.time) >> $OUT
+      #     echo -n "," >> $OUT
+      #     echo -n $(size ${{github.workspace}}/build/minSizeRel/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
+      #     echo -n $(cat minSizeRel.compilation.time) >> $OUT
+      #     echo -n "," >> $OUT
+      #     echo -n $(date '+%s') >> $OUT
+      #     echo -n "," >> $OUT
+      #     echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> $OUT
+      #     echo -n "," >> $OUT
+      #     echo -n $GITHUB_SHA >> $OUT
+      #     echo -n ",$(cat release.real.time),$(cat minSizeRel.real.time)" >> $OUT
+      #     echo >> $OUT
 
-      - name: Plot
-        working-directory: doc
-        run: |
-          gnuplot -p binarySize.gnuplot
+      # - name: Plot
+      #   working-directory: doc
+      #   run: |
+      #     gnuplot -p binarySize.gnuplot
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: Update benchmark data and plots
-          # The path below has to be *exactly* the same as in paths-ignore
-          file_pattern: doc/**
+      # - uses: stefanzweifel/git-auto-commit-action@v4
+      #   with:
+      #     commit_message: Update benchmark data and plots
+      #     # The path below has to be *exactly* the same as in paths-ignore
+      #     file_pattern: doc/**
