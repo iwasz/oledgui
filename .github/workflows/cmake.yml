@@ -30,7 +30,7 @@ jobs:
           token: ${{ secrets.PAT }}
 
       - run: sudo apt update
-      - run: sudo apt install -yqq g++-12 cmake ninja-build time gnuplot-data linux-tools-common
+      - run: sudo apt install -yqq g++-12 cmake ninja-build time gnuplot linux-tools-common
 
       - name: Build release
         run: |
