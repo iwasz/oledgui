@@ -1,3 +1,4 @@
 Release text,Release data,Release bss,Release total,Release compile time,MinSizeRel text,MinSizeRel data,MinSizeRel bss,MinSizeRel total,MinSizeRel compile time,GCC version,Date,Commit hash,Release real,MinSizeRel real
 94135,1704,16,95855,9.51,56558,1712,16,58286,7.24,1662377361,12.0.1,7f860865cac700c0c048a8959efdd0a578cf2985,9.51,7.24
 94135,1704,16,95855,10.07,56558,1712,16,58286,7.84,1662377569,12.0.1,fd578b43f8950ff87f0c68d450de5b45da38aff6,10.07,7.84
+94135,1704,16,95855,12.24,56558,1712,16,58286,9.39,1662382465,12.0.1,69b0e3a84694b825505c0e762475fb9e580f878f,12.24,9.39
