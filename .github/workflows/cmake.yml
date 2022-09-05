@@ -57,7 +57,7 @@ jobs:
           echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> $OUT
           echo -n "," >> $OUT
           echo -n $GITHUB_SHA >> $OUT
-          echo -n ",$(cat release.compilation.time),$(cat minSizeRel.compilation.time)" >> $OUT
+          echo -n ",$(cat release.real.time),$(cat minSizeRel.real.time)" >> $OUT
           echo >> $OUT
 
       - name: Plot
