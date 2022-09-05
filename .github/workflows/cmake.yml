@@ -58,10 +58,12 @@ jobs:
           echo -n $GITHUB_SHA >> $OUT
           echo -n ",$(cat release.compilation.time),$(cat minSizeRel.compilation.time)" >> $OUT
           echo >> $OUT
-          cat $OUT
 
       - name: Plot
         working-directory: doc
         run: |
           gnuplot -p binarySize.gnuplot
-          ls -l binarySize.png
+
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Update benchmark data and plots
