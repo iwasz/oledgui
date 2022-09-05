@@ -1,5 +1,8 @@
 Experimental C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
 
+
+![Benchmarks](https://github.com/iwasz/oledgui/actions/workflows/cmake.yml/badge.svg)
+
 ![Demo](doc/demo.gif)
 ![Demo2](doc/demo2.gif)
 

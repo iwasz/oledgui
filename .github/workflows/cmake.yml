@@ -15,6 +15,7 @@ env:
   CXX: /usr/bin/g++-12
 
   OUT: doc/benchmark.csv
+  TERM: xterm
 
 jobs:
   build:
