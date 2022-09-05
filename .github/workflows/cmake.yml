@@ -14,6 +14,8 @@ env:
   CC: /usr/bin/gcc-12
   CXX: /usr/bin/g++-12
 
+  OUT: doc/benchmark.csv
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -23,9 +25,10 @@ jobs:
 
       - run: sudo apt update
       # - run: sudo apt search ninja
-      - run: sudo apt install -yqq g++-12 cmake ninja-build time
+      - run: sudo apt install -yqq g++-12 cmake ninja-build time gnuplot
       # - run: find /usr -name 'g++-*'
       # - run: $CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+'
+      # - run: gnuplot
 
       - name: Build release
         run: |
@@ -39,16 +42,21 @@ jobs:
 
       - name: Test
         run: |
-          echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> doc/benchmark.csv
-          echo -n $(cat release.time) >> doc/benchmark.csv
-          echo -n "," >> doc/benchmark.csv
-          echo -n $(size ${{github.workspace}}/build/minSizeRel/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> doc/benchmark.csv
-          echo -n $(cat minSizeRel.time) >> doc/benchmark.csv
-          echo -n "," >> doc/benchmark.csv
-          echo -n $(date) >> doc/benchmark.csv
-          echo -n "," >> doc/benchmark.csv
-          echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> doc/benchmark.csv
-          echo -n "," >> doc/benchmark.csv
-          echo -n $GITHUB_SHA >> doc/benchmark.csv
-          echo >> doc/benchmark.csv
-          cat doc/benchmark.csv
+          echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
+          echo -n $(cat release.time) >> $OUT
+          echo -n "," >> $OUT
+          echo -n $(size ${{github.workspace}}/build/minSizeRel/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
+          echo -n $(cat minSizeRel.time) >> $OUT
+          echo -n "," >> $OUT
+          echo -n $(date '+%s') >> $OUT
+          echo -n "," >> $OUT
+          echo -n $($CC --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+') >> $OUT
+          echo -n "," >> $OUT
+          echo -n $GITHUB_SHA >> $OUT
+          echo >> $OUT
+
+      - name: Plot
+        working-directory: doc
+        run: |
+          gnuplot -p binarySize.gnuplot
+          ls -l binarySize.png
