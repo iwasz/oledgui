@@ -1,4 +1,4 @@
-Experimental, C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
+Experimental C++20 GUI library for small displays with 3 button input. Developed with microcontrollers in mind. 
 
 ![Demo](doc/demo.gif)
 ![Demo2](doc/demo2.gif)
@@ -98,8 +98,17 @@ aaa
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 
+# Benchmarks
+[CSV with the results](doc/benchmark.csv)
 
+Binary size:
+![Binary size](doc/binarySize.png)
 
+Compilation time:
+![Compilation time](doc/compilationTime.png)
+
+Real runtime:
+![Real runtime](doc/realTime.png)
 
 # Documentation TODO:
 * When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.

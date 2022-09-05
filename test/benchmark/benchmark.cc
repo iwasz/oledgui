@@ -15,7 +15,7 @@
 using namespace og;
 using namespace std::string_view_literals;
 
-enum class Windows { menu, allFeatures, dialog };
+enum class Windows { menu, allFeatures, dialog, textBox };
 
 /****************************************************************************/
 
@@ -73,20 +73,46 @@ int main ()
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
         // log (dialog);
 
+        /*--------------------------------------------------------------------------*/
+
+        std::string buff{R"(The
+class
+template
+basic_string_view describes an object that can refer to a constant contiguous sequence of
+char-like
+objects
+with
+the first element of the sequence at position zero.)"};
+        // std::string buff{"aaa"};
+
+        auto txt = text<17, 6> (std::ref (buff));
+        LineOffset startLine{};
+        auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
+        auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<4>, std::ref (dwn)));
+
+        auto textReferences = window<0, 0, 18, 7> (vbox (std::ref (backButton), std::ref (txtComp)));
+
+        /*--------------------------------------------------------------------------*/
+
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
                                                button ("input API  "sv, [&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }),
-                                               button ("text widget"sv, [&mySuiteP] { mySuiteP->current () = Windows::dialog; })));
+                                               button ("text widget"sv, [&mySuiteP] { mySuiteP->current () = Windows::textBox; })));
 
-        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),                            //
-                                       element (Windows::allFeatures, std::ref (allFeatures)),              //
-                                       element (Windows::dialog, std::ref (allFeatures), std::ref (dialog)) //
+        auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
+                                       element (Windows::allFeatures, std::ref (allFeatures)), //
+                                       element (Windows::dialog, std::ref (allFeatures), std::ref (dialog)),
+                                       element (Windows::textBox, std::ref (textReferences)) //
         );
 
         mySuiteP = &mySuite;
 
-        while (true) {
+        for (int i = 0; i < 50000; ++i) {
                 draw (d1, mySuite);
-                input (d1, mySuite, getKey ());
+                input (d1, mySuite, Key::select);
+
+                draw (d1, mySuite);
+                input (d1, mySuite, Key::incrementFocus);
         }
 
         return 0;
