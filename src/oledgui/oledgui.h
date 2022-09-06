@@ -9,6 +9,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -157,6 +158,87 @@ template <typename... T> struct First {
 
 template <typename... T> using First_t = typename First<T...>::type;
 
+// Helpers, utilities
+namespace detail {
+
+        // Converts a given integer x to string str[].
+        // d is the number of digits required in the output.
+        // If d is more than the number of digits in x,
+        // then 0s are added at the beginning.
+        // Taken from https://www.geeksforgeeks.org/convert-floating-point-number-string/
+        template <std::integral Int, std::output_iterator<char> Iter> // TODO concept
+        int itoa (Int num, Iter iter, int digits)
+        {
+                Iter start = iter;
+                while (num) {
+                        *iter++ = (num % 10) + '0';
+                        num = num / 10;
+                }
+
+                // If number of digits required is more, then
+                // add 0s at the beginning
+                while (std::distance (start, iter) < digits) {
+                        *iter++ = '0';
+                }
+
+                std::reverse (start, iter);
+                *iter++ = '\0';
+                return std::distance (start, iter) - 1;
+        }
+
+        template <typename String>
+        concept out_string = requires (String str)
+        {
+                {
+                        str.begin ()
+                        } -> std::output_iterator<char>;
+        };
+
+        template <std::integral Int, out_string String> // TODO concept
+        int itoa (Int num, String &str, int digits = -1)
+        {
+                return itoa (num, str.begin (), digits);
+        }
+
+        template <std::integral Int> Int pow (Int value, int exp)
+        {
+                for (int i = 1; i < exp; ++i) {
+                        value *= value;
+                }
+
+                return value;
+        }
+
+        // Converts a floating-point/double number to a string.
+        template <std::floating_point Float, out_string String> void ftoa (Float n, String &res, int afterpoint)
+        {
+                // Extract integer part
+                int ipart = n;
+
+                // Extract floating part
+                Float fpart = n - (float)ipart;
+
+                // convert integer part to string
+                int i = itoa (ipart, res, 0);
+
+                // check for display option after point
+                if (afterpoint != 0) {
+                        res[i] = '.'; // add dot
+
+                        // Get the value of fraction part upto given no.
+                        // of points after dot. The third parameter
+                        // is needed to handle cases like 233.007
+                        fpart = std::round (fpart * float (pow (10, afterpoint)));
+
+                        itoa (static_cast<int> (fpart), std::next (res.begin (), i + 1), afterpoint);
+                }
+        }
+
+} // namespace detail
+
+/**
+ * Display interface
+ */
 struct IDisplay {
         IDisplay () = default;
         IDisplay (IDisplay const &) = default;
@@ -1129,15 +1211,15 @@ public:
                 if constexpr (frame) {
                         detail::print (disp, "┌"sv); // TODO characters customizable
                         disp.cursor () += {1, 0};
-                        detail::line (disp, width - F::cut);
+                        detail::line (disp, width - FrameHelper::cut);
                         detail::print (disp, "┐"sv);
 
-                        for (int i = 0; i < height - F::cut; ++i) {
+                        for (int i = 0; i < height - FrameHelper::cut; ++i) {
                                 disp.cursor ().x () = ox;
                                 disp.cursor () += {0, 1};
                                 detail::print (disp, "│"sv);
                                 disp.cursor () += {1, 0};
-                                detail::line (disp, width - F::cut, " "sv);
+                                detail::line (disp, width - FrameHelper::cut, " "sv);
                                 detail::print (disp, "│"sv);
                         }
 
@@ -1145,10 +1227,10 @@ public:
                         disp.cursor () += {0, 1};
                         detail::print (disp, "└"sv);
                         disp.cursor () += {1, 0};
-                        detail::line (disp, width - F::cut);
+                        detail::line (disp, width - FrameHelper::cut);
                         detail::print (disp, "┘"sv);
 
-                        disp.cursor () = {ox + F::offset, oy + F::offset};
+                        disp.cursor () = {ox + FrameHelper::offset, oy + FrameHelper::offset};
                 }
 
                 return Visibility::visible;
@@ -1163,7 +1245,7 @@ public:
         static constexpr Dimension height = heightV; // Dimensions in characters
         static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
 
-        using F = detail::FrameHelper<frame>;
+        using FrameHelper = detail::FrameHelper<frame>;
 
 private:
         ChildT child_;
@@ -1539,8 +1621,8 @@ namespace detail {
                                 }
                         }
 
-                        mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
-                                                {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+                        mutable Context context{/* nullptr, */ {Wrapped::x + FrameHelper::offset, Wrapped::y + FrameHelper::offset},
+                                                {Wrapped::width - FrameHelper::cut, Wrapped::height - FrameHelper::cut}};
 
                 private:
                         template <typename X> friend void log (X const &, int);
@@ -1549,9 +1631,7 @@ namespace detail {
                         T widget;
                         std::tuple<Child> children;
                         friend ContainerWidget<Window, NoDecoration>;
-                        using F = typename Wrapped::F;
-                        // mutable Context context{/* nullptr, */ {Wrapped::x + F::offset, Wrapped::y + F::offset},
-                        //                         {Wrapped::width - F::cut, Wrapped::height - F::cut}};
+                        using FrameHelper = typename Wrapped::FrameHelper;
 
                         using BaseClass = ContainerWidget<Window<T, Child>, NoDecoration>;
                         using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();

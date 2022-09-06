@@ -23,8 +23,16 @@ target_link_libraries("demo" ncursesw)
 
 add_executable("terminal" test/component/terminal.cc )
 
-add_executable("test" test/unit/test.cc)
-target_link_libraries("test" ncursesw)
+find_package(Catch2 2 REQUIRED)
+add_executable("unitTest" 
+    test/unit/test.cc
+    test/unit/catch2Main.cc
+)
+target_link_libraries("unitTest" ncursesw Catch2::Catch2)
+include(CTest)
+include(Catch)
+catch_discover_tests("unitTest")
+
 
 add_executable("benchmark" test/benchmark/benchmark.cc)
 target_link_libraries("benchmark" ncursesw)
