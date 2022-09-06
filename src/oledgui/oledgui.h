@@ -992,7 +992,7 @@ namespace detail {
 
                 static void after (auto &display, Context const &ctx, Point const &layoutOrigin)
                 {
-                        display.cursor ().y () = std::max (layoutOrigin.y () - ctx.currentScroll, 0);
+                        display.cursor ().y () = std::max (ctx.origin.y () + layoutOrigin.y () - ctx.currentScroll, 0);
                 }
                 static constexpr Dimension getWidthIncrement (Dimension disp) { return disp; }
                 static constexpr Dimension getHeightIncrement (Dimension /* d */) { return 0; }
