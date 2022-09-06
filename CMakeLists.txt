@@ -15,6 +15,7 @@ add_executable("regression"
     test/regression/textWidget.cc
     test/regression/cellPhone.cc
     test/regression/layout.cc
+    test/regression/number.cc
 )
 target_link_libraries("regression" ncursesw)
 

@@ -12,6 +12,7 @@
 #include "cellPhone.h"
 #include "inputApi.h"
 #include "layout.h"
+#include "number.h"
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
 #include "textWidget.h"
@@ -19,7 +20,7 @@
 using namespace og;
 using namespace std::string_view_literals;
 
-enum class Windows { menu, allFeatures, dialog, cellPhone, layouts };
+enum class Windows { menu, allFeatures, dialog, cellPhone, layouts, number };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
@@ -33,13 +34,16 @@ int main ()
                                                button ("input API  "sv, [] { mySuiteP->current () = Windows::allFeatures; }),
                                                button ("text widget"sv, [] { mySuiteP->current () = Windows::dialog; }),
                                                button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; }),
-                                               button ("Layouts    "sv, [] { mySuiteP->current () = Windows::layouts; })));
+                                               button ("Layouts    "sv, [] { mySuiteP->current () = Windows::layouts; }), //
+                                               button ("Numbers    "sv, [] { mySuiteP->current () = Windows::number; })   //
+                                               ));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
                                        element (Windows::allFeatures, std::ref (inputApi ())), //
                                        element (Windows::dialog, std::ref (textWidget ())),    //
                                        element (Windows::cellPhone, std::ref (cellPhone ())),  //
-                                       element (Windows::layouts, std::ref (layout ())));
+                                       element (Windows::layouts, std::ref (layout ())),       //
+                                       element (Windows::number, std::ref (number ())));
         mySuiteP = &mySuite;
 
         while (true) {

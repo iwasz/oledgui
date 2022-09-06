@@ -170,7 +170,7 @@ namespace detail {
         int itoa (Int num, Iter iter, int digits)
         {
                 Iter start = iter;
-                while (num) {
+                while (num) { // Does not work when num == 0 and digits == 0
                         *iter++ = (num % 10) + '0';
                         num = num / 10;
                 }
@@ -195,7 +195,7 @@ namespace detail {
         };
 
         template <std::integral Int, out_string String> // TODO concept
-        int itoa (Int num, String &str, int digits = -1)
+        int itoa (Int num, String &str, int digits = 1)
         {
                 return itoa (num, str.begin (), digits);
         }
@@ -950,6 +950,89 @@ requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> 
 
         return Combo<Callback, ValueContainer, canFocusV, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
                                                                              Options (std::forward<Opts> (opts)...));
+}
+
+/****************************************************************************/
+/* Number                                                                   */
+/****************************************************************************/
+
+/**
+ * Displays and edits an integer number.
+ */
+template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+requires std::integral<typename std::remove_reference_t<ValueT>> && //
+        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+class Number {
+public:
+        static constexpr CanFocus canFocus = canFocusV;
+        static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
+        using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
+
+        constexpr Number (Callback clb, ValueT const &cid) : valueContainer (cid), callback{std::move (clb)} {}
+
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
+        template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);
+
+        Value &value () { return valueContainer; }
+        Value const &value () const { return valueContainer; }
+
+private:
+        ValueT valueContainer; // Can be int, can be int &. Or any other std::integral and its reference
+        using Buffer = std::array<char, 4>;
+        // std::array<char, std::numeric_limits<Value>::max_digits10 + 1> buffer{}; // Big enough to store all the digits + '\0'
+        mutable Buffer buffer{}; // Big enough to store all the digits + '\0'
+        Callback callback;
+};
+
+/*--------------------------------------------------------------------------*/
+
+template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+requires std::integral<typename std::remove_reference_t<ValueT>> && //
+        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto &disp, Context const &ctx) const
+{
+
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.color (2);
+                }
+        }
+
+        Buffer::size_type digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
+        detail::print (disp, std::string_view{buffer.cbegin (), digits});
+
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.color (1);
+                }
+        }
+
+        disp.cursor () += {Coordinate (digits), 0};
+        return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+requires std::integral<typename std::remove_reference_t<ValueT>> && //
+        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto &disp, Context const &ctx, Key key)
+{
+        if constexpr (canFocusV == CanFocus::yes) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
+                        ++value ();
+                        callback (value ());
+                }
+        }
+}
+
+template <typename Callback, typename ValueT>
+requires std::integral<typename std::remove_reference_t<ValueT>> && //
+        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+auto number (Callback &&clb, ValueT &&val)
+{
+        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, 0, 9, 1, CanFocus::yes>{std::forward<Callback> (clb),
+                                                                                                                  std::forward<ValueT> (val)};
 }
 
 /****************************************************************************/
