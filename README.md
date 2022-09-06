@@ -78,11 +78,11 @@ aaa
   * [x] Ncurses
   * [ ] Arduino
 * [ ] Colors are (at least for now) represented as simple integers. Color 1 == normal, Color 2 == highlighted / special. Rename color to Style, make 2 styles : regular, highlighted
-* [ ] Prepare for compile time optimization
-  * [ ] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
-    * [ ] Debug, release and -OS targets
-  * [ ] Benchmark compilation size.
-  * [ ] Benchmark cpu?
+* [x] Prepare for compile time optimization
+  * [x] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
+    * [x] Debug, release and -OS targets
+  * [x] Benchmark compilation size.
+  * [x] Benchmark cpu?
 * [x] Have short think if, and remove the child field (and API) from Display* classes.
   * [x] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
     * [ ] Then check if og::detail::augment::Window and og::Suite can inherit common interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
@@ -104,10 +104,10 @@ aaa
 # Benchmarks
 [CSV with the results](doc/benchmark.csv). You can see the workflow file [here](.github/workflows/cmake.yml). It compiles the `benchmark` target using GCC-12 (actual version is saved to the [doc/benchmark.csv](doc/benchmark.csv)). The target is configured first with `Release` build type which forces `-O2`. Binary size is obtained using the `size` command, and total reading is plotted on the picture below. Compilation time is taken using the `time -f%U ...` command (installed in additional step. Built-in `time` command takes no arguments. Explanation : `%e` gives the real time which can vary from run to run based on the system load. `%U` on the other hand gives only the "CPU seconds" spent in user mode. Probably `%S + %U` would be even better, but summing it together is too much work… EDIT : there are noticeable fluctuations even when binary was not changed. I don't know how to overcome this). Eventually the `valgrind --tool=callgrind` command is applied on the binary itself (10 key presses are simulated). Finally everything repeats for the `MinSizeRel` build type. As for the GitHub action itself, it proved to be ridiculously tedious to configure. An [ACT](https://github.com/nektos/act) tool was very helpful.
 
-Binary size:
+Binary size (x86-64):
 ![Binary size](doc/binarySize.png)
 
-Compilation time:
+Compilation time (not very accurate):
 ![Compilation time](doc/compilationTime.png)
 
 Real runtime:
