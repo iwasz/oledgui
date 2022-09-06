@@ -12,11 +12,11 @@ set xdata time # tells gnuplot the x axis is time data
 set timefmt "%s" # specify our time string format
 set format x "%m/%d/%Y"
 
-set style line 101 lw 1 lt rgb "#0b3954" # style for targetValue (1) (pink)
-set style line 102 lw 1 lt rgb "#61e8e1" # style for measuredValue (2) (light blue)
-set style line 103 lw 1 lt rgb "#ff6663" # style for secondYAxisValue (3) (limegreen)
-set style line 104 lw 1 lt rgb "#e0ff4f" # style for secondYAxisValue (3) (limegreen)
-set style line 105 lw 1 lt rgb "#a288e3" # style for secondYAxisValue (3) (limegreen)
+set style line 101 lw 2 lt rgb "#0b3954" # style for targetValue (1) (pink)
+set style line 102 lw 2 lt rgb "#61e8e1" # style for measuredValue (2) (light blue)
+set style line 103 lw 2 lt rgb "#ff6663" # style for secondYAxisValue (3) (limegreen)
+set style line 104 lw 2 lt rgb "#e0ff4f" # style for secondYAxisValue (3) (limegreen)
+set style line 105 lw 2 lt rgb "#a288e3" # style for secondYAxisValue (3) (limegreen)
 
 set xtics rotate # rotate labels on the x axis
 set key right center # legend placement
