@@ -67,16 +67,61 @@ TEST_CASE ("Numeric to string conversion", "[detail]")
 
         SECTION ("Integers")
         {
-                REQUIRE (detail::itoa (42, buf) == 2);
-                REQUIRE (std::string_view{buf.begin (), 2} == "42"sv);
+                REQUIRE (detail::itoa (0U, buf) == 1);
+                REQUIRE (std::string_view{buf.begin (), 1} == "0"sv);
 
-                REQUIRE (detail::itoa (10, buf, 3) == 3);
+                REQUIRE (detail::itoa (42U, buf) == 2);
+                REQUIRE (std::string_view{buf.begin (), 2} == "42"sv);
+        }
+
+        SECTION ("Integers padding")
+        {
+                REQUIRE (detail::itoa (0U, buf, 3) == 3);
+                REQUIRE (std::string_view{buf.begin (), 3} == "000"sv);
+
+                REQUIRE (detail::itoa (10U, buf, 3) == 3);
                 REQUIRE (std::string_view{buf.begin (), 3} == "010"sv);
+
+                REQUIRE (detail::itoa (10U, buf, 5) == 5);
+                REQUIRE (std::string_view{buf.begin (), 5} == "00010"sv);
+        }
+
+        SECTION ("Signed integers")
+        {
+                REQUIRE (detail::itoa (0, buf) == 1);
+                REQUIRE (std::string_view{buf.begin (), 1} == "0"sv);
+
+                REQUIRE (detail::itoa (-1, buf) == 2);
+                REQUIRE (std::string_view{buf.begin (), 2} == "-1"sv);
+
+                REQUIRE (detail::itoa (-42, buf) == 3);
+                REQUIRE (std::string_view{buf.begin (), 3} == "-42"sv);
+
+                REQUIRE (detail::itoa (-30000, buf) == 6);
+                REQUIRE (std::string_view{buf.begin (), 6} == "-30000"sv);
+        }
+
+        SECTION ("Signed integers padding")
+        {
+                REQUIRE (detail::itoa (0, buf, 3) == 3);
+                REQUIRE (std::string_view{buf.begin (), 3} == "000"sv);
+
+                REQUIRE (detail::itoa (-1, buf, 3) == 4);
+                REQUIRE (std::string_view{buf.begin (), 4} == "-001"sv);
+
+                REQUIRE (detail::itoa (-42, buf, 4) == 5);
+                REQUIRE (std::string_view{buf.begin (), 5} == "-0042"sv);
+
+                REQUIRE (detail::itoa (-30000, buf, 6) == 7);
+                REQUIRE (std::string_view{buf.begin (), 7} == "-030000"sv);
         }
 
         SECTION ("Floats")
         {
                 detail::ftoa (42.1F, buf, 1);
                 REQUIRE (std::string_view{buf.begin (), 4} == "42.1"sv);
+
+                detail::ftoa (42.4242, buf, 4);
+                REQUIRE (std::string_view{buf.begin (), 7} == "42.4242"sv);
         }
 }

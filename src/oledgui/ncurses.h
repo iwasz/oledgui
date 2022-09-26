@@ -27,7 +27,7 @@ public:
         NcursesDisplay &operator= (NcursesDisplay const &) = default;
         NcursesDisplay (NcursesDisplay &&) noexcept = default;
         NcursesDisplay &operator= (NcursesDisplay &&) noexcept = default;
-        virtual ~NcursesDisplay () noexcept
+        ~NcursesDisplay () noexcept override
         {
                 clrtoeol ();
                 refresh ();
@@ -97,6 +97,8 @@ inline og::Key getKey (int chr)
                 return Key::unknown;
         }
 }
+
+/****************************************************************************/
 
 inline og::Key getKey () { return getKey (getch ()); }
 

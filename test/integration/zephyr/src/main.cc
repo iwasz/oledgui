@@ -146,7 +146,7 @@ the first element of the sequence at position zero.)"};
         auto dwn = button ("v"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
         auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<5>, std::ref (dwn)));
 
-        auto chk = check (" 1 "sv);
+        auto chk = check ([] (bool) {}, " 1 "sv);
 
         auto grp = group ([] (auto o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv), radio (1, " C "sv),
                           radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
@@ -163,7 +163,7 @@ the first element of the sequence at position zero.)"};
         /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (" 15 "sv));
+                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (true, " 15 "sv));
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 

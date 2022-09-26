@@ -13,33 +13,24 @@
 #include <zephyr/display/cfb.h>
 #include <zephyr/zephyr.h>
 
-#define debugMacro printk
+// #define debugMacro printk
 
 namespace og::zephyr::cfb {
 
 /**
- * Ncurses backend.
+ * Zephyr backend
  * TODO make character width and height customizable (template param)
  * TODO optimize this "old-school" font because now there are 2 pixel vertical spaces between the glyphs.
  */
-template <Dimension widthV, Dimension heightV, typename Child = Empty>
-class Display : public og::Display<Display<widthV, heightV, Child>, widthV, heightV, Child> {
+template <Dimension widthV, Dimension heightV> class Display : public AbstractDisplay<Display<widthV, heightV>, widthV, heightV> {
 public:
-        using Base = og::Display<Display<widthV, heightV, Child>, widthV, heightV, Child>;
+        using Base = og::AbstractDisplay<Display<widthV, heightV>, widthV, heightV>;
         using Base::cursor;
         using Base::width, Base::height;
 
-        Display (device const *disp, Child c = {});
+        Display (device const *disp);
 
-        template <typename String>
-        requires requires (String s)
-        {
-                {
-                        s.data ()
-                        } -> std::convertible_to<const char *>;
-        }
-
-        void print (String const &str)
+        void print (std::span<const char> const &str) override
         {
                 if (cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7, cursor ().y () * 8)
                     != 0) {
@@ -51,12 +42,9 @@ public:
                                 printk ("Could not invert (err %d)\n", err);
                         }
                 }
-
-                // printk ("print (%s), %d,%d\r\n", const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7,
-                //         cursor ().y () * 8);
         }
 
-        void clear ()
+        void clear () override
         {
                 if (int err = cfb_framebuffer_clear (display, true); err) {
                         printk ("Could not clear framebuffer (err %d)\n", err);
@@ -67,13 +55,13 @@ public:
                 // printk ("clear\r\n");
         }
 
-        void color (Color color)
+        void color (Color color) override
         {
                 color_ = color;
                 // printk ("color %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
         }
 
-        void refresh ()
+        void refresh () override
         {
                 if (int err = cfb_framebuffer_finalize (display); err) {
                         printk ("Could not finalize framebuffer (err %d)\n", err);
@@ -82,13 +70,13 @@ public:
         }
 
 private:
-        using Base::child;
         device const *display{};
         Color color_{};
 };
 
-template <Dimension widthV, Dimension heightV, typename Child>
-Display<widthV, heightV, Child>::Display (device const *disp, Child c) : Base (c), display{disp}
+/****************************************************************************/
+
+template <Dimension widthV, Dimension heightV> Display<widthV, heightV>::Display (device const *disp) : display{disp}
 {
         if (!device_is_ready (display)) {
                 printk ("Display device not ready\n");
@@ -96,9 +84,8 @@ Display<widthV, heightV, Child>::Display (device const *disp, Child c) : Base (c
         }
 }
 
-template <Dimension widthV, Dimension heightV> auto zephyrCfb (auto &&child)
-{
-        return Display<widthV, heightV, std::remove_reference_t<decltype (child)>>{std::forward<decltype (child)> (child)};
-}
+/****************************************************************************/
+
+template <Dimension widthV, Dimension heightV> auto zephyrCfb () { return Display<widthV, heightV>{}; }
 
 } // namespace og::zephyr::cfb
