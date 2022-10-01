@@ -8,10 +8,9 @@
 
 #pragma once
 #include "oledgui.h"
-#include "sys/printk.h"
 #include <type_traits>
 #include <zephyr/display/cfb.h>
-#include <zephyr/zephyr.h>
+#include <zephyr/sys/printk.h>
 
 // #define debugMacro printk
 

@@ -100,6 +100,10 @@ aaa
 * [ ] How to improve copy/move elision?
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
+* [ ] One button only input (using short and long press). It requires cycling through focusable elements.
+  * [ ] Auto repeat on long-press in the Key class.
+* [ ] Progress bar.
+
 
 # Benchmarks
 [CSV with the results](doc/benchmark.csv). You can see the workflow file [here](.github/workflows/cmake.yml). It compiles the `benchmark` target using GCC-12 (actual version is saved to the [doc/benchmark.csv](doc/benchmark.csv)). The target is configured first with `Release` build type which forces `-O2`. Binary size is obtained using the `size` command, and total reading is plotted on the picture below. Compilation time is taken using the `time -f%U ...` command (installed in additional step. Built-in `time` command takes no arguments. Explanation : `%e` gives the real time which can vary from run to run based on the system load. `%U` on the other hand gives only the "CPU seconds" spent in user mode. Probably `%S + %U` would be even better, but summing it together is too much work… EDIT : there are noticeable fluctuations even when binary was not changed. I don't know how to overcome this). Eventually the `valgrind --tool=callgrind` command is applied on the binary itself (10 key presses are simulated). Finally everything repeats for the `MinSizeRel` build type. As for the GitHub action itself, it proved to be ridiculously tedious to configure. An [ACT](https://github.com/nektos/act) tool was very helpful.

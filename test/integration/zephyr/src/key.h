@@ -8,12 +8,13 @@
 
 #pragma once
 #include <cstddef>
-#include <drivers/gpio.h>
-#include <logging/log.h>
 #include <oledgui/zephyrCfb.h>
 #include <string_view>
 #include <type_traits>
-#include <zephyr.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/types.h>
 #include <zephyr/zephyr.h>
 

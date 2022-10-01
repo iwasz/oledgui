@@ -7,23 +7,16 @@
  ****************************************************************************/
 
 #include "cfb_font_oldschool.h"
-#include "kernel.h"
 #include "key.h"
 #include <cstddef>
-#include <device.h>
-#include <devicetree.h>
-#include <display/cfb.h>
-#include <drivers/gpio.h>
-#include <logging/log.h>
 #include <oledgui/zephyrCfb.h>
 #include <optional>
-#include <pm/pm.h>
 #include <string_view>
-#include <sys/_stdint.h>
-#include <sys/printk.h>
-#include <sys/util.h>
 #include <type_traits>
-#include <zephyr.h>
+#include <zephyr/device.h>
+#include <zephyr/display/cfb.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/types.h>
 #include <zephyr/zephyr.h>
 
