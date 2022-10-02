@@ -125,3 +125,10 @@ TEST_CASE ("Numeric to string conversion", "[detail]")
                 REQUIRE (std::string_view{buf.begin (), 7} == "42.4242"sv);
         }
 }
+
+static_assert (og::detail::IntStrLen<uint8_t>::value == 4);   // 255'\0'
+static_assert (og::detail::IntStrLen<int8_t>::value == 5);    // -128'\0'
+static_assert (og::detail::IntStrLen<uint16_t>::value == 6);  // 65536'\0'
+static_assert (og::detail::IntStrLen<int16_t>::value == 7);   // -32768'\0'
+static_assert (og::detail::IntStrLen<uint32_t>::value == 11); // 4294967296'\0'
+static_assert (og::detail::IntStrLen<int32_t>::value == 12);  // -2147483648'\0'
