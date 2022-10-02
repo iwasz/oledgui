@@ -30,12 +30,22 @@ jobs:
 
       - run: sudo apt update
       - run: sudo apt install -yqq g++-12 cmake ninja-build time gnuplot valgrind
+
+      - run: |
+          git clone https://github.com/catchorg/Catch2.git        
+          cd Catch2
+          git switch v2.x
+          cmake -B build .
+          cd build
+          make -j
+          sudo make install
+
       - name: Build release
         run: |
           cmake -B ${{github.workspace}}/build/release -DCMAKE_BUILD_TYPE=Release -G Ninja -DCMAKE_CXX_COMPILER=/usr/bin/g++-12 -DCMAKE_C_COMPILER=/usr/bin/gcc-12
           /usr/bin/time -f%U -o release.compilation.time cmake --build ${{github.workspace}}/build/release --config Release --target benchmark
           valgrind --tool=callgrind ${{github.workspace}}/build/release/benchmark &> /dev/null
-          callgrind_annotate callgrind.out.* | grep 'PROGRAM TOTALS' | cut -d' ' -f1 | sed 's/,//g'  > release.real.time
+          callgrind_annotate callgrind.out.* | grep 'PROGRAM TOTALS' | cut -d' ' -f1 | sed 's/,//g' > release.real.time
 
       - name: Build minSizeRel
         run: |
@@ -44,7 +54,7 @@ jobs:
           valgrind --tool=callgrind ${{github.workspace}}/build/minSizeRel/benchmark &> /dev/null
           callgrind_annotate callgrind.out.* | grep 'PROGRAM TOTALS' | cut -d' ' -f1 | sed 's/,//g' > minSizeRel.real.time
 
-      - name: Test
+      - name: Benchmark
         run: |
           echo -n $(size ${{github.workspace}}/build/release/benchmark | tail -n1 | awk -- 'BEGIN { FS=" "; } { print $1 "," $2 "," $3 "," $4 ","; }') >> $OUT
           echo -n $(cat release.compilation.time) >> $OUT
