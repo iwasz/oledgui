@@ -70,6 +70,11 @@ jobs:
           echo -n ",$(cat release.real.time),$(cat minSizeRel.real.time)" >> $OUT
           echo >> $OUT
 
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest
+
       - name: Plot
         working-directory: doc
         run: |

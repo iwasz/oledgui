@@ -33,7 +33,8 @@ target_link_libraries("unitTest" ncursesw Catch2::Catch2)
 include(CTest)
 include(Catch)
 catch_discover_tests("unitTest")
-
+enable_testing()
+add_test(NAME unitTest COMMAND $<TARGET_FILE:unitTest>)
 
 add_executable("benchmark" test/benchmark/benchmark.cc)
 target_link_libraries("benchmark" ncursesw)
