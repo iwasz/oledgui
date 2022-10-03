@@ -15,19 +15,19 @@
 #include "number.h"
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
+#include "progress.h"
 #include "textWidget.h"
 
 using namespace og;
 using namespace std::string_view_literals;
 
-enum class Windows { menu, allFeatures, dialog, cellPhone, layouts, number };
+enum class Windows { menu, allFeatures, dialog, cellPhone, layouts, number, progress };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
 
 int main ()
 {
-
         NcursesDisplay<18, 7> d1;
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
@@ -35,7 +35,8 @@ int main ()
                                                button ([] { mySuiteP->current () = Windows::dialog; }, "text widget"sv),
                                                button ([] { mySuiteP->current () = Windows::cellPhone; }, "cell phone "sv),
                                                button ([] { mySuiteP->current () = Windows::layouts; }, "Layouts    "sv), //
-                                               button ([] { mySuiteP->current () = Windows::number; }, "Numbers    "sv)   //
+                                               button ([] { mySuiteP->current () = Windows::number; }, "Numbers    "sv),  //
+                                               button ([] { mySuiteP->current () = Windows::progress; }, "ProgressBar"sv) //
                                                ));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
@@ -43,7 +44,8 @@ int main ()
                                        element (Windows::dialog, std::ref (textWidget ())),    //
                                        element (Windows::cellPhone, std::ref (cellPhone ())),  //
                                        element (Windows::layouts, std::ref (layout ())),       //
-                                       element (Windows::number, std::ref (number ())));
+                                       element (Windows::number, std::ref (number ())),        //
+                                       element (Windows::progress, std::ref (progress ())));
         mySuiteP = &mySuite;
 
         while (true) {
