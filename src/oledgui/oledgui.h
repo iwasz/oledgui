@@ -765,7 +765,8 @@ template <typename Wrapper> Visibility Button<String, Callback>::operator() (aut
 }
 
 // TODO switch parameters wit echa other. This is to be consistent with the resto of the API
-template <typename String, typename Callback> auto button (String &&str, Callback &&clb)
+template <typename String, typename Callback> auto button (Callback &&clb, String &&str)
+// requires std::invocable <Callback>
 {
         return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }

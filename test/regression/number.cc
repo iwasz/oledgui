@@ -25,12 +25,12 @@ std::string cboLabel = "-";
 std::string buttonLabel = "-";
 int buttonCnt{};
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }),                          //
+auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),                          //
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::menu, //
                                               item (Windows::integer, "Simple integer"sv)                 //
                                               )));
 
-auto backButton = button ("[back]"sv, [] { mySuite->current () = Windows::menu; });
+auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
 
 uint8_t sharedVal{};
 

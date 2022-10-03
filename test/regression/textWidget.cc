@@ -20,14 +20,14 @@ ISuite<Windows> *mySuite{};
 
 /*--------------------------------------------------------------------------*/
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, mainMenu), //
-        button ("Text widget"sv, [] {mySuite->current () = Windows::textReferences; }), //
-        button ("Composite"sv, [] { mySuite->current () = Windows::compositeTextWidget; })/*,
+auto menu = window<0, 0, 18, 7> (vbox (button (mainMenu, "[back]"sv), //
+        button ( [] { mySuite->current () = Windows::textReferences; }, "Text widget"sv), //
+        button ( [] { mySuite->current () = Windows::compositeTextWidget; }, "Composite"sv)/*,
                                        button ("Combo API"sv, [] { mySuite->current () = Windows::dataReferencesCombo; }),
                                        button ("Combo enum"sv, [] { mySuite->current () = Windows::dataReferencesComboEnum; }),
                                        button ("Radio API"sv, [] { mySuite->current () = Windows::dataReferencesRadio; })*/) );
 
-auto backButton = button ("[back]"sv, [] { mySuite->current () = Windows::menu; });
+auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
 
 /*--------------------------------------------------------------------------*/
 
@@ -43,8 +43,8 @@ the first element of the sequence at position zero.)"};
 
 auto txt = text<17, 6> (std::ref (buff));
 LineOffset startLine{};
-auto up = button ("▲"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (--startLine); });
-auto dwn = button ("▼"sv, [/* &txt, &startLine */] { startLine = txt.setStartLine (++startLine); });
+auto up = button ([/* &txt, &startLine */] { startLine = txt.setStartLine (--startLine); }, "▲"sv);
+auto dwn = button ([/* &txt, &startLine */] { startLine = txt.setStartLine (++startLine); }, "▼"sv);
 auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<4>, std::ref (dwn)));
 
 auto textReferences = window<0, 0, 18, 7> (vbox (std::ref (backButton), std::ref (txtComp)));
@@ -97,7 +97,7 @@ namespace {
 auto lll = [y = Y{}] () mutable { return [x = X{&y}] () mutable { x.runX (); }; };
 
 auto lll2 = [txt = text<17, 6> (std::ref (buff)), startLine = LineOffset{}] () mutable {
-        return [up = button ("▲"sv, [&txt, &startLine] () { startLine = txt.setStartLine (--startLine); })] () mutable {
+        return [up = button ([&txt, &startLine] () { startLine = txt.setStartLine (--startLine); }, "▲"sv)] () mutable {
 
         };
 };
@@ -241,8 +241,8 @@ public:
               startLine{},
               textWidget{text<width - 1, height> (std::ref (buf_))},
               textBoxBody{hbox (std::ref (textWidget),
-                                vbox<1> (button ("▲"sv, UpCallback{startLine, textWidget}), vspace<height - 2>,
-                                         button ("▲"sv, DnCallback{startLine, textWidget})))}
+                                vbox<1> (button (UpCallback{startLine, textWidget}, "▲"sv), vspace<height - 2>,
+                                         button (DnCallback{startLine, textWidget}, "▲"sv)))}
         {
         }
 
@@ -289,8 +289,8 @@ private:
         /*--------------------------------------------------------------------------*/
 
         using TextBoxBody = decltype (hbox (std::ref (textWidget),
-                                            vbox<1> (button ("▲"sv, UpCallback{startLine, textWidget}), vspace<height - 2>,
-                                                     button ("▼"sv, DnCallback{startLine, textWidget}))));
+                                            vbox<1> (button (UpCallback{startLine, textWidget}, "▲"sv), vspace<height - 2>,
+                                                     button (DnCallback{startLine, textWidget}, "▼"sv))));
 
         TextBoxBody textBoxBody;
 

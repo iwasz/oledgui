@@ -22,7 +22,7 @@ target_link_libraries("regression" ncursesw)
 add_executable("demo" test/demo/demo.cc )
 target_link_libraries("demo" ncursesw)
 
-add_executable("terminal" test/component/terminal.cc )
+# add_executable("terminal" test/component/terminal.cc )
 
 find_package(Catch2 2 REQUIRED)
 add_executable("unitTest" 
@@ -30,9 +30,9 @@ add_executable("unitTest"
     test/unit/catch2Main.cc
 )
 target_link_libraries("unitTest" ncursesw Catch2::Catch2)
-include(CTest)
-include(Catch)
-catch_discover_tests("unitTest")
+# include(CTest)
+# include(Catch)
+# catch_discover_tests("unitTest")
 enable_testing()
 add_test(NAME unitTest COMMAND $<TARGET_FILE:unitTest>)
 

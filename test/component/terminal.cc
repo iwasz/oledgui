@@ -124,11 +124,11 @@ int test2 ()
 
         auto txt = text<17, 5> (std::ref (buff));
         LineOffset startLine{};
-        auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto up = button ([&txt, &startLine] { startLine = txt.setStartLine (--startLine); }, "▲"sv);
+        auto dwn = button ([&txt, &startLine] { startLine = txt.setStartLine (++startLine); }, "▼"sv);
         auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<3>, std::ref (dwn)));
 
-        auto chk = check (" 1 "sv);
+        auto chk = check ([] (bool) {}, " 1 "sv);
 
         auto grp = group ([] (auto o) {}, radio (0, " R "sv), radio (1, " G "sv), radio (1, " B "sv), radio (1, " A "sv), radio (1, " C "sv),
                           radio (1, " M "sv), radio (1, " Y "sv), radio (1, " K "sv));
@@ -145,7 +145,8 @@ int test2 ()
         /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (" 15 "sv));
+                       hbox (button ([&showDialog] { showDialog = false; }, "[OK]"sv), button ([] {}, "[Cl]"sv)),
+                       check ([] (bool) {}, " 15 "sv));
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 

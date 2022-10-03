@@ -141,7 +141,7 @@ int test2 ()
                             hspace<1>,                                                                    //
                             label (std::ref (cboLabel))),
 
-                      hbox (button ("[OK]"sv, [&buttonLabel, &buttonCnt] { buttonLabel = std::to_string (++buttonCnt); }), hspace<1>,
+                      hbox (button ([&buttonLabel, &buttonCnt] { buttonLabel = std::to_string (++buttonCnt); }, "[OK]"sv), hspace<1>,
                             label (std::ref (buttonLabel)))
 
                               ));

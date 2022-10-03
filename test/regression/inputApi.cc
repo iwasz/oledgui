@@ -30,7 +30,7 @@ std::string cboLabel = "-";
 std::string buttonLabel = "-";
 int buttonCnt{};
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }),                               //
+auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),                               //
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::callbacks, //
                                               item (Windows::callbacks, "Callbacks"sv),                        //
                                               item (Windows::dataReferencesCheck, "Check API"sv),              //
@@ -40,7 +40,7 @@ auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }),
                                               item (Windows::dataReferencesRadio, "Radio API"sv)               //
                                               )));
 
-auto backButton = button ("[back]"sv, [] { mySuite->current () = Windows::menu; });
+auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
 
 /**
  * All available inputs with callbacks.
@@ -62,7 +62,7 @@ auto callbacks = window<0, 0, 18, 7> (
                     hspace<1>,                                                           //
                     label (std::ref (cboLabel))),
 
-              hbox (button ("[OK]"sv, [] { buttonLabel = std::to_string (++buttonCnt); }), hspace<1>, label (std::ref (buttonLabel)))
+              hbox (button ([] { buttonLabel = std::to_string (++buttonCnt); }, "[OK]"sv), hspace<1>, label (std::ref (buttonLabel)))
 
                       ));
 

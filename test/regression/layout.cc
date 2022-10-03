@@ -16,13 +16,13 @@ using namespace std::string_view_literals;
 enum class Win { menu, layout, window };
 ISuite<Win> *mySuite{};
 
-auto menu = window<0, 0, 18, 7> (vbox (button ("[back]"sv, [] { mainMenu (); }),       //
+auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),       //
                                        group ([] (Win s) { mySuite->current () = s; }, //
                                               item (Win::layout, "Layout (2x2)"sv),    //
                                               item (Win::window, "Window"sv)           //
                                               )));
 
-auto back = button ("[back]"sv, [] { mySuite->current () = Win::menu; });
+auto back = button ([] { mySuite->current () = Win::menu; }, "[back]"sv);
 
 /****************************************************************************/
 

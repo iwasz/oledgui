@@ -28,13 +28,13 @@ int main ()
 
         int cnt{};
 
-        auto backButton = button ("[back]"sv, [&mySuiteP] { mySuiteP->current () = Windows::menu; });
+        auto backButton = button ([&mySuiteP] { mySuiteP->current () = Windows::menu; }, "[back]"sv);
 
         auto allFeatures = window<0, 0, 18, 7> (
                 vbox (std::ref (backButton),                                                                                                 //
                       hbox (label ("Hello "sv), check (true, " 1 "sv), check (false, " 2 "sv)),                                              //
                       hbox (label ("World "sv), check (false, " 5 "sv), check (true, " 6 "sv)),                                              //
-                      button ("Open dialog"sv, [&mySuiteP] { mySuiteP->current () = Windows::dialog; }),                                     //
+                      button ([&mySuiteP] { mySuiteP->current () = Windows::dialog; }, "Open dialog"sv),                                     //
                       line<18>,                                                                                                              //
                       group ([&cnt] (auto o) { cnt += o; }, radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv), radio (3, " A "sv)), //
                       line<18>,                                                                                                              //
@@ -43,7 +43,7 @@ int main ()
                       line<18>,                                                                                                           //
                       combo ([&cnt] (auto o) { cnt += o; }, option (0, "red"sv), option (1, "green"sv), option (2, "blue"sv)),            //
                       line<18>,                                                                                                           //
-                      hbox (button ("Aaa"sv, [&cnt] { ++cnt; }), hspace<1>, button ("Bbb"sv, [] {}), hspace<1>, button ("Ccc"sv, [] {})), //
+                      hbox (button ([&cnt] { ++cnt; }, "Aaa"sv), hspace<1>, button ([] {}, "Bbb"sv), hspace<1>, button ([] {}, "Ccc"sv)), //
                       line<18>,                                                                                                           //
                       check ([&cnt] (bool checked) { cnt += int (checked); }, " 1 "sv),                                                   //
                       check ([&cnt] (bool checked) { cnt += int (checked); }, false, " 2 "sv),                                            //
@@ -67,7 +67,7 @@ int main ()
         /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }), button ("[Cl]"sv, [] {})),
+                       hbox (button ([&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }, "[OK]"sv), button ([] {}, "[Cl]"sv)),
                        check (false, "15 "sv));
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
@@ -87,8 +87,8 @@ the first element of the sequence at position zero.)"};
 
         auto txt = text<17, 6> (std::ref (buff));
         LineOffset startLine{};
-        auto up = button ("▲"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        auto dwn = button ("▼"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto up = button ([&txt, &startLine] { startLine = txt.setStartLine (--startLine); }, "▲"sv);
+        auto dwn = button ([&txt, &startLine] { startLine = txt.setStartLine (++startLine); }, "▼"sv);
         auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<4>, std::ref (dwn)));
 
         auto textReferences = window<0, 0, 18, 7> (vbox (std::ref (backButton), std::ref (txtComp)));
@@ -96,8 +96,8 @@ the first element of the sequence at position zero.)"};
         /*--------------------------------------------------------------------------*/
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
-                                               button ("input API  "sv, [&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }),
-                                               button ("text widget"sv, [&mySuiteP] { mySuiteP->current () = Windows::textBox; })));
+                                               button ([&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }, "input API  "sv),
+                                               button ([&mySuiteP] { mySuiteP->current () = Windows::textBox; }, "text widget"sv)));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
                                        element (Windows::allFeatures, std::ref (allFeatures)), //

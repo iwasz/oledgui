@@ -31,11 +31,11 @@ int main ()
         NcursesDisplay<18, 7> d1;
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
-                                               button ("input API  "sv, [] { mySuiteP->current () = Windows::allFeatures; }),
-                                               button ("text widget"sv, [] { mySuiteP->current () = Windows::dialog; }),
-                                               button ("cell phone "sv, [] { mySuiteP->current () = Windows::cellPhone; }),
-                                               button ("Layouts    "sv, [] { mySuiteP->current () = Windows::layouts; }), //
-                                               button ("Numbers    "sv, [] { mySuiteP->current () = Windows::number; })   //
+                                               button ([] { mySuiteP->current () = Windows::allFeatures; }, "input API  "sv),
+                                               button ([] { mySuiteP->current () = Windows::dialog; }, "text widget"sv),
+                                               button ([] { mySuiteP->current () = Windows::cellPhone; }, "cell phone "sv),
+                                               button ([] { mySuiteP->current () = Windows::layouts; }, "Layouts    "sv), //
+                                               button ([] { mySuiteP->current () = Windows::number; }, "Numbers    "sv)   //
                                                ));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
