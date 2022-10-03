@@ -746,6 +746,8 @@ private:
         Callback callback;
 };
 
+/*--------------------------------------------------------------------------*/
+
 template <typename String, typename Callback>
 requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &disp, Context const &ctx) const
@@ -764,9 +766,11 @@ template <typename Wrapper> Visibility Button<String, Callback>::operator() (aut
         return Visibility::visible;
 }
 
+/*--------------------------------------------------------------------------*/
+
 // TODO switch parameters wit echa other. This is to be consistent with the resto of the API
-template <typename String, typename Callback> auto button (Callback &&clb, String &&str)
-// requires std::invocable <Callback>
+template <typename String, typename Callback>
+auto button (Callback &&clb, String &&str) requires std::invocable<Callback> && c::string<std::remove_reference_t<String>>
 {
         return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
@@ -1768,6 +1772,9 @@ namespace detail {
                                         ++context.currentFocus;
                                         scrollToFocus (&context);
                                 }
+                                else { // TODO this branch should be conditionally enabled based on this CSS style config
+                                        context.currentFocus = 0;
+                                }
                         }
 
                         void decrementFocus (IDisplay & /* disp */) const override
@@ -1776,12 +1783,15 @@ namespace detail {
                                         --context.currentFocus;
                                         scrollToFocus (&context);
                                 }
+                                else { // TODO this branch should be conditionally enabled based on this CSS style config
+                                        context.currentFocus = Wrapped::focusableWidgetCount - 1;
+                                }
                         }
 
+                private:
                         mutable Context context{/* nullptr, */ {Wrapped::x + FrameHelper::offset, Wrapped::y + FrameHelper::offset},
                                                 {Wrapped::width - FrameHelper::cut, Wrapped::height - FrameHelper::cut}};
 
-                private:
                         template <typename X> friend void log (X const &, int);
                         template <typename CC, typename D> friend class ContainerWidget;
 
