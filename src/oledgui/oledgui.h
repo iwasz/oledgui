@@ -977,14 +977,21 @@ namespace detail {
         };
 
         template <std::unsigned_integral T> struct IntStrLen<T> {
-                // +1 because digits10 holds value of digits multiplied by log10⁡radix\small \log_{10}{radix} and rounded down (2 for 8 bit
-                // types) +1 for storing '\0'
+                /*
+                 * +1 because digits10 holds value of digits multiplied by log10⁡radix\small \log_{10}{radix} and rounded down (2 for 8 bit
+                 * types)
+                 * +1 for storing '\0'
+                 */
                 static constexpr auto value = std::numeric_limits<T>::digits10 + 2;
         };
 
         template <std::signed_integral T> struct IntStrLen<T> {
-                // +1 because digits10 holds value of digits multiplied by log10⁡radix\small \log_{10}{radix} and rounded down (2 for 8 bit
-                // types) +1 for posisble '-' character. +1 for storing '\0'
+                /*
+                 * +1 because digits10 holds value of digits multiplied by log10⁡radix\small \log_{10}{radix} and rounded down (2 for 8 bit
+                 * types)
+                 * +1 for posisble '-' character.
+                 * +1 for storing '\0'
+                 */
                 static constexpr auto value = std::numeric_limits<T>::digits10 + 3;
         };
 } // namespace detail
@@ -992,7 +999,8 @@ namespace detail {
 /**
  * Displays and edits an integer number.
  */
-template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
+          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
 requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 class Number {
@@ -1018,7 +1026,8 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
+          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
 requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto &disp, Context const &ctx) const
@@ -1045,10 +1054,11 @@ template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, c
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueT, ValueT min, ValueT max, ValueT inc, CanFocus canFocusV>
+template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
+          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
 requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
-template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto &disp, Context const &ctx, Key key)
+template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto & /* disp */, Context const &ctx, Key key)
 {
         if constexpr (canFocusV == CanFocus::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
@@ -1065,9 +1075,33 @@ template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocu
 
 /*--------------------------------------------------------------------------*/
 
-template <int min = 0, int max = 9, int inc = 1, CanFocus canFocusV = CanFocus::yes, typename Callback, typename ValueT>
-requires std::integral<typename std::remove_reference_t<ValueT>> && //
-        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+constexpr int DEFAULT_NUMBER_MAX = 9;
+
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT>
+requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
+auto number (ValueT &&val)
+{
+        using Value = std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>;
+        using Callback = EmptyUnaryInvocable<Value>;
+        return Number<Callback, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{{}, std::forward<ValueT> (val)};
+}
+
+// /*--------------------------------------------------------------------------*/
+
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT, typename Callback>
+requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
+        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>
+auto number (Callback &&clb)
+{
+        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{std::forward<Callback> (clb),
+                                                                                                                    min};
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT, typename Callback>
+requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
+        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>                   //
 auto number (Callback &&clb, ValueT &&val)
 {
         return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{std::forward<Callback> (clb),

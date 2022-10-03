@@ -101,7 +101,7 @@ aaa
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 * [ ] One button only input (using short and long press). It requires cycling through focusable elements.
-  * [ ] Auto repeat on long-press in the Key class.
+* [ ] Auto repeat on long-press in the Key class.
 * [ ] Progress bar.
 
 

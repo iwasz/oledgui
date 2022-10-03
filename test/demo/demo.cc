@@ -283,7 +283,7 @@ the first element of the sequence at position zero.)"};
         );
 
         mySuite = &s;
-        s.current () = Windows::dataReferencesRadio;
+        // s.current () = Windows::dataReferencesRadio;
 
         og::detail::augment::IWindow &window = s;
 
