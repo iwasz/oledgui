@@ -85,7 +85,7 @@ aaa
   * [x] Benchmark cpu?
 * [x] Have short think if, and remove the child field (and API) from Display* classes.
   * [x] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
-    * [ ] Then check if og::detail::augment::Window and og::Suite can inherit common interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
+    * [x] Then check if og::detail::augment::Window and og::Suite can inherit common interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
 * [ ] Implement something more than a dummy examples, and test the API in real life. 
   * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
@@ -102,7 +102,7 @@ aaa
 * [x] radio-group when created without ID does not accept input.
 * [x] One button only input (using short and long press). It requires cycling through focusable elements.
 * [ ] Auto repeat on long-press in the Key class.
-* [ ] Progress bar.
+* [x] Progress bar.
 
 
 # Benchmarks

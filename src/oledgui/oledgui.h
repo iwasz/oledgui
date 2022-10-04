@@ -1014,7 +1014,7 @@ public:
         static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
         using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
 
-        constexpr Number (Callback clb, ValueT const &cid) : valueContainer (cid), callback{std::move (clb)} {}
+        constexpr explicit Number (Callback clb, ValueT const &cid) : valueContainer (cid), callback{std::move (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);

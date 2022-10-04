@@ -34,7 +34,12 @@ public:
                 endwin ();
         }
 
-        void print (std::span<const char> const &str) override { mvwprintw (win, cursor ().y (), cursor ().x (), str.data ()); }
+        void print (std::span<const char> const &str) override
+        {
+                // This is to ensure mvwprintw does not print the whole string.
+                std::string tmp{str.begin (), str.end ()};
+                mvwprintw (win, cursor ().y (), cursor ().x (), tmp.data ());
+        }
 
         void clear () override
         {
