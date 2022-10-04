@@ -30,7 +30,7 @@ public:
         void clear ()
         {
                 cursor () = {0, 0};
-                color (0);
+                style (Style::regular);
 
                 for (int y = 0; y < heightV; ++y) {
                         std::cout << "\033[" << y + 1 << ";0H" << std::flush;
@@ -40,12 +40,12 @@ public:
                 }
         }
 
-        void color (Color c)
+        void style (Style c)
         {
-                if (c == 0) {
+                if (c == Style::regular) {
                         std::cout << "\033[44m" << std::flush;
                 }
-                else if (c == 1) {
+                else if (c == Style::highlighted) {
                         std::cout << "\033[47m" << std::endl;
                 }
         }

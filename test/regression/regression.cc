@@ -31,12 +31,12 @@ int main ()
         NcursesDisplay<18, 7> d1;
 
         auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
-                                               button ([] { mySuiteP->current () = Windows::allFeatures; }, "Input API   "sv),
-                                               button ([] { mySuiteP->current () = Windows::dialog; }, "Text widget "sv),
-                                               button ([] { mySuiteP->current () = Windows::cellPhone; }, "Cell phone  "sv),
-                                               button ([] { mySuiteP->current () = Windows::layouts; }, "Layouts     "sv), //
-                                               button ([] { mySuiteP->current () = Windows::number; }, "Numbers     "sv),  //
-                                               button ([] { mySuiteP->current () = Windows::progress; }, "Progress bar"sv) //
+                                               button ([] { mySuiteP->current () = Windows::allFeatures; }, "1. Input API   "sv),
+                                               button ([] { mySuiteP->current () = Windows::dialog; }, "2. Text widget "sv),
+                                               button ([] { mySuiteP->current () = Windows::cellPhone; }, "3. Cell phone  "sv),
+                                               button ([] { mySuiteP->current () = Windows::layouts; }, "4. Layouts     "sv), //
+                                               button ([] { mySuiteP->current () = Windows::number; }, "5. Numbers     "sv),  //
+                                               button ([] { mySuiteP->current () = Windows::progress; }, "6. Progress bar"sv) //
                                                ));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //

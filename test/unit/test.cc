@@ -59,6 +59,22 @@ static_assert (!detail::augment::group_wrapper<detail::augment::Layout<MyLayout,
 static_assert (!detail::augment::group_wrapper<detail::augment::Window<int, int>>);
 static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::tuple<int>, 0, 0, 0, 0, DefaultDecor<int>>>);
 
+TEST_CASE ("Pow function", "[detail]")
+{
+
+        REQUIRE (og::detail::pow (10, 0) == 1);
+        REQUIRE (og::detail::pow (10, 1) == 10);
+        REQUIRE (og::detail::pow (10, 2) == 100);
+        REQUIRE (og::detail::pow (10, 3) == 1000);
+        REQUIRE (og::detail::pow (10, 4) == 10000);
+
+        static_assert (og::detail::pow (10, 0) == 1);
+        static_assert (og::detail::pow (10, 1) == 10);
+        static_assert (og::detail::pow (10, 2) == 100);
+        static_assert (og::detail::pow (10, 3) == 1000);
+        static_assert (og::detail::pow (10, 4) == 10000);
+}
+
 TEST_CASE ("Numeric to string conversion", "[detail]")
 {
         using namespace std::string_view_literals;

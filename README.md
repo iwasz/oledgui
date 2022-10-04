@@ -77,7 +77,7 @@ aaa
   * [x] Zephyr
   * [x] Ncurses
   * [ ] Arduino
-* [ ] Colors are (at least for now) represented as simple integers. Color 1 == normal, Color 2 == highlighted / special. Rename color to Style, make 2 styles : regular, highlighted
+* [x] Colors are (at least for now) represented as simple integers. Color 1 == normal, Color 2 == highlighted / special. Rename color to Style, make 2 styles : regular, highlighted
 * [x] Prepare for compile time optimization
   * [x] Cmake target which tests the size with a tool. Like size or bloaty. Saves a list with statistics + commit hash. Maybe a commit hook?
     * [x] Debug, release and -OS targets
@@ -86,12 +86,12 @@ aaa
 * [x] Have short think if, and remove the child field (and API) from Display* classes.
   * [x] Then research an idea if Display can inherit from an interface making Display hierarchy (dynamically) polymorpic.
     * [x] Then check if og::detail::augment::Window and og::Suite can inherit common interface (which in turn would take this IDisplay from above as an arg.). This way I would make possible to hide different windows in different translation units. Only a function retutning reference to an interface 
-* [ ] Implement something more than a dummy examples, and test the API in real life. 
-  * [ ] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
+* [x] Implement something more than a dummy examples, and test the API in real life. 
+  * [x] How to set the initial value other than assiging a widget to a variable and then using variable's methods?
 * [ ] Try to break the API. Is there a way to pass something that the concepts accept, but then it causes an error somewhere deeper? For instance combo ID has to be std::copyable is that enough?
   * [ ] A widget cannot be added directly to a window if not wrapped in a layout. You get `error: ‘focusableWidgetCount’ is not a member of ‘og::Window`. I think this illogical.
   * [ ] Bug: one can't put a widget (combo in my case) directly into window. It has to be wrapped in a hbox/vbox. 
-* [ ] Prepare composite widget for integers
+* [x] Prepare composite widget for integers
   * [ ] Convinient factory method
 * [ ] Prepare composite widget for floats
   * [ ] Convinient factory method
@@ -101,6 +101,7 @@ aaa
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 * [x] One button only input (using short and long press). It requires cycling through focusable elements.
+  * [ ] BUG : it works, but does not scroll the contents.
 * [ ] Auto repeat on long-press in the Key class.
 * [x] Progress bar.
 

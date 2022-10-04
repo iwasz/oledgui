@@ -48,7 +48,15 @@ public:
                 cursor ().y () = 0;
         }
 
-        void color (Color clr) override { wattron (win, COLOR_PAIR (clr)); }
+        void style (Style clr) override
+        {
+                if (clr == Style::highlighted) {
+                        wattron (win, COLOR_PAIR (2));
+                }
+                else {
+                        wattron (win, COLOR_PAIR (1));
+                }
+        }
 
         void refresh () override
         {

@@ -16,6 +16,7 @@ using namespace std::string_view_literals;
 enum class Windows {
         menu,
         integer,
+        compositeInt,
 };
 
 ISuite<Windows> *mySuite{};
@@ -27,7 +28,8 @@ int buttonCnt{};
 
 auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),                          //
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::menu, //
-                                              item (Windows::integer, "Simple integer"sv)                 //
+                                              item (Windows::integer, "Simple integer"sv),                //
+                                              item (Windows::compositeInt, "Composite integer"sv)         //
                                               )));
 
 auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
@@ -48,8 +50,34 @@ auto integer = window<0, 0, 18, 7> (vbox (
 
 /*--------------------------------------------------------------------------*/
 
-auto s = suite<Windows> (element (Windows::menu, std::ref (menu)), //
-                         element (Windows::integer, std::ref (integer)));
+std::array<uint8_t, 4> digits{};
+int glued{};
+
+auto glueNumber = [] (uint8_t d) {
+        glued = 0;
+
+        for (int i = 0; i < digits.size (); ++i) {
+                glued += og::detail::pow (10, i) * digits.at (digits.size () - i - 1);
+        }
+};
+
+/*--------------------------------------------------------------------------*/
+
+auto compositeInt = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                //
+                                               label ("4 digit PIN."sv),                                             //
+                                               label ("Change each digit"sv),                                        //
+                                               label ("separately"sv),                                               //
+                                               hbox (number<0, 9, 1> (glueNumber, std::ref (std::get<0> (digits))),  // digit 0
+                                                     number<0, 9, 1> (glueNumber, std::ref (std::get<1> (digits))),  // digit 1
+                                                     number<0, 9, 1> (glueNumber, std::ref (std::get<2> (digits))),  // digit 2
+                                                     number<0, 9, 1> (glueNumber, std::ref (std::get<3> (digits)))), // digit 3
+                                               hbox (label ("Number: "sv), number<0, 9999, 1, CanFocus::no> (std::ref (glued)))));
+
+/*--------------------------------------------------------------------------*/
+
+auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),       //
+                         element (Windows::integer, std::ref (integer)), //
+                         element (Windows::compositeInt, std::ref (compositeInt)));
 
 } // namespace
 

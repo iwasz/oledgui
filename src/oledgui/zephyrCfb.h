@@ -54,10 +54,10 @@ public:
                 // printk ("clear\r\n");
         }
 
-        void color (Color color) override
+        void style (Style stl) override
         {
-                color_ = color;
-                // printk ("color %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
+                style_ = stl;
+                // printk ("style %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
         }
 
         void refresh () override
@@ -70,7 +70,7 @@ public:
 
 private:
         device const *display{};
-        Color color_{};
+        Style style_{};
 };
 
 /****************************************************************************/

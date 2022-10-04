@@ -35,7 +35,7 @@ using Coordinate = int16_t;
 using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
-using Color = uint16_t;
+enum class Style { regular, highlighted };
 using LineOffset = int;
 
 enum class CanFocus { no, yes };
@@ -213,13 +213,19 @@ namespace detail {
                 return itoa (num, str.begin (), digits);
         }
 
-        template <std::integral Int> Int pow (Int value, int exp)
+        template <std::integral Int> constexpr Int pow (Int value, unsigned int exp)
         {
-                for (int i = 1; i < exp; ++i) {
-                        value *= value;
+                if (exp == 0) {
+                        return 1;
                 }
 
-                return value;
+                Int tmp{value};
+
+                for (unsigned int i = 1; i < exp; ++i) {
+                        tmp *= value;
+                }
+
+                return tmp;
         }
 
         // Converts a floating-point/double number to a string.
@@ -263,7 +269,7 @@ struct IDisplay {
 
         virtual void print (std::span<const char> const &str) = 0;
         virtual void clear () = 0;
-        virtual void color (Color clr) = 0;
+        virtual void style (Style clr) = 0;
         virtual void refresh () = 0;
 
         constexpr virtual Dimension width () const = 0;
@@ -312,7 +318,7 @@ struct EmptyDisplay : public AbstractDisplay<EmptyDisplay, 0, 0> {
 
         void print (std::span<const char> const &str) final {}
         void clear () final {}
-        void color (Color clr) final {}
+        void style (Style clr) final {}
         void refresh () final {}
 };
 
@@ -426,7 +432,7 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
         using namespace std::string_view_literals;
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (2);
+                d.style (Style::highlighted);
         }
 
         if (checked_) {
@@ -440,7 +446,7 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
         detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.color (1);
+                d.style (Style::regular);
         }
 
         d.cursor () += {Coordinate (label_.size ()), 0};
@@ -517,7 +523,7 @@ Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context 
         using namespace std::string_view_literals;
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (2);
+                disp.style (Style::highlighted);
         }
 
         if constexpr (radioVisible) {
@@ -534,7 +540,7 @@ Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context 
         detail::print (disp, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (1);
+                disp.style (Style::regular);
         }
 
         disp.cursor () += {Coordinate (label_.size ()), 0};
@@ -753,14 +759,14 @@ requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (2);
+                disp.style (Style::highlighted);
         }
 
         detail::print (disp, label_);
         disp.cursor () += {Coordinate (label_.size ()), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.color (1);
+                disp.style (Style::regular);
         }
 
         return Visibility::visible;
@@ -897,7 +903,7 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
 {
         if constexpr (canFocusV == CanFocus::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.color (2);
+                        disp.style (Style::highlighted);
                 }
         }
 
@@ -907,7 +913,7 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
 
         if constexpr (canFocusV == CanFocus::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.color (1);
+                        disp.style (Style::regular);
                 }
         }
 
@@ -1040,7 +1046,7 @@ template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, c
 
         if constexpr (canFocusV == CanFocus::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.color (2);
+                        disp.style (Style::highlighted);
                 }
         }
 
@@ -1049,7 +1055,7 @@ template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, c
 
         if constexpr (canFocusV == CanFocus::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.color (1);
+                        disp.style (Style::regular);
                 }
         }
 
