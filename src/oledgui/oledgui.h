@@ -343,7 +343,7 @@ namespace detail {
         {
                 auto y1d = y1 + height1 - 1;
                 auto y2d = y2 + height2 - 1;
-                return y1 <= y2d && y2 <= y1d;
+                return y1 <= C (y2d) && y2 <= C (y1d);
         }
 
         static_assert (!heightsOverlap (-1, 1U, 0, 2U));
