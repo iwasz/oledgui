@@ -36,7 +36,7 @@ public:
                         printk ("cfb_print is unable to print\r\n");
                 }
 
-                if (color_ == 2) {
+                if (style_ == Style::highlighted) {
                         if (int err = cfb_invert_area (display, cursor ().x () * 7, cursor ().y () * 8, str.size () * 7, 8); err != 0) {
                                 printk ("Could not invert (err %d)\n", err);
                         }

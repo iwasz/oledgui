@@ -135,8 +135,8 @@ the first element of the sequence at position zero.)"};
 
         auto txt = text<17, 7> (std::ref (buff));
         LineOffset startLine{};
-        auto up = button ("^"sv, [&txt, &startLine] { startLine = txt.setStartLine (--startLine); });
-        auto dwn = button ("v"sv, [&txt, &startLine] { startLine = txt.setStartLine (++startLine); });
+        auto up = button ([&txt, &startLine] { startLine = txt.setStartLine (--startLine); }, "^"sv);
+        auto dwn = button ([&txt, &startLine] { startLine = txt.setStartLine (++startLine); }, "v"sv);
         auto txtComp = hbox (std::ref (txt), vbox<1> (std::ref (up), vspace<5>, std::ref (dwn)));
 
         auto chk = check ([] (bool) {}, " 1 "sv);
@@ -156,7 +156,7 @@ the first element of the sequence at position zero.)"};
         /*--------------------------------------------------------------------------*/
 
         auto v = vbox (label ("  PIN:"sv), label (" 123456"sv),
-                       hbox (button ("[OK]"sv, [&showDialog] { showDialog = false; }), button ("[Cl]"sv, [] {})), check (true, " 15 "sv));
+                       hbox (button ([&showDialog] { showDialog = false; }, "[OK]"sv), button ([] {}, "[Cl]"sv)), check (true, " 15 "sv));
 
         auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
 
