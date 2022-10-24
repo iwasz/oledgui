@@ -238,7 +238,6 @@ public:
 
         explicit TextBox (Buffer buf)
             : buf_{std::move (buf)},
-              startLine{},
               textWidget{text<width - 1, height> (std::ref (buf_))},
               textBoxBody{hbox (std::ref (textWidget),
                                 vbox<1> (button (UpCallback{startLine, textWidget}, "▲"sv), vspace<height - 2>,
@@ -248,10 +247,8 @@ public:
 
         TextBox (TextBox const &bbb) : TextBox (bbb.buf_) {}
         TextBox &operator= (TextBox const &bbb) = delete;
-
-        TextBox (TextBox &&bbb) : TextBox (bbb.buf_) {}
+        TextBox (TextBox &&bbb) noexcept : TextBox (bbb.buf_) {}
         TextBox &operator= (TextBox &&bbb) = delete;
-
         ~TextBox () = default;
 
         auto &widgets () { return textBoxBody.widgets (); }
@@ -259,7 +256,7 @@ public:
 
 private:
         Buffer buf_; // T or std::ref T
-        LineOffset startLine;
+        LineOffset startLine{};
 
         using Text = decltype (text<width - 1, height> (std::ref (buf_)));
         Text textWidget;
