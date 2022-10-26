@@ -18,7 +18,7 @@ ISuite<Win> *mySuite{};
 
 int volumeLevel{1};
 
-auto volume = hbox<2> (combo<CanFocus::no> (std::ref (volumeLevel), option (0, "🕨"sv), option (1, "🕩"sv), option (2, "🕪"sv)));
+auto volume = hbox<2> (combo<style::Focus::disabled> (std::ref (volumeLevel), option (0, "🕨"sv), option (1, "🕩"sv), option (2, "🕪"sv)));
 
 auto desktop = window<0, 0, 18, 7> (vbox (
         hbox (label ("12:34"sv), hspace<10>, std::ref (volume), button ([] { mySuite->current () = Win::dropDown; }, "…"sv)), // top status bar

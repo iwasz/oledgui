@@ -35,10 +35,12 @@ using Coordinate = int16_t;
 using Dimension = uint16_t;
 using Focus = uint16_t;
 using Selection = uint8_t;
-enum class Style { regular, highlighted };
 using LineOffset = int;
 
-enum class CanFocus { no, yes };
+namespace style {
+        enum class Text { regular, highlighted };
+        enum class Focus { disabled, enabled };
+} // namespace style
 
 class Point {
 public:
@@ -113,39 +115,36 @@ namespace c {
          * Layer 1 widget.
          */
         template <typename T>
-        concept widget = requires (T const t, EmptyDisplay &d, Context const &c)
-        {
-                {
-                        T::height
-                        } -> std::same_as<Dimension const &>;
-                {
-                        t.template operator()<int> (d, c)
-                        } -> std::same_as<Visibility>;
+        concept widget = requires (T const t, EmptyDisplay &d, Context const &c) {
+                                 {
+                                         T::height
+                                         } -> std::same_as<Dimension const &>;
+                                 {
+                                         t.template operator()<int> (d, c)
+                                         } -> std::same_as<Visibility>;
 
-                // t.template input<int> (d, c, 'a'); // input is not required. Some widget has it, some hasn't
-        };
-
-        template <typename S>
-        concept string = std::copyable<S> && requires (S s)
-        {
-                {
-                        s.size ()
-                        } -> std::convertible_to<std::size_t>;
-        };
+                                 // t.template input<int> (d, c, 'a'); // input is not required. Some widget has it, some hasn't
+                         };
 
         template <typename S>
-        concept text_buffer = string<S> && requires (S s)
-        {
-                typename S::value_type;
+        concept string = std::copyable<S> && requires (S s) {
+                                                     {
+                                                             s.size ()
+                                                             } -> std::convertible_to<std::size_t>;
+                                             };
 
-                {
-                        s.cbegin ()
-                        } -> std::input_iterator;
+        template <typename S>
+        concept text_buffer = string<S> && requires (S s) {
+                                                   typename S::value_type;
 
-                {
-                        s.cend ()
-                        } -> std::input_iterator;
-        };
+                                                   {
+                                                           s.cbegin ()
+                                                           } -> std::input_iterator;
+
+                                                   {
+                                                           s.cend ()
+                                                           } -> std::input_iterator;
+                                           };
 
 } // namespace c
 
@@ -200,12 +199,11 @@ namespace detail {
         }
 
         template <typename String>
-        concept out_string = requires (String str)
-        {
-                {
-                        str.begin ()
-                        } -> std::output_iterator<char>;
-        };
+        concept out_string = requires (String str) {
+                                     {
+                                             str.begin ()
+                                             } -> std::output_iterator<char>;
+                             };
 
         template <std::integral Int, out_string String> // TODO concept
         int itoa (Int num, String &str, int digits = 1)
@@ -269,7 +267,7 @@ struct IDisplay {
 
         virtual void print (std::span<const char> const &str) = 0;
         virtual void clear () = 0;
-        virtual void style (Style clr) = 0;
+        virtual void textStyle (style::Text clr) = 0;
         virtual void refresh () = 0;
 
         constexpr virtual Dimension width () const = 0;
@@ -283,14 +281,16 @@ namespace detail {
 
         // TODO export this mess to a named concept, and use a placeholder.
         template <typename String>
-        requires requires (String str)
+                requires requires (String str) {
+                                 {
+                                         // TODO not acurate
+                                         str.data ()
+                                         } -> std::convertible_to<const char *>;
+                         }
+        void print (IDisplay &disp, String const &str)
         {
-                {
-                        // TODO not acurate
-                        str.data ()
-                        } -> std::convertible_to<const char *>;
+                disp.print (std::span<const char> (str.begin (), str.end ()));
         }
-        void print (IDisplay &disp, String const &str) { disp.print (std::span<const char> (str.begin (), str.end ())); }
 
 } // namespace detail
 
@@ -318,7 +318,7 @@ struct EmptyDisplay : public AbstractDisplay<EmptyDisplay, 0, 0> {
 
         void print (std::span<const char> const &str) final {}
         void clear () final {}
-        void style (Style clr) final {}
+        void textStyle (style::Text clr) final {}
         void refresh () final {}
 };
 
@@ -354,7 +354,7 @@ namespace detail {
 } // namespace detail
 
 struct Focusable {
-        static constexpr CanFocus canFocus = CanFocus::yes;
+        static constexpr style::Focus canFocus = style::Focus::enabled;
 };
 
 /****************************************************************************/
@@ -392,7 +392,7 @@ template <Dimension heightV> Space<1, heightV> const vspace;
 /****************************************************************************/
 
 template <typename Callback, typename ChkT, typename String>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 class Check : public Focusable {
 public:
         static constexpr Dimension height = 1;
@@ -426,13 +426,14 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename ChkT, typename String>
-requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ctx) const
+        requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper>
+Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.style (Style::highlighted);
+                d.textStyle (style::Text::highlighted);
         }
 
         if (checked_) {
@@ -446,7 +447,7 @@ template <typename Wrapper> Visibility Check<Callback, ChkT, String>::operator()
         detail::print (d, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.style (Style::regular);
+                d.textStyle (style::Text::regular);
         }
 
         d.cursor () += {Coordinate (label_.size ()), 0};
@@ -469,7 +470,8 @@ template <std::invocable<bool> Callback, c::string String> constexpr auto check 
 }
 
 template <std::convertible_to<bool> ChkT, c::string String>
-requires (!std::invocable<ChkT, bool>) constexpr auto check (ChkT &&chk, String &&str)
+        requires (!std::invocable<ChkT, bool>)
+constexpr auto check (ChkT &&chk, String &&str)
 {
         return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
                                                                                                                  std::forward<String> (str));
@@ -492,7 +494,7 @@ constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 /****************************************************************************/
 
 template <typename String, std::regular ValueT, bool radioVisible = true>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 class Radio : public Focusable {
 public:
         static constexpr Dimension height = 1;
@@ -516,14 +518,14 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename String, std::regular ValueT, bool radioVisible>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper>
 Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
 {
         using namespace std::string_view_literals;
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.style (Style::highlighted);
+                disp.textStyle (style::Text::highlighted);
         }
 
         if constexpr (radioVisible) {
@@ -540,7 +542,7 @@ Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context 
         detail::print (disp, label_);
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.style (Style::regular);
+                disp.textStyle (style::Text::regular);
         }
 
         disp.cursor () += {Coordinate (label_.size ()), 0};
@@ -548,7 +550,7 @@ Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context 
 }
 
 template <typename String, std::regular ValueT, bool radioVisible>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
 void Radio<String, ValueT, radioVisible>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
@@ -568,11 +570,9 @@ template <typename String, std::regular Id> constexpr auto item (Id &&cid, Strin
         return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, false> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
-template <typename T> struct is_radio : public std::bool_constant<false> {
-};
+template <typename T> struct is_radio : public std::bool_constant<false> {};
 
-template <typename String, typename Id, bool radioVisible> struct is_radio<Radio<String, Id, radioVisible>> : public std::bool_constant<true> {
-};
+template <typename String, typename Id, bool radioVisible> struct is_radio<Radio<String, Id, radioVisible>> : public std::bool_constant<true> {};
 
 /****************************************************************************/
 /* Text                                                                     */
@@ -583,7 +583,7 @@ template <typename String, typename Id, bool radioVisible> struct is_radio<Radio
  * TODO do not allow scrolling so the text inside is not visible. Stop scrolling when the last line is reached.
  */
 template <Dimension widthV, Dimension heightV, typename Buffer>
-requires c::text_buffer<std::remove_reference_t<Buffer>>
+        requires c::text_buffer<std::remove_reference_t<Buffer>>
 class Text {
 public:
         using BufferType = std::remove_reference_t<Buffer>;
@@ -642,8 +642,9 @@ private:
 };
 
 template <Dimension widthV, Dimension heightV, typename Buffer>
-requires c::text_buffer<std::remove_reference_t<Buffer>>
-template <typename Wrapper> Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
+        requires c::text_buffer<std::remove_reference_t<Buffer>>
+template <typename Wrapper>
+Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
 {
         size_t widgetScroll = std::max (ctx.currentScroll - Wrapper::getY (), 0);
         size_t heightToPrint = heightV - widgetScroll;
@@ -697,7 +698,7 @@ template <Dimension widthV, Dimension heightV, typename Buffer> auto text (Buffe
  *
  */
 template <typename String>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 class Label {
 public:
         static constexpr Dimension height = 1;
@@ -728,7 +729,7 @@ template <typename String> auto label (String &&str) { return Label<std::unwrap_
  *
  */
 template <typename String, typename Callback>
-requires c::string<std::remove_reference_t<String>>
+        requires c::string<std::remove_reference_t<String>>
 class Button : public Focusable {
 public:
         static constexpr Dimension height = 1;
@@ -755,18 +756,19 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename String, typename Callback>
-requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper> Visibility Button<String, Callback>::operator() (auto &disp, Context const &ctx) const
+        requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper>
+Visibility Button<String, Callback>::operator() (auto &disp, Context const &ctx) const
 {
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.style (Style::highlighted);
+                disp.textStyle (style::Text::highlighted);
         }
 
         detail::print (disp, label_);
         disp.cursor () += {Coordinate (label_.size ()), 0};
 
         if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.style (Style::regular);
+                disp.textStyle (style::Text::regular);
         }
 
         return Visibility::visible;
@@ -774,9 +776,9 @@ template <typename Wrapper> Visibility Button<String, Callback>::operator() (aut
 
 /*--------------------------------------------------------------------------*/
 
-// TODO switch parameters wit echa other. This is to be consistent with the resto of the API
 template <typename String, typename Callback>
-auto button (Callback &&clb, String &&str) requires std::invocable<Callback> && c::string<std::remove_reference_t<String>>
+auto button (Callback &&clb, String &&str)
+        requires std::invocable<Callback> && c::string<std::remove_reference_t<String>>
 {
         return Button<std::unwrap_ref_decay_t<String>, std::decay_t<Callback>> (std::forward<String> (str), std::forward<Callback> (clb));
 }
@@ -860,11 +862,11 @@ typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toInde
 /**
  *
  */
-template <typename Callback, typename ValueContainerT, CanFocus canFocusV, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Value>
+template <typename Callback, typename ValueContainerT, style::Focus canFocusV, typename OptionCollection>
+        requires std::invocable<Callback, typename OptionCollection::Value>
 class Combo {
 public:
-        static constexpr CanFocus canFocus = canFocusV;
+        static constexpr style::Focus canFocus = canFocusV;
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Value = typename OptionCollection::Value;
@@ -896,14 +898,14 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, CanFocus canFocusV, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Value>
+template <typename Callback, typename ValueContainer, style::Focus canFocusV, typename OptionCollection>
+        requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper>
 Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.style (Style::highlighted);
+                        disp.textStyle (style::Text::highlighted);
                 }
         }
 
@@ -911,9 +913,9 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
         auto &label = options.getOptionByIndex (index_).label ();
         detail::print (disp, label);
 
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.style (Style::regular);
+                        disp.textStyle (style::Text::regular);
                 }
         }
 
@@ -923,12 +925,12 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, CanFocus canFocusV, typename OptionCollection>
-requires std::invocable<Callback, typename OptionCollection::Value>
+template <typename Callback, typename ValueContainer, style::Focus canFocusV, typename OptionCollection>
+        requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper>
 void Combo<Callback, ValueContainer, canFocusV, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         ++index_;
                         index_ %= options.size ();
@@ -941,34 +943,35 @@ void Combo<Callback, ValueContainer, canFocusV, OptionCollection>::input (auto &
 /*--------------------------------------------------------------------------*/
 
 template <typename CallbackT, typename... Opts>
-requires std::invocable<CallbackT, typename First_t<Opts...>::Value>
+        requires std::invocable<CallbackT, typename First_t<Opts...>::Value>
 auto combo (CallbackT &&clb, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
-        return Combo<Callback, Value, CanFocus::yes, OptionCollection> (std::forward<Callback> (clb), Value{},
-                                                                        Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, Value, style::Focus::enabled, OptionCollection> (std::forward<Callback> (clb), Value{},
+                                                                                Options (std::forward<Opts> (opts)...));
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... Opts>
-requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&           //
+        requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&   //
         std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> && //
         (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)      //
 
-        auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
+auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
 {
         using ValueContainer = std::remove_reference_t<ValueContainerT>;
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, ValueContainer, CanFocus::yes, OptionCollection> (
+        return Combo<Callback, ValueContainer, style::Focus::enabled, OptionCollection> (
                 std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value), Options (std::forward<Opts> (opts)...));
 }
 
-template <CanFocus canFocusV = CanFocus::yes, typename ValueContainerT, typename... Opts>
-requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> &&(
-        !std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)auto combo (ValueContainerT &&cid, Opts &&...opts)
+template <style::Focus canFocusV = style::Focus::enabled, typename ValueContainerT, typename... Opts>
+        requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value>
+        && (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)
+auto combo (ValueContainerT &&cid, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
         using Callback = EmptyUnaryInvocable<Value>;
@@ -984,8 +987,7 @@ requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> 
 /****************************************************************************/
 
 namespace detail {
-        template <typename T> struct IntStrLen {
-        };
+        template <typename T> struct IntStrLen {};
 
         template <std::unsigned_integral T> struct IntStrLen<T> {
                 /*
@@ -1011,12 +1013,12 @@ namespace detail {
  * Displays and edits an integer number.
  */
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
-requires std::integral<typename std::remove_reference_t<ValueT>> && //
+          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+        requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 class Number {
 public:
-        static constexpr CanFocus canFocus = canFocusV;
+        static constexpr style::Focus canFocus = canFocusV;
         static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
         using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
 
@@ -1038,24 +1040,25 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
-requires std::integral<typename std::remove_reference_t<ValueT>> && //
+          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+        requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
-template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto &disp, Context const &ctx) const
+template <typename Wrapper>
+Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto &disp, Context const &ctx) const
 {
 
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.style (Style::highlighted);
+                        disp.textStyle (style::Text::highlighted);
                 }
         }
 
         typename Buffer::size_type digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
         detail::print (disp, std::string_view{buffer.cbegin (), digits});
 
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.style (Style::regular);
+                        disp.textStyle (style::Text::regular);
                 }
         }
 
@@ -1066,12 +1069,13 @@ template <typename Wrapper> Visibility Number<Callback, ValueT, min, max, inc, c
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, CanFocus canFocusV>
-requires std::integral<typename std::remove_reference_t<ValueT>> && //
+          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+        requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
-template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto & /* disp */, Context const &ctx, Key key)
+template <typename Wrapper>
+void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if constexpr (canFocusV == CanFocus::yes) {
+        if constexpr (canFocusV == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         value () += inc;
 
@@ -1088,8 +1092,8 @@ template <typename Wrapper> void Number<Callback, ValueT, min, max, inc, canFocu
 
 constexpr int DEFAULT_NUMBER_MAX = 9;
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT>
-requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT>
+        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
 auto number (ValueT &&val)
 {
         using Value = std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>;
@@ -1099,8 +1103,9 @@ auto number (ValueT &&val)
 
 // /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT, typename Callback>
-requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT,
+          typename Callback>
+        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
         std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>
 auto number (Callback &&clb)
 {
@@ -1110,9 +1115,10 @@ auto number (Callback &&clb)
 
 /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, CanFocus canFocusV = CanFocus::yes, typename ValueT, typename Callback>
-requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
-        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>                   //
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT,
+          typename Callback>
+        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
+        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>                           //
 auto number (Callback &&clb, ValueT &&val)
 {
         return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{std::forward<Callback> (clb),
@@ -1139,7 +1145,7 @@ namespace detail {
                 else if constexpr (requires {
                                            {
                                                    T::canFocus
-                                                   } -> std::convertible_to<CanFocus>;
+                                                   } -> std::convertible_to<style::Focus>;
                                    }) {
                         // This field is optional and is used in regular widgets. Its absence is treated as it were declared false.
                         return uint16_t (T::canFocus);
@@ -1291,12 +1297,10 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename T> struct is_group : public std::bool_constant<false> {
-};
+template <typename T> struct is_group : public std::bool_constant<false> {};
 
 template <typename Callback, typename ValueContainerT, typename WidgetTuple>
-struct is_group<Group<Callback, ValueContainerT, WidgetTuple>> : public std::bool_constant<true> {
-};
+struct is_group<Group<Callback, ValueContainerT, WidgetTuple>> : public std::bool_constant<true> {};
 
 namespace c {
         template <typename T>
@@ -1306,8 +1310,9 @@ namespace c {
 /*--------------------------------------------------------------------------*/
 
 template <typename CallbackT, typename... W>
-requires std::invocable<CallbackT, typename First_t<W...>::Value> && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio
-                                                                                                        // values have the same type
+        requires std::invocable<CallbackT, typename First_t<W...>::Value>
+        && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio
+                                              // values have the same type
 auto group (CallbackT &&clb, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
@@ -1318,11 +1323,11 @@ auto group (CallbackT &&clb, W &&...widgets)
 }
 
 template <typename ValueContainerT, typename... W>
-requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&  //
-        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
-        std::conjunction_v<is_radio<W>...>                                     //
+        requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) && //
+        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> &&        //
+        std::conjunction_v<is_radio<W>...>                                            //
 
-        auto group (ValueContainerT &&val, W &&...widgets)
+auto group (ValueContainerT &&val, W &&...widgets)
 {
         using ValueContainer = std::remove_reference_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
@@ -1333,12 +1338,12 @@ requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&  /
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... W>
-requires std::invocable<CallbackT, typename First_t<W...>::Value> &&           //
-        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>)&&    //
+        requires std::invocable<CallbackT, typename First_t<W...>::Value> &&   //
+        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&   //
         std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
         std::conjunction_v<is_radio<W>...>                                     //
 
-        auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
+auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
         using Value = std::remove_reference_t<ValueContainerT>;
@@ -1418,12 +1423,10 @@ private:
         ChildT child_;
 };
 
-template <typename T> struct is_window : public std::bool_constant<false> {
-};
+template <typename T> struct is_window : public std::bool_constant<false> {};
 
 template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT>
-struct is_window<Window<ox, oy, widthV, heightV, frame, ChildT>> : public std::bool_constant<true> {
-};
+struct is_window<Window<ox, oy, widthV, heightV, frame, ChildT>> : public std::bool_constant<true> {};
 
 namespace c {
         template <typename T>
@@ -1442,28 +1445,24 @@ namespace detail {
 // Forward declaration for is_layout
 template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV = 0> class Layout;
 
-template <typename Wtu> class DefaultDecor {
-};
+template <typename Wtu> class DefaultDecor {};
 
 /// Type trait for discovering Layouts
 template <typename T, template <typename Wtu> typename Decor = DefaultDecor, typename WidgetsTuple = Empty, Dimension widthV = 0>
-struct is_layout : public std::bool_constant<false> {
-};
+struct is_layout : public std::bool_constant<false> {};
 
 template <template <typename Wtu> typename Decor, typename WidgetsTuple, Dimension widthV>
-struct is_layout<Layout<Decor, WidgetsTuple, widthV>> : public std::bool_constant<true> {
-};
+struct is_layout<Layout<Decor, WidgetsTuple, widthV>> : public std::bool_constant<true> {};
 
 namespace c {
         // template <typename T>
         // concept layout = is_layout<T>::value;
 
         template <typename L>
-        concept layout = requires
-        {
-                // TODO is widget etc, the rest of stuff required.
-                typename L::DecoratorType;
-        };
+        concept layout = requires {
+                                 // TODO is widget etc, the rest of stuff required.
+                                 typename L::DecoratorType;
+                         };
 } // namespace c
 
 namespace detail {
@@ -1474,7 +1473,7 @@ namespace detail {
                  * Additional information for all the widget contained in the Layout.
                  */
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
-                requires c::widget<std::remove_reference_t<T>> // T can be for example Label or Label &. Only these 2 options.
+                        requires c::widget<std::remove_reference_t<T>> // T can be for example Label or Label &. Only these 2 options.
                 class Widget {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
@@ -1485,9 +1484,6 @@ namespace detail {
                         static constexpr Dimension getHeight () { return Wrapped::height; } /// Height in characters.
                         static constexpr Coordinate getX () { return xV; }                  /// Position relative to the top left corner.
                         static constexpr Coordinate getY () { return yV; }                  /// Position relative to the top left corner.
-
-                        /// Consecutive number in a radio group.
-                        static constexpr Selection getRadioIndex () { return radioIndexV; } // TODO is this used?
 
                         /// Consecutive number (starting from 0) assigned for every focusable widget.
                         static constexpr Focus getFocusIndex () { return focusIndexV; }
@@ -1536,18 +1532,16 @@ namespace detail {
                         T widget; // Wrapped widget. 2 options X or X&
                 };
 
-                template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {
-                };
+                template <typename T> struct is_widget_wrapper : public std::bool_constant<false> {};
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
-                class is_widget_wrapper<Widget<T, focusIndexV, radioIndexV, xV, yV>> : public std::bool_constant<true> {
-                };
+                class is_widget_wrapper<Widget<T, focusIndexV, radioIndexV, xV, yV>> : public std::bool_constant<true> {};
 
                 template <typename T>
                 concept widget_wrapper = is_widget_wrapper<T>::value;
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
-                requires c::widget<std::remove_reference_t<T>>
+                        requires c::widget<std::remove_reference_t<T>>
                 constexpr Dimension Widget<T, focusIndexV, radioIndexV, xV, yV>::getWidth ()
                 {
                         if constexpr (requires {
@@ -1563,7 +1557,7 @@ namespace detail {
                 }
 
                 template <typename T, Focus focusIndexV, Selection radioIndexV, Coordinate xV, Coordinate yV>
-                requires c::widget<std::remove_reference_t<T>>
+                        requires c::widget<std::remove_reference_t<T>>
                 void Widget<T, focusIndexV, radioIndexV, xV, yV>::scrollToFocus (Context *ctx) const
                 {
                         if (!detail::heightsOverlap (getY (), getHeight (), ctx->currentScroll, ctx->dimensions.height)) {
@@ -1701,7 +1695,7 @@ namespace detail {
                  * Layout
                  */
                 template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV>
-                requires c::layout<std::remove_reference_t<T>>
+                        requires c::layout<std::remove_reference_t<T>>
                 class Layout : public ContainerWidget<Layout<T, WidgetTuple, xV, yV>, typename std::remove_reference_t<T>::DecoratorType> {
                 public:
                         using Wrapped = std::remove_reference_t<T>;
@@ -1733,12 +1727,10 @@ namespace detail {
                         WidgetTuple children;
                 };
 
-                template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {
-                };
+                template <typename T> struct is_layout_wrapper : public std::bool_constant<false> {};
 
                 template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV>
-                class is_layout_wrapper<Layout<T, WidgetTuple, xV, yV>> : public std::bool_constant<true> {
-                };
+                class is_layout_wrapper<Layout<T, WidgetTuple, xV, yV>> : public std::bool_constant<true> {};
 
                 template <typename T>
                 concept layout_wrapper = is_layout_wrapper<T>::value;
@@ -1810,26 +1802,23 @@ namespace detail {
                         using BaseClass::scrollToFocus, BaseClass::input, BaseClass::operator();
                 };
 
-                template <typename T> struct is_window_wrapper : public std::bool_constant<false> {
-                };
+                template <typename T> struct is_window_wrapper : public std::bool_constant<false> {};
 
-                template <typename T, typename Child> class is_window_wrapper<Window<T, Child>> : public std::bool_constant<true> {
-                };
+                template <typename T, typename Child> class is_window_wrapper<Window<T, Child>> : public std::bool_constant<true> {};
 
                 // template <typename T>
                 // concept window_wrapper = is_window_wrapper<T>::value;
 
                 template <typename T>
-                concept window_wrapper = requires (T type, EmptyDisplay &disp, Key key)
-                {
-                        type.incrementFocus (disp);
-                        type.decrementFocus (disp);
-                        type.input (disp, key);
+                concept window_wrapper = requires (T type, EmptyDisplay &disp, Key key) {
+                                                 type.incrementFocus (disp);
+                                                 type.decrementFocus (disp);
+                                                 type.input (disp, key);
 
-                        {
-                                type.operator() (disp)
-                                } -> std::same_as<Visibility>;
-                };
+                                                 {
+                                                         type.operator() (disp)
+                                                         } -> std::same_as<Visibility>;
+                                         };
 
                 /****************************************************************************/
 
@@ -1865,12 +1854,10 @@ namespace detail {
                         WidgetTuple children;
                 };
 
-                template <typename T> struct is_group_wrapper : public std::bool_constant<false> {
-                };
+                template <typename T> struct is_group_wrapper : public std::bool_constant<false> {};
 
                 template <typename T, typename WidgetTuple, Coordinate xV, Coordinate yV, Dimension widthV, Dimension heightV, typename Decor>
-                class is_group_wrapper<Group<T, WidgetTuple, xV, yV, widthV, heightV, Decor>> : public std::bool_constant<true> {
-                };
+                class is_group_wrapper<Group<T, WidgetTuple, xV, yV, widthV, heightV, Decor>> : public std::bool_constant<true> {};
 
                 template <typename T>
                 concept group_wrapper = is_group_wrapper<T>::value;
@@ -1913,7 +1900,7 @@ namespace detail {
 
         // Wrapper for layouts
         template <c::layout T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y>
-        requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
+                requires c::layout<Parent> || c::window<Parent> || std::same_as<Parent, void>
         struct Wrap<T, Parent, f, r, x, y> {
 
                 template <typename W> static auto wrap (W &&t)
@@ -1941,7 +1928,7 @@ namespace detail {
 
         // Partial specialization for Windows
         template <c::window T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y>
-        requires std::same_as<Parent, void> // Means that windows are always top level
+                requires std::same_as<Parent, void> // Means that windows are always top level
         struct Wrap<T, Parent, f, r, x, y> {
 
                 template <typename W> static auto wrap (W &&t)
