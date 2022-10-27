@@ -59,55 +59,52 @@ namespace style {
         /// Default empty style
         template <Tag tag> struct Style {};
 
+        /* clang-format off */
         namespace getter {
                 template <typename T> struct Focus {};
-
-                template <typename T>
-                        requires requires { T::focus; }
-                struct Focus<T> {
-                        static constexpr auto value = T::focus;
-                };
-
-                /*--------------------------------------------------------------------------*/
+                template <typename T> requires requires { T::focus; } struct Focus<T> { static constexpr auto value = T::focus; };
 
                 template <typename T> struct Editable {};
-
-                template <typename T>
-                        requires requires { T::editable; }
-                struct Editable<T> {
-                        static constexpr auto value = T::editable;
-                };
-
-                /*--------------------------------------------------------------------------*/
+                template <typename T> requires requires { T::editable; } struct Editable<T> { static constexpr auto value = T::editable; };
 
                 template <typename T> struct Checked {};
-
-                template <typename T>
-                        requires requires { T::checked; }
-                struct Checked<T> {
-                        static constexpr auto value = T::checked;
-                };
-
-                /*--------------------------------------------------------------------------*/
+                template <typename T> requires requires { T::checked; } struct Checked<T> { static constexpr auto value = T::checked; };
 
                 template <typename T> struct Unchecked {};
+                template <typename T> requires requires { T::unchecked; } struct Unchecked<T> { static constexpr auto value = T::unchecked; };
 
-                template <typename T>
-                        requires requires { T::unchecked; }
-                struct Unchecked<T> {
-                        static constexpr auto value = T::unchecked;
-                };
+                template <typename T> struct HLine {};
+                template <typename T> requires requires { T::hline; } struct HLine<T> { static constexpr auto value = T::hline; };
+
+                template <typename T> struct VLine {};
+                template <typename T> requires requires { T::vline; } struct VLine<T> { static constexpr auto value = T::vline; };
+
+                template <typename T> struct NWCorner {};
+                template <typename T> requires requires { T::nwcorner; } struct NWCorner<T> { static constexpr auto value = T::nwcorner; };
+
+                template <typename T> struct NECorner {};
+                template <typename T> requires requires { T::necorner; } struct NECorner<T> { static constexpr auto value = T::necorner; };
+
+                template <typename T> struct SWCorner {};
+                template <typename T> requires requires { T::swcorner; } struct SWCorner<T> { static constexpr auto value = T::swcorner; };
+
+                template <typename T> struct SECorner {};
+                template <typename T> requires requires { T::secorner; } struct SECorner<T> { static constexpr auto value = T::secorner; };
+
+                template <typename T> struct Frame {};
+                template <typename T> requires requires { T::frame; } struct Frame<T> { static constexpr auto value = T::frame; };
         } // namespace getter
+        /* clang-format on */
 
-        /// Helper 3
+        /// Style helper
         template <style::Tag globalStyle, typename LocalStyle, template <typename T> typename Getter> constexpr auto get (auto defult)
         {
                 if constexpr (requires { Getter<LocalStyle>::value; }) {
                         return Getter<LocalStyle>::value;
                 }
 
-                if constexpr (requires { style::Style<globalStyle>::num; }) {
-                        return style::Style<globalStyle>::num;
+                if constexpr (requires { Getter<Style<globalStyle>>::value; }) {
+                        return Getter<Style<globalStyle>>::value;
                 }
 
                 return defult;
@@ -401,11 +398,11 @@ namespace detail {
 
         // Warning it moves the cursor!
         template <typename String = std::string_view> // No concept, no requirements
-        void line (auto &d, uint16_t len, String const &ch = std::string_view ("-"))
+        void line (auto &disp, uint16_t len, String const &chr = std::string_view ("-"))
         {
                 for (uint16_t i = 0; i < len; ++i) {
-                        detail::print (d, ch);
-                        d.cursor ().x () += 1;
+                        detail::print (disp, chr);
+                        disp.cursor ().x () += 1;
                 }
         }
 
@@ -426,32 +423,30 @@ namespace detail {
 
 } // namespace detail
 
-struct Focusable {
-        static constexpr style::Focus focus = style::Focus::enabled;
-};
-
 /****************************************************************************/
 
-template <Dimension len, char c> struct Line {
+template <Dimension len, typename LocalStyle> struct Line {
         static constexpr Dimension height = 1;
         static constexpr Dimension width = len;
 
-        template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
+        template <typename> Visibility operator() (auto &disp, Context const & /* ctx */) const
         {
-                detail::line (d, len); // TODO make character customizable
+                detail::line (
+                        disp, len,
+                        style::get<style::line, LocalStyle, style::getter::HLine> (std::string_view ("-"))); // TODO make character customizable
                 return Visibility::visible;
         }
 };
 
-template <uint16_t len> Line<len, '-'> const line;
+template <Dimension len, typename LocalStyle = void> Line<len, LocalStyle> const line;
 
 template <Dimension widthV, Dimension heightV> struct Space {
         static constexpr Dimension height = heightV;
         static constexpr Dimension width = widthV;
 
-        template <typename> Visibility operator() (auto &d, Context const & /* ctx */) const
+        template <typename> Visibility operator() (auto &disp, Context const & /* ctx */) const
         {
-                d.cursor () += {width, std::max (height - 1, 0)};
+                disp.cursor () += {width, std::max (height - 1, 0)};
                 return Visibility::visible;
         }
 };
@@ -475,16 +470,7 @@ public:
         constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
-        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key)
-        {
-                if (key == Key::select) {
-                        // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as below. But if
-                        // it's an int tha cast will fail. It shouldnt be, a concept should be more rigorous.
-                        static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
-                        // checked_ = !static_cast<bool> (checked_); // This won't work either when checked_ is std::reference_wrapper <bool>
-                        callback (checked_);
-                }
-        }
+        template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key);
 
         bool &checked () { return checked_; }
         bool const &checked () const { return checked_; }
@@ -503,30 +489,53 @@ private:
 template <typename Callback, typename ChkT, typename String, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper>
-Visibility Check<Callback, ChkT, String, LocalStyle>::operator() (auto &d, Context const &ctx) const
+Visibility Check<Callback, ChkT, String, LocalStyle>::operator() (auto &disp, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.textStyle (style::Text::highlighted);
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::highlighted);
+                }
         }
 
         if (checked_) {
-                detail::print (d, style::get<style::check, LocalStyle, style::getter::Checked> ("☑"sv));
+                detail::print (disp, style::get<style::check, LocalStyle, style::getter::Checked> ("x"sv));
         }
         else {
-                detail::print (d, style::get<style::check, LocalStyle, style::getter::Unchecked> ("☐"sv));
+                detail::print (disp, style::get<style::check, LocalStyle, style::getter::Unchecked> ("."sv));
         }
 
-        d.cursor () += {1, 0}; // Customizable
-        detail::print (d, label_);
+        disp.cursor () += {1, 0}; // Customizable
+        detail::print (disp, label_);
 
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                d.textStyle (style::Text::regular);
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::regular);
+                }
         }
 
-        d.cursor () += {Coordinate (label_.size ()), 0};
+        disp.cursor () += {Coordinate (label_.size ()), 0};
         return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename Callback, typename ChkT, typename String, typename LocalStyle>
+        requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper>
+void Check<Callback, ChkT, String, LocalStyle>::input (auto & /* d */, Context const & /* ctx */, Key key)
+{
+        if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
+                if (key == Key::select) {
+                        // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as
+                        // below. But if it's an int tha cast will fail. It shouldnt be, a concept should be more rigorous.
+                        static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
+                        // checked_ = !static_cast<bool> (checked_); // This won't work either when checked_ is std::reference_wrapper
+                        // <bool>
+                        callback (checked_);
+                }
+        }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -570,8 +579,9 @@ constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 
 template <typename String, std::regular ValueT, bool radioVisible = true>
         requires c::string<std::remove_reference_t<String>>
-class Radio : public Focusable {
+class Radio {
 public:
+        static constexpr style::Focus focus = style::Focus::enabled;
         static constexpr Dimension height = 1;
         using Value = ValueT;
 
@@ -805,8 +815,9 @@ template <typename String> auto label (String &&str) { return Label<std::unwrap_
  */
 template <typename String, typename Callback>
         requires c::string<std::remove_reference_t<String>>
-class Button : public Focusable {
+class Button {
 public:
+        static constexpr style::Focus focus = style::Focus::enabled;
         static constexpr Dimension height = 1;
 
         constexpr explicit Button (String const &lbl, Callback clb) : label_{lbl}, callback{std::move (clb)} {}
@@ -1445,43 +1456,12 @@ namespace detail {
 /**
  * A window
  */
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT> class Window {
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle, typename ChildT> class Window {
 public:
         using Child = std::remove_reference_t<std::unwrap_ref_decay_t<ChildT>>;
         explicit Window (ChildT wgt) : child_{std::move (wgt)} {} // ChildT can be a widget (like Label) or reference_wrapper <Label>
 
-        template <typename Wrapper> Visibility operator() (auto &disp, Context & /* ctx */) const // TODO Move outide the class
-        {
-                using namespace std::string_view_literals;
-                disp.cursor () = {ox, oy};
-
-                if constexpr (frame) {
-                        detail::print (disp, "┌"sv); // TODO characters customizable
-                        disp.cursor () += {1, 0};
-                        detail::line (disp, width - FrameHelper::cut);
-                        detail::print (disp, "┐"sv);
-
-                        for (int i = 0; i < height - FrameHelper::cut; ++i) {
-                                disp.cursor ().x () = ox;
-                                disp.cursor () += {0, 1};
-                                detail::print (disp, "│"sv);
-                                disp.cursor () += {1, 0};
-                                detail::line (disp, width - FrameHelper::cut, " "sv);
-                                detail::print (disp, "│"sv);
-                        }
-
-                        disp.cursor ().x () = ox;
-                        disp.cursor () += {0, 1};
-                        detail::print (disp, "└"sv);
-                        disp.cursor () += {1, 0};
-                        detail::line (disp, width - FrameHelper::cut);
-                        detail::print (disp, "┘"sv);
-
-                        disp.cursor () = {ox + FrameHelper::offset, oy + FrameHelper::offset};
-                }
-
-                return Visibility::visible;
-        }
+        template <typename Wrapper> Visibility operator() (auto &disp, Context & /* ctx */) const;
 
         ChildT &child () { return child_; }
         ChildT const &child () const { return child_; }
@@ -1492,16 +1472,57 @@ public:
         static constexpr Dimension height = heightV; // Dimensions in characters
         static constexpr Focus focusableWidgetCount = Child::focusableWidgetCount;
 
+        static constexpr bool frame = style::get<style::window, LocalStyle, style::getter::Frame> (false);
         using FrameHelper = detail::FrameHelper<frame>;
 
 private:
         ChildT child_;
 };
 
+/*--------------------------------------------------------------------------*/
+
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle, typename ChildT>
+template <typename Wrapper>
+Visibility Window<ox, oy, widthV, heightV, LocalStyle, ChildT>::operator() (auto &disp, Context & /* ctx */) const
+{
+        using namespace std::string_view_literals;
+        disp.cursor () = {ox, oy};
+
+        if constexpr (frame) {
+                constexpr auto vline = style::get<style::window, LocalStyle, style::getter::VLine> (":"sv);
+                constexpr auto hline = style::get<style::window, LocalStyle, style::getter::HLine> ("-"sv);
+
+                detail::print (disp, style::get<style::window, LocalStyle, style::getter::NWCorner> ("+"sv)); // TODO characters customizable
+                disp.cursor () += {1, 0};
+                detail::line (disp, width - FrameHelper::cut, hline);
+                detail::print (disp, style::get<style::window, LocalStyle, style::getter::NECorner> ("+"sv));
+
+                for (int i = 0; i < height - FrameHelper::cut; ++i) {
+                        disp.cursor ().x () = ox;
+                        disp.cursor () += {0, 1};
+                        detail::print (disp, vline);
+                        disp.cursor () += {1, 0};
+                        detail::line (disp, width - FrameHelper::cut, " "sv);
+                        detail::print (disp, vline);
+                }
+
+                disp.cursor ().x () = ox;
+                disp.cursor () += {0, 1};
+                detail::print (disp, style::get<style::window, LocalStyle, style::getter::SWCorner> ("+"sv));
+                disp.cursor () += {1, 0};
+                detail::line (disp, width - FrameHelper::cut, hline);
+                detail::print (disp, style::get<style::window, LocalStyle, style::getter::SECorner> ("+"sv));
+
+                disp.cursor () = {ox + FrameHelper::offset, oy + FrameHelper::offset};
+        }
+
+        return Visibility::visible;
+}
+
 template <typename T> struct is_window : public std::bool_constant<false> {};
 
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame, typename ChildT>
-struct is_window<Window<ox, oy, widthV, heightV, frame, ChildT>> : public std::bool_constant<true> {};
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle, typename ChildT>
+struct is_window<Window<ox, oy, widthV, heightV, LocalStyle, ChildT>> : public std::bool_constant<true> {};
 
 namespace c {
         template <typename T>
@@ -1509,9 +1530,9 @@ namespace c {
 }
 
 namespace detail {
-        template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false> auto windowRaw (auto &&wgt)
+        template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle> auto windowRaw (auto &&wgt)
         {
-                return Window<ox, oy, widthV, heightV, frame, std::decay_t<decltype (wgt)>> (std::forward<decltype (wgt)> (wgt));
+                return Window<ox, oy, widthV, heightV, LocalStyle, std::decay_t<decltype (wgt)>> (std::forward<decltype (wgt)> (wgt));
         }
 } // namespace detail
 
@@ -2245,9 +2266,9 @@ template <Dimension width = 0, typename... W> auto hbox (W &&...widgets)
 /****************************************************************************/
 
 /// window factory function has special meaning that is also wraps.
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, bool frame = false, typename W = void> auto window (W &&c)
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle = void, typename W = void> auto window (W &&c)
 {
-        return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, frame> (std::forward<W> (c)));
+        return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, LocalStyle> (std::forward<W> (c)));
 }
 
 } // namespace og

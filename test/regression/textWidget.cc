@@ -104,8 +104,9 @@ auto lll2 = [txt = text<17, 6> (std::ref (buff)), startLine = LineOffset{}] () m
 
 template </* typename BufferT, */ typename TextWidgetT, typename ButtonUpT, typename ButtonDownT>
 // requires c::text_buffer<std::remove_reference_t<BufferT>>
-class TextBox1 : public Focusable {
+class TextBox1 {
 public:
+        static constexpr style::Focus focus = style::Focus::enabled;
         // using Buffer = std::remove_reference_t<BufferT>;
         using TextWidget = std::remove_reference_t<TextWidgetT>;
         using ButtonUp = std::remove_reference_t<ButtonUpT>;
@@ -161,8 +162,9 @@ public:
 
 // template <Dimension widthV, Dimension heightV, typename Buffer>
 // requires c::text_buffer<std::remove_reference_t<Buffer>>
-// class TextBox : public Focusable {
+// class TextBox  {
 // public:
+//         static constexpr style::Focus focus = style::Focus::enabled;
 //         static constexpr Dimension height = heightV;
 //         static constexpr Dimension width = widthV;
 
@@ -231,8 +233,9 @@ public:
 // TODO total mess
 template <Dimension widthV, Dimension heightV, typename Buffer>
 // requires c::text_buffer<std::remove_reference_t<Buffer>>
-class TextBox : public Focusable {
+class TextBox {
 public:
+        static constexpr style::Focus focus = style::Focus::enabled;
         static constexpr Dimension height = heightV;
         static constexpr Dimension width = widthV;
 
@@ -302,8 +305,9 @@ public:
 
 // template <Dimension widthV, Dimension heightV, typename Buffer>
 // requires c::text_buffer<std::remove_reference_t<Buffer>>
-// class TextBox : public Focusable {
+// class TextBox {
 // public:
+//         static constexpr style::Focus focus = style::Focus::enabled;
 //         static constexpr Dimension height = heightV;
 //         static constexpr Dimension width = widthV;
 

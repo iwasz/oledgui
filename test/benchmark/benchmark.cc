@@ -19,6 +19,12 @@ enum class Windows { menu, allFeatures, dialog, textBox };
 
 /****************************************************************************/
 
+struct WindowsWithFrame {
+        static constexpr bool frame = true;
+};
+
+/****************************************************************************/
+
 int main ()
 {
 
@@ -70,7 +76,7 @@ int main ()
                        hbox (button ([&mySuiteP] { mySuiteP->current () = Windows::allFeatures; }, "[OK]"sv), button ([] {}, "[Cl]"sv)),
                        check (false, "15 "sv));
 
-        auto dialog = window<4, 1, 10, 5, true> (std::ref (v));
+        auto dialog = window<4, 1, 10, 5, WindowsWithFrame> (std::ref (v));
         // log (dialog);
 
         /*--------------------------------------------------------------------------*/

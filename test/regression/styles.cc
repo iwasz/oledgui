@@ -7,7 +7,19 @@
  ****************************************************************************/
 
 #include "styles.h"
+#include "customStyles.h"
 #include "regression.h"
+
+namespace og::style {
+template <> struct Style<check> {
+        static constexpr std::string_view checked{"☑"};
+        static constexpr std::string_view unchecked{"☐"};
+};
+
+template <> struct Style<line> {
+        static constexpr std::string_view hline{"─"};
+};
+} // namespace og::style
 
 namespace {
 using namespace og;
@@ -57,16 +69,14 @@ auto combo
 /*--------------------------------------------------------------------------*/
 
 struct CustomStyleCheck {
-        // static constexpr style::Editable editable = style::Editable::no;
-        // static constexpr style::Focus focus = style::Focus::disabled;
-        static constexpr std::string_view checked{"x"sv};
-        static constexpr std::string_view unchecked{"."sv};
+        static constexpr style::Focus focus = style::Focus::disabled;
+        static constexpr style::Editable editable = style::Editable::no;
 };
 
-auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),                           //
-                                           check (true, " PR value "sv),                    //
-                                           check<CustomStyleCheck> (true, " std::ref 1"sv), //
-                                           check (true, " std::ref 2"sv)));
+auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
+                                           check (true, " PR value "sv),            //
+                                           line<18>, check (true, " std::ref 1"sv), //
+                                           line<18>, check<CustomStyleCheck> (true, " std::ref 2"sv)));
 
 // /*--------------------------------------------------------------------------*/
 

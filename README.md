@@ -120,7 +120,7 @@ Real runtime:
 ![Real runtime](doc/realTime.png)
 
 # Documentation TODO:
-* When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.
+* ~~When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.~~ Use styles
 * ~~Display has its own context, so you don;t have to use a window???~~ It was removed.
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
 * Only '\n's are recognized as newline characters by text widget.
@@ -154,7 +154,7 @@ Layouts:
 * Minimum widget API is defined by `c::widget` concept but what about full feature set of this API? I have to document that:
 
 ```cpp
-struct Custom : public Focusable /* or use `static constexpr bool focus = true;` */ {
+struct Custom /* or use `static constexpr style::Focus focus = xxxx;` */ {
         static constexpr Dimension height = 1;
         static constexpr Dimension width = 1;
 
@@ -184,7 +184,8 @@ First there are classes like Check, Radio and so on, and they are created by cor
 factory methods named accordingly (check, radio etc). Widgets can have these fields:
 
 * Coordinate height: height in characters.
-* bool focus: tells if widget can have focus. You also may inherit from Focusable class.
+* Styles
+* ~~bool focus: tells if widget can have focus. You also may inherit from Focusable class.~~
 * template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const : draws
         the widget on the screen.
 * template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles
