@@ -16,12 +16,13 @@
 #include "oledgui/debug.h"
 #include "oledgui/ncurses.h"
 #include "progress.h"
+#include "styles.h"
 #include "textWidget.h"
 
 using namespace og;
 using namespace std::string_view_literals;
 
-enum class Windows { menu, allFeatures, dialog, cellPhone, layouts, number, progress };
+enum class Windows { menu, allFeatures, dialog, cellPhone, layouts, number, progress, styles };
 ISuite<Windows> *mySuiteP{};
 
 /****************************************************************************/
@@ -34,9 +35,10 @@ int main ()
                                                button ([] { mySuiteP->current () = Windows::allFeatures; }, "1. Input API   "sv),
                                                button ([] { mySuiteP->current () = Windows::dialog; }, "2. Text widget "sv),
                                                button ([] { mySuiteP->current () = Windows::cellPhone; }, "3. Cell phone  "sv),
-                                               button ([] { mySuiteP->current () = Windows::layouts; }, "4. Layouts     "sv), //
-                                               button ([] { mySuiteP->current () = Windows::number; }, "5. Numbers     "sv),  //
-                                               button ([] { mySuiteP->current () = Windows::progress; }, "6. Progress bar"sv) //
+                                               button ([] { mySuiteP->current () = Windows::layouts; }, "4. Layouts     "sv),  //
+                                               button ([] { mySuiteP->current () = Windows::number; }, "5. Numbers     "sv),   //
+                                               button ([] { mySuiteP->current () = Windows::progress; }, "6. Progress bar"sv), //
+                                               button ([] { mySuiteP->current () = Windows::styles; }, "7. Styles      "sv)    //
                                                ));
 
         auto mySuite = suite<Windows> (element (Windows::menu, std::ref (menu)),               //
@@ -45,7 +47,8 @@ int main ()
                                        element (Windows::cellPhone, std::ref (cellPhone ())),  //
                                        element (Windows::layouts, std::ref (layout ())),       //
                                        element (Windows::number, std::ref (number ())),        //
-                                       element (Windows::progress, std::ref (progress ())));
+                                       element (Windows::progress, std::ref (progress ())),    //
+                                       element (Windows::styles, std::ref (styles ())));
         mySuiteP = &mySuite;
 
         while (true) {

@@ -80,7 +80,7 @@ auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),    
 auto dataReferencesCheckCtad = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
                                                           check (true, " PR value "sv),            //
                                                           check (std::ref (bbb), " std::ref 1"sv), //
-                                                          Check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+                                                          check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
 
 /*--------------------------------------------------------------------------*/
 

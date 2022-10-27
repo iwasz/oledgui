@@ -101,9 +101,10 @@ aaa
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 * [x] One button only input (using short and long press). It requires cycling through focusable elements.
-  * [ ] BUG : it works, but does not scroll the contents.
+  * [ ] BUG : it works, but does not scroll the contents (or not always - see the regression's main menu. Press UP when 1st is selected).
 * [ ] Auto repeat on long-press in the Key class.
 * [x] Progress bar.
+* [ ] Bug: can't instantiate combo with single option (soime static assert fails)
 
 
 # Benchmarks
@@ -153,7 +154,7 @@ Layouts:
 * Minimum widget API is defined by `c::widget` concept but what about full feature set of this API? I have to document that:
 
 ```cpp
-struct Custom : public Focusable /* or use `static constexpr bool canFocus = true;` */ {
+struct Custom : public Focusable /* or use `static constexpr bool focus = true;` */ {
         static constexpr Dimension height = 1;
         static constexpr Dimension width = 1;
 
@@ -183,7 +184,7 @@ First there are classes like Check, Radio and so on, and they are created by cor
 factory methods named accordingly (check, radio etc). Widgets can have these fields:
 
 * Coordinate height: height in characters.
-* bool canFocus: tells if widget can have focus. You also may inherit from Focusable class.
+* bool focus: tells if widget can have focus. You also may inherit from Focusable class.
 * template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const : draws
         the widget on the screen.
 * template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles

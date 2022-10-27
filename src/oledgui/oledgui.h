@@ -40,6 +40,79 @@ using LineOffset = int;
 namespace style {
         enum class Text { regular, highlighted };
         enum class Focus { disabled, enabled };
+        enum class Editable { no, yes };
+
+        /// Style tag. Use negative numbers for custom user widgets.
+        using Tag = int;
+        constexpr Tag button = 1;
+        constexpr Tag check = 2;
+        constexpr Tag combo = 3;
+        constexpr Tag group = 4;
+        constexpr Tag label = 5;
+        constexpr Tag layout = 6;
+        constexpr Tag line = 7;
+        constexpr Tag number = 8;
+        constexpr Tag radio = 9;
+        constexpr Tag text = 10;
+        constexpr Tag window = 11;
+
+        /// Default empty style
+        template <Tag tag> struct Style {};
+
+        namespace getter {
+                template <typename T> struct Focus {};
+
+                template <typename T>
+                        requires requires { T::focus; }
+                struct Focus<T> {
+                        static constexpr auto value = T::focus;
+                };
+
+                /*--------------------------------------------------------------------------*/
+
+                template <typename T> struct Editable {};
+
+                template <typename T>
+                        requires requires { T::editable; }
+                struct Editable<T> {
+                        static constexpr auto value = T::editable;
+                };
+
+                /*--------------------------------------------------------------------------*/
+
+                template <typename T> struct Checked {};
+
+                template <typename T>
+                        requires requires { T::checked; }
+                struct Checked<T> {
+                        static constexpr auto value = T::checked;
+                };
+
+                /*--------------------------------------------------------------------------*/
+
+                template <typename T> struct Unchecked {};
+
+                template <typename T>
+                        requires requires { T::unchecked; }
+                struct Unchecked<T> {
+                        static constexpr auto value = T::unchecked;
+                };
+        } // namespace getter
+
+        /// Helper 3
+        template <style::Tag globalStyle, typename LocalStyle, template <typename T> typename Getter> constexpr auto get (auto defult)
+        {
+                if constexpr (requires { Getter<LocalStyle>::value; }) {
+                        return Getter<LocalStyle>::value;
+                }
+
+                if constexpr (requires { style::Style<globalStyle>::num; }) {
+                        return style::Style<globalStyle>::num;
+                }
+
+                return defult;
+        }
+
 } // namespace style
 
 class Point {
@@ -354,7 +427,7 @@ namespace detail {
 } // namespace detail
 
 struct Focusable {
-        static constexpr style::Focus canFocus = style::Focus::enabled;
+        static constexpr style::Focus focus = style::Focus::enabled;
 };
 
 /****************************************************************************/
@@ -391,10 +464,12 @@ template <Dimension heightV> Space<1, heightV> const vspace;
 /* Check                                                                    */
 /****************************************************************************/
 
-template <typename Callback, typename ChkT, typename String>
+template <typename Callback, typename ChkT, typename String, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
-class Check : public Focusable {
+class Check {
 public:
+        static constexpr style::Focus focus = style::get<style::check, LocalStyle, style::getter::Focus> (style::Focus::enabled);
+        static constexpr style::Editable editable = style::get<style::check, LocalStyle, style::getter::Editable> (style::Editable::yes);
         static constexpr Dimension height = 1;
 
         constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
@@ -425,10 +500,10 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ChkT, typename String>
+template <typename Callback, typename ChkT, typename String, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper>
-Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ctx) const
+Visibility Check<Callback, ChkT, String, LocalStyle>::operator() (auto &d, Context const &ctx) const
 {
         using namespace std::string_view_literals;
 
@@ -437,10 +512,10 @@ Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ct
         }
 
         if (checked_) {
-                detail::print (d, "☑"sv);
+                detail::print (d, style::get<style::check, LocalStyle, style::getter::Checked> ("☑"sv));
         }
         else {
-                detail::print (d, "☐"sv);
+                detail::print (d, style::get<style::check, LocalStyle, style::getter::Unchecked> ("☐"sv));
         }
 
         d.cursor () += {1, 0}; // Customizable
@@ -457,24 +532,24 @@ Visibility Check<Callback, ChkT, String>::operator() (auto &d, Context const &ct
 /*--------------------------------------------------------------------------*/
 
 template <typename T> struct EmptyUnaryInvocable {
-        void operator() (T) {}
+        void operator() (T /*arg*/) {}
 };
 
-template <std::invocable<bool> Callback, c::string String>
-Check (Callback clb, String const &lbl) -> Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>>;
+// template <std::invocable<bool> Callback, c::string String>
+// Check (Callback clb, String const &lbl) -> Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>, void>;
 
-template <std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
+template <typename LocalStyle = void, std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
 {
-        return Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>> (std::forward<Callback> (clb), {},
-                                                                                            std::forward<String> (str));
+        return Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>, LocalStyle> (std::forward<Callback> (clb), {},
+                                                                                                        std::forward<String> (str));
 }
 
-template <std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = void, std::convertible_to<bool> ChkT, c::string String>
         requires (!std::invocable<ChkT, bool>)
 constexpr auto check (ChkT &&chk, String &&str)
 {
-        return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> ({}, std::forward<ChkT> (chk),
-                                                                                                                 std::forward<String> (str));
+        return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
+                {}, std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
 // template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
@@ -482,10 +557,10 @@ constexpr auto check (ChkT &&chk, String &&str)
 //         -> Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>>;
 
 // TODO change ChkT to ValueT - make this naming consistent in every widget
-template <std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = void, std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
 constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 {
-        return Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>> (
+        return Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
                 std::forward<Callback> (clb), std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
@@ -862,11 +937,12 @@ typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toInde
 /**
  *
  */
-template <typename Callback, typename ValueContainerT, style::Focus canFocusV, typename OptionCollection>
+template <typename Callback, typename ValueContainerT, typename LocalStyle, typename OptionCollection>
         requires std::invocable<Callback, typename OptionCollection::Value>
 class Combo {
 public:
-        static constexpr style::Focus canFocus = canFocusV;
+        static constexpr style::Focus focus = style::get<style::combo, LocalStyle, style::getter::Focus> (style::Focus::enabled);
+        static constexpr style::Editable editable = style::get<style::combo, LocalStyle, style::getter::Editable> (style::Editable::yes);
         static constexpr Dimension height = 1;
         using Option = typename OptionCollection::OptionType;
         using Value = typename OptionCollection::Value;
@@ -898,12 +974,12 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, style::Focus canFocusV, typename OptionCollection>
+template <typename Callback, typename ValueContainer, typename LocalStyle, typename OptionCollection>
         requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper>
-Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operator() (auto &disp, Context const &ctx) const
+Visibility Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::operator() (auto &disp, Context const &ctx) const
 {
-        if constexpr (canFocusV == style::Focus::enabled) {
+        if constexpr (focus == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                         disp.textStyle (style::Text::highlighted);
                 }
@@ -913,7 +989,7 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
         auto &label = options.getOptionByIndex (index_).label ();
         detail::print (disp, label);
 
-        if constexpr (canFocusV == style::Focus::enabled) {
+        if constexpr (focus == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                         disp.textStyle (style::Text::regular);
                 }
@@ -925,12 +1001,12 @@ Visibility Combo<Callback, ValueContainer, canFocusV, OptionCollection>::operato
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueContainer, style::Focus canFocusV, typename OptionCollection>
+template <typename Callback, typename ValueContainer, typename LocalStyle, typename OptionCollection>
         requires std::invocable<Callback, typename OptionCollection::Value>
 template <typename Wrapper>
-void Combo<Callback, ValueContainer, canFocusV, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
+void Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if constexpr (canFocusV == style::Focus::enabled) {
+        if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         ++index_;
                         index_ %= options.size ();
@@ -949,8 +1025,7 @@ auto combo (CallbackT &&clb, Opts &&...opts)
         using Value = typename First_t<Opts...>::Value;
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
-        return Combo<Callback, Value, style::Focus::enabled, OptionCollection> (std::forward<Callback> (clb), Value{},
-                                                                                Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, Value, void, OptionCollection> (std::forward<Callback> (clb), Value{}, Options (std::forward<Opts> (opts)...));
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... Opts>
@@ -964,11 +1039,11 @@ auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, ValueContainer, style::Focus::enabled, OptionCollection> (
-                std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value), Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, ValueContainer, void, OptionCollection> (std::forward<CallbackT> (clb), std::forward<ValueContainerT> (value),
+                                                                        Options (std::forward<Opts> (opts)...));
 }
 
-template <style::Focus canFocusV = style::Focus::enabled, typename ValueContainerT, typename... Opts>
+template <typename LocalStyle = void, typename ValueContainerT, typename... Opts>
         requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value>
         && (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)
 auto combo (ValueContainerT &&cid, Opts &&...opts)
@@ -978,8 +1053,8 @@ auto combo (ValueContainerT &&cid, Opts &&...opts)
         using ValueContainer = std::remove_reference_t<ValueContainerT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
-        return Combo<Callback, ValueContainer, canFocusV, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
-                                                                             Options (std::forward<Opts> (opts)...));
+        return Combo<Callback, ValueContainer, LocalStyle, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
+                                                                              Options (std::forward<Opts> (opts)...));
 }
 
 /****************************************************************************/
@@ -1018,7 +1093,7 @@ template <typename Callback, typename ValueT, typename std::remove_reference_t<V
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 class Number {
 public:
-        static constexpr style::Focus canFocus = canFocusV;
+        static constexpr style::Focus focus = canFocusV;
         static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
         using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
 
@@ -1144,11 +1219,11 @@ namespace detail {
                 }
                 else if constexpr (requires {
                                            {
-                                                   T::canFocus
+                                                   T::focus
                                                    } -> std::convertible_to<style::Focus>;
                                    }) {
                         // This field is optional and is used in regular widgets. Its absence is treated as it were declared false.
-                        return uint16_t (T::canFocus);
+                        return uint16_t (T::focus);
                 }
                 else {
                         return 0;

@@ -24,8 +24,8 @@ namespace detail::augment {
                         std::cout << std::string (indent, ' ') << "focusIndex: ";
 
                         if constexpr (requires {
-                                              Wrapped::canFocus;
-                                              requires Wrapped::canFocus == style::Focus::enabled;
+                                              Wrapped::focus;
+                                              requires Wrapped::focus == style::Focus::enabled;
                                       }) {
                                 std::cout << w.getFocusIndex ();
                         }
