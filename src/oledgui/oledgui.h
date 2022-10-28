@@ -53,8 +53,9 @@ namespace style {
         constexpr Tag line = 7;
         constexpr Tag number = 8;
         constexpr Tag radio = 9;
-        constexpr Tag text = 10;
-        constexpr Tag window = 11;
+        constexpr Tag item = 10;
+        constexpr Tag text = 11;
+        constexpr Tag window = 12;
 
         /// Default empty style
         template <Tag tag> struct Style {};
@@ -93,6 +94,9 @@ namespace style {
 
                 template <typename T> struct Frame {};
                 template <typename T> requires requires { T::frame; } struct Frame<T> { static constexpr auto value = T::frame; };
+
+                template <typename T> struct RadioVisible {};
+                template <typename T> requires requires { T::radioVisible; } struct RadioVisible<T> { static constexpr auto value = T::radioVisible; };
         } // namespace getter
         /* clang-format on */
 
@@ -574,14 +578,90 @@ constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 }
 
 /****************************************************************************/
+/* Item                                                                    */
+/****************************************************************************/
+
+template <typename String, std::regular ValueT, typename LocalStyle>
+        requires c::string<std::remove_reference_t<String>>
+class Item {
+public:
+        static constexpr style::Focus focus = style::get<style::item, LocalStyle, style::getter::Focus> (style::Focus::enabled);
+        static constexpr Dimension height = 1;
+        using Value = ValueT;
+
+        constexpr Item (Value value, String const &lbl) : id_{std::move (value)}, label_{lbl} {}
+        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx, ValueT const &value = {}) const;
+        template <typename Wrapper, typename Callback> void input (auto &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
+
+        // Value &id () { return id_; }
+        Value const &id () const { return id_; }
+
+        // String &label () { return label_; }
+        String const &label () const { return label_; }
+
+private:
+        Value id_;
+        String label_;
+};
+
+/*--------------------------------------------------------------------------*/
+
+template <typename String, std::regular ValueT, typename LocalStyle>
+        requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper>
+Visibility Item<String, ValueT, LocalStyle>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
+{
+        using namespace std::string_view_literals;
+
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::highlighted);
+                }
+        }
+
+        detail::print (disp, label_);
+
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::regular);
+                }
+        }
+
+        disp.cursor () += {Coordinate (label_.size ()), 0};
+        return Visibility::visible;
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename String, std::regular ValueT, typename LocalStyle>
+        requires c::string<std::remove_reference_t<String>>
+template <typename Wrapper, typename Callback>
+void Item<String, ValueT, LocalStyle>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+{
+        if constexpr (focus == style::Focus::enabled) {
+                if (key == Key::select) {
+                        value = id ();
+                        clb (id ());
+                }
+        }
+}
+
+template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
+{
+        return Item<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle> (std::forward<Id> (cid), std::forward<String> (label));
+}
+
+/****************************************************************************/
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::regular ValueT, bool radioVisible = true>
+template <typename String, std::regular ValueT, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
 class Radio {
 public:
-        static constexpr style::Focus focus = style::Focus::enabled;
+        static constexpr bool radioVisible = style::get<style::radio, LocalStyle, style::getter::RadioVisible> (true);
+        static constexpr style::Focus focus = style::get<style::radio, LocalStyle, style::getter::Focus> (style::Focus::enabled);
+        static constexpr style::Editable editable = style::get<style::radio, LocalStyle, style::getter::Editable> (style::Editable::yes);
         static constexpr Dimension height = 1;
         using Value = ValueT;
 
@@ -602,15 +682,17 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String, std::regular ValueT, bool radioVisible>
+template <typename String, std::regular ValueT, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper>
-Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
+Visibility Radio<String, ValueT, LocalStyle>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
 {
         using namespace std::string_view_literals;
 
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.textStyle (style::Text::highlighted);
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::highlighted);
+                }
         }
 
         if constexpr (radioVisible) {
@@ -626,38 +708,37 @@ Visibility Radio<String, ValueT, radioVisible>::operator() (auto &disp, Context 
 
         detail::print (disp, label_);
 
-        if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                disp.textStyle (style::Text::regular);
+        if constexpr (focus == style::Focus::enabled) {
+                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
+                        disp.textStyle (style::Text::regular);
+                }
         }
 
         disp.cursor () += {Coordinate (label_.size ()), 0};
         return Visibility::visible;
 }
 
-template <typename String, std::regular ValueT, bool radioVisible>
+template <typename String, std::regular ValueT, typename LocalStyle>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
-void Radio<String, ValueT, radioVisible>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+void Radio<String, ValueT, LocalStyle>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
-        if (key == Key::select) {
-                value = id ();
-                clb (id ());
+        if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
+                if (key == Key::select) {
+                        value = id ();
+                        clb (id ());
+                }
         }
 }
 
-template <typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
+template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
 {
-        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, true> (std::forward<Id> (cid), std::forward<String> (label));
-}
-
-template <typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
-{
-        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, false> (std::forward<Id> (cid), std::forward<String> (label));
+        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
 template <typename T> struct is_radio : public std::bool_constant<false> {};
-
-template <typename String, typename Id, bool radioVisible> struct is_radio<Radio<String, Id, radioVisible>> : public std::bool_constant<true> {};
+template <typename String, typename Id, typename LocalStyle> struct is_radio<Radio<String, Id, LocalStyle>> : public std::bool_constant<true> {};
+template <typename String, typename Id, typename LocalStyle> struct is_radio<Item<String, Id, LocalStyle>> : public std::bool_constant<true> {};
 
 /****************************************************************************/
 /* Text                                                                     */

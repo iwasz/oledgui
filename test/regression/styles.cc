@@ -78,46 +78,17 @@ auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),               
                                            line<18>, check (true, " std::ref 1"sv), //
                                            line<18>, check<CustomStyleCheck> (true, " std::ref 2"sv)));
 
-// /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
-// auto dataReferencesCheckCtad = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
-//                                                           check (true, " PR value "sv),            //
-//                                                           check (std::ref (bbb), " std::ref 1"sv), //
-//                                                           Check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+int gid{2};
 
-// /*--------------------------------------------------------------------------*/
+auto dataReferencesRadio
+        = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
+                                     hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
+                                     hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
+                                     hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
 
-// int cid{777};
-
-// auto dataReferencesCombo
-//         = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
-//                                      combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
-//                                      combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
-//                                      combo ([] (int) {}, std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888,
-//                                      "BLUE"sv)))
-
-//         );
-
-// /*--------------------------------------------------------------------------*/
-
-// enum class Color { red, green, blue };
-// Color clr{Color::blue};
-
-// auto dataReferencesComboEnum = window<0, 0, 18, 7> (hbox (std::ref (backButton),
-//                                                           combo ([] (Color clr) {}, std::ref (clr), option (Color::red, "red"sv),
-//                                                                  option (Color::green, "green"sv), option (Color::blue, "blue"sv))));
-
-// /*--------------------------------------------------------------------------*/
-
-// int gid{2};
-
-// auto dataReferencesRadio
-//         = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
-//                                      hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
-//                                      hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
-//                                      hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
-
-//         );
+        );
 
 /*--------------------------------------------------------------------------*/
 

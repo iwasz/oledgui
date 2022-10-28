@@ -16,7 +16,7 @@ using namespace std::string_view_literals;
 
 static_assert (c::widget<Line<0, void>>);
 static_assert (c::widget<Check<decltype ([] {}), bool, std::string_view, void>>);
-static_assert (c::widget<Radio<std::string_view, int>>);
+static_assert (c::widget<Radio<std::string_view, int, void>>);
 static_assert (c::widget<Label<std::string_view>>);
 static_assert (c::widget<Button<std::string_view, decltype ([] {})>>);
 // These does not have the operator () and the height field
