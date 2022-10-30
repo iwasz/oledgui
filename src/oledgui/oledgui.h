@@ -97,6 +97,9 @@ namespace style {
 
                 template <typename T> struct RadioVisible {};
                 template <typename T> requires requires { T::radioVisible; } struct RadioVisible<T> { static constexpr auto value = T::radioVisible; };
+
+                template <typename T> struct Interspace {};
+                template <typename T> requires requires { T::interspace; } struct Interspace<T> { static constexpr auto value = T::interspace; };
         } // namespace getter
         /* clang-format on */
 
@@ -468,7 +471,6 @@ template <typename Callback, typename ChkT, typename String, typename LocalStyle
 class Check {
 public:
         static constexpr style::Focus focus = style::get<style::check, LocalStyle, style::getter::Focus> (style::Focus::enabled);
-        static constexpr style::Editable editable = style::get<style::check, LocalStyle, style::getter::Editable> (style::Editable::yes);
         static constexpr Dimension height = 1;
 
         constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
@@ -510,7 +512,8 @@ Visibility Check<Callback, ChkT, String, LocalStyle>::operator() (auto &disp, Co
                 detail::print (disp, style::get<style::check, LocalStyle, style::getter::Unchecked> ("."sv));
         }
 
-        disp.cursor () += {1, 0}; // Customizable
+        disp.cursor () += {style::get<style::check, LocalStyle, style::getter::Interspace> (1), 0}; // TODO make customizable
+
         detail::print (disp, label_);
 
         if constexpr (focus == style::Focus::enabled) {
@@ -530,6 +533,8 @@ template <typename Callback, typename ChkT, typename String, typename LocalStyle
 template <typename Wrapper>
 void Check<Callback, ChkT, String, LocalStyle>::input (auto & /* d */, Context const & /* ctx */, Key key)
 {
+        static constexpr style::Editable editable = style::get<style::check, LocalStyle, style::getter::Editable> (style::Editable::yes);
+
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
                         // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as
@@ -578,90 +583,16 @@ constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 }
 
 /****************************************************************************/
-/* Item                                                                    */
-/****************************************************************************/
-
-template <typename String, std::regular ValueT, typename LocalStyle>
-        requires c::string<std::remove_reference_t<String>>
-class Item {
-public:
-        static constexpr style::Focus focus = style::get<style::item, LocalStyle, style::getter::Focus> (style::Focus::enabled);
-        static constexpr Dimension height = 1;
-        using Value = ValueT;
-
-        constexpr Item (Value value, String const &lbl) : id_{std::move (value)}, label_{lbl} {}
-        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx, ValueT const &value = {}) const;
-        template <typename Wrapper, typename Callback> void input (auto &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
-
-        // Value &id () { return id_; }
-        Value const &id () const { return id_; }
-
-        // String &label () { return label_; }
-        String const &label () const { return label_; }
-
-private:
-        Value id_;
-        String label_;
-};
-
-/*--------------------------------------------------------------------------*/
-
-template <typename String, std::regular ValueT, typename LocalStyle>
-        requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper>
-Visibility Item<String, ValueT, LocalStyle>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
-{
-        using namespace std::string_view_literals;
-
-        if constexpr (focus == style::Focus::enabled) {
-                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.textStyle (style::Text::highlighted);
-                }
-        }
-
-        detail::print (disp, label_);
-
-        if constexpr (focus == style::Focus::enabled) {
-                if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
-                        disp.textStyle (style::Text::regular);
-                }
-        }
-
-        disp.cursor () += {Coordinate (label_.size ()), 0};
-        return Visibility::visible;
-}
-
-/*--------------------------------------------------------------------------*/
-
-template <typename String, std::regular ValueT, typename LocalStyle>
-        requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper, typename Callback>
-void Item<String, ValueT, LocalStyle>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
-{
-        if constexpr (focus == style::Focus::enabled) {
-                if (key == Key::select) {
-                        value = id ();
-                        clb (id ());
-                }
-        }
-}
-
-template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
-{
-        return Item<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle> (std::forward<Id> (cid), std::forward<String> (label));
-}
-
-/****************************************************************************/
 /* Radio                                                                    */
 /****************************************************************************/
 
-template <typename String, std::regular ValueT, typename LocalStyle>
+template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag = style::radio>
         requires c::string<std::remove_reference_t<String>>
 class Radio {
 public:
-        static constexpr bool radioVisible = style::get<style::radio, LocalStyle, style::getter::RadioVisible> (true);
-        static constexpr style::Focus focus = style::get<style::radio, LocalStyle, style::getter::Focus> (style::Focus::enabled);
-        static constexpr style::Editable editable = style::get<style::radio, LocalStyle, style::getter::Editable> (style::Editable::yes);
+        static constexpr bool radioVisible = style::get<styleTag, LocalStyle, style::getter::RadioVisible> (true);
+        static constexpr style::Focus focus = style::get<styleTag, LocalStyle, style::getter::Focus> (style::Focus::enabled);
+        static constexpr style::Editable editable = style::get<styleTag, LocalStyle, style::getter::Editable> (style::Editable::yes);
         static constexpr Dimension height = 1;
         using Value = ValueT;
 
@@ -682,10 +613,10 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename String, std::regular ValueT, typename LocalStyle>
+template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper>
-Visibility Radio<String, ValueT, LocalStyle>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
+Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
 {
         using namespace std::string_view_literals;
 
@@ -695,15 +626,15 @@ Visibility Radio<String, ValueT, LocalStyle>::operator() (auto &disp, Context co
                 }
         }
 
-        if constexpr (radioVisible) {
+        if constexpr (radioVisible && styleTag != style::item) {
                 if (id () == value) {
-                        detail::print (disp, "◉"sv);
+                        detail::print (disp, style::get<styleTag, LocalStyle, style::getter::Checked> ("o"sv));
                 }
                 else {
-                        detail::print (disp, "○"sv);
+                        detail::print (disp, style::get<styleTag, LocalStyle, style::getter::Unchecked> ("."sv));
                 }
 
-                disp.cursor () += {1, 0}; // TODO make customizable
+                disp.cursor () += {style::get<styleTag, LocalStyle, style::getter::Interspace> (1), 0}; // TODO make customizable
         }
 
         detail::print (disp, label_);
@@ -718,10 +649,12 @@ Visibility Radio<String, ValueT, LocalStyle>::operator() (auto &disp, Context co
         return Visibility::visible;
 }
 
-template <typename String, std::regular ValueT, typename LocalStyle>
+/*--------------------------------------------------------------------------*/
+
+template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
 template <typename Wrapper, typename Callback>
-void Radio<String, ValueT, LocalStyle>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
 {
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
@@ -731,14 +664,28 @@ void Radio<String, ValueT, LocalStyle>::input (auto & /* disp */, Context const 
         }
 }
 
+/*--------------------------------------------------------------------------*/
+
 template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
 {
         return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
-template <typename T> struct is_radio : public std::bool_constant<false> {};
-template <typename String, typename Id, typename LocalStyle> struct is_radio<Radio<String, Id, LocalStyle>> : public std::bool_constant<true> {};
-template <typename String, typename Id, typename LocalStyle> struct is_radio<Item<String, Id, LocalStyle>> : public std::bool_constant<true> {};
+template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
+{
+        return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle, style::item> (std::forward<Id> (cid),
+                                                                                                  std::forward<String> (label));
+}
+
+/*--------------------------------------------------------------------------*/
+
+template <typename T> struct is_groupable : public std::bool_constant<false> {};
+
+template <typename String, typename Id, typename LocalStyle, style::Tag styleTag>
+struct is_groupable<Radio<String, Id, LocalStyle, styleTag>> : public std::bool_constant<true> {};
+
+// template <typename String, typename Id, typename LocalStyle>
+// struct is_groupable<Item<String, Id, LocalStyle>> : public std::bool_constant<true> {};
 
 /****************************************************************************/
 /* Text                                                                     */
@@ -1478,8 +1425,8 @@ namespace c {
 
 template <typename CallbackT, typename... W>
         requires std::invocable<CallbackT, typename First_t<W...>::Value>
-        && std::conjunction_v<is_radio<W>...> // TODO requires that all the radio
-                                              // values have the same type
+        && std::conjunction_v<is_groupable<W>...> // TODO requires that all the radio
+                                                  // values have the same type
 auto group (CallbackT &&clb, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
@@ -1492,7 +1439,7 @@ auto group (CallbackT &&clb, W &&...widgets)
 template <typename ValueContainerT, typename... W>
         requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) && //
         std::convertible_to<ValueContainerT, typename First_t<W...>::Value> &&        //
-        std::conjunction_v<is_radio<W>...>                                            //
+        std::conjunction_v<is_groupable<W>...>                                        //
 
 auto group (ValueContainerT &&val, W &&...widgets)
 {
@@ -1508,7 +1455,7 @@ template <typename CallbackT, typename ValueContainerT, typename... W>
         requires std::invocable<CallbackT, typename First_t<W...>::Value> &&   //
         (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&   //
         std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
-        std::conjunction_v<is_radio<W>...>                                     //
+        std::conjunction_v<is_groupable<W>...>                                 //
 
 auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {

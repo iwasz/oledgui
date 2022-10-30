@@ -18,7 +18,13 @@ template <> struct Style<window> {
         static constexpr std::string_view secorner{"┘"};
         static constexpr std::string_view vline{"│"};
         static constexpr std::string_view hline{"─"};
+        // static constexpr bool frame = true;
 };
+
+// template <> struct Style<radio> {
+//         static constexpr std::string_view checked{"◉"};
+//         static constexpr std::string_view unchecked{"○"};
+// };
 
 } // namespace og::style
 

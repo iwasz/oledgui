@@ -35,7 +35,7 @@ namespace detail::augment {
 
                         std::cout << ", radioIndex: ";
 
-                        if constexpr (is_radio<Wrapped>::value) {
+                        if constexpr (is_groupable<Wrapped>::value) {
                                 std::cout << int (w.getRadioIndex ());
                         }
                         else {

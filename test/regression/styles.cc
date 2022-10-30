@@ -14,6 +14,8 @@ namespace og::style {
 template <> struct Style<check> {
         static constexpr std::string_view checked{"☑"};
         static constexpr std::string_view unchecked{"☐"};
+        // static constexpr style::Focus focus = style::Focus::disabled;
+        // static constexpr style::Editable editable = style::Editable::no;
 };
 
 template <> struct Style<line> {
@@ -29,6 +31,7 @@ enum class Windows {
         menu,
         combo,
         check,
+        radio,
 };
 
 ISuite<Windows> *mySuite{};
@@ -41,11 +44,8 @@ int buttonCnt{};
 auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),                           //
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::combo, //
                                               item (Windows::combo, "Combo style"sv),                      //
-                                              item (Windows::check, "Checkbox style"sv)                    //
-                                              //       item (Windows::dataReferencesCheckCtad, "Check API CTAD"sv), //
-                                              //       item (Windows::dataReferencesCombo, "Combo API"sv),          //
-                                              //       item (Windows::dataReferencesComboEnum, "Combo enum"sv),     //
-                                              //       item (Windows::dataReferencesRadio, "--"sv)                  //
+                                              item (Windows::check, "Checkbox style"sv),                   //
+                                              item (Windows::radio, "Radio style"sv)                       //
                                               )));
 
 auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
@@ -73,32 +73,30 @@ struct CustomStyleCheck {
         static constexpr style::Editable editable = style::Editable::no;
 };
 
-auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
-                                           check (true, " PR value "sv),            //
-                                           line<18>, check (true, " std::ref 1"sv), //
-                                           line<18>, check<CustomStyleCheck> (true, " std::ref 2"sv)));
+auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),         //
+                                           check (true, " PR value "sv),  //
+                                           line<18>,                      //
+                                           check (true, " std::ref 1"sv), //
+                                           line<18>,                      //
+                                           check<void> (true, " std::ref 2"sv)));
 
 /*--------------------------------------------------------------------------*/
 
 int gid{2};
 
-auto dataReferencesRadio
-        = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
-                                     hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
-                                     hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
-                                     hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
+auto radio1 = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
+                                         hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
+                                         hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
+                                         hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
 
-        );
+);
 
 /*--------------------------------------------------------------------------*/
 
-auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),   //
-                         element (Windows::combo, std::ref (combo)) , //
-                         element (Windows::check, std::ref (checkbox))/*,
-                         element (Windows::dataReferencesCombo, std::ref (dataReferencesCombo)),
-                         element (Windows::dataReferencesCheckCtad, std::ref (dataReferencesCheckCtad)),
-                         element (Windows::dataReferencesComboEnum, std::ref (dataReferencesComboEnum)),
-                         element (Windows::dataReferencesRadio, std::ref (dataReferencesRadio)) */);
+auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),      //
+                         element (Windows::combo, std::ref (combo)),    //
+                         element (Windows::check, std::ref (checkbox)), //
+                         element (Windows::radio, std::ref (radio1)));
 
 } // namespace
 
