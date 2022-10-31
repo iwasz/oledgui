@@ -51,6 +51,6 @@ template <> struct Style<progress> {
 
 } // namespace og::style
 
-struct WindowsWithFrame {
+struct ShowFrame {
         static constexpr bool frame = true;
 };
