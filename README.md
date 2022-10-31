@@ -48,14 +48,14 @@ aaa
   * [ ] Test with std::string_view, std::string and etl::string. Test with std::refs
   * [ ] compile-time strings as an option. Strings which would be *structural* (????? dunno if worth the effort).
   * [ ] ~~Add explicit width as a template parameter everywhere where utf8 steings can be passed. Then use this width instead of label_.size () if available~~ EDIT : wrap in hbox as a workaround.
-* [ ] Stabilize the API
+* [x] Stabilize the API
   * [x] Resolve TODOs in radio and group (about this ID template argument)
     * [x] Radio class has an argument called ID but it is not used! It's ignored in favor of automatically assigned one (starting from 0). There's a branch which removes this arg, but I don't regard this approach as good. Try to fix the ID arg.
   * [x] Make radioGroup and combo APIS simmilar.
   * [x] callbacks and / or references - for all widgets that have input. 
   * [x] Combo box accepts only `const char *` instead of templatized `c::string` concept.
-  * [ ] Styling (external template class impacting various aspects of the output)
-  * [ ] AND / OR Widget parameters dictating the looks.
+  * [x] Styling (external template class impacting various aspects of the output)
+  * [x] AND / OR Widget parameters dictating the looks.
   * [ ] (duplicate) Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
@@ -104,7 +104,8 @@ aaa
   * [ ] BUG : it works, but does not scroll the contents (or not always - see the regression's main menu. Press UP when 1st is selected).
 * [ ] Auto repeat on long-press in the Key class.
 * [x] Progress bar.
-* [ ] Bug: can't instantiate combo with single option (soime static assert fails)
+* [ ] Bug: can't instantiate combo with single option (some static assert fails)
+* [ ] Global style (if defined) has to be present in all translation units using widgets. Otherwise multiple "implementations" emerge and that's a mess.
 
 
 # Benchmarks
@@ -167,6 +168,9 @@ struct Custom /* or use `static constexpr style::Focus focus = xxxx;` */ {
 
 * Combo has additional param now which lets you turn off the *focus ability*. This lets one map integers to labels or icons easily. Give an example (`CanFocus::no`)
 * *Philosophy* Rather than introducing additional complexity in the code I usually lean toward simple workarounds if possible. For example there's no opttion for a checkbox to insert a space between the `☑` and a label automaticaly. You simply add a space to your label and that works. 
+
+Styles:
+* Global style (class template specialization with a tag like `template <> struct Style <check> { /* ... */ };`) should be accessible during *instantiation (?)* of all the Check templates (fix the nomenclature). If Style specialization is present in one translation unita and not present in another then 2 different implementations will emerge (?). After linking only single impl. will remain (random).
 
 # A short code description
 There are two layers of class templates.

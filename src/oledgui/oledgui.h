@@ -438,9 +438,7 @@ template <Dimension len, typename LocalStyle> struct Line {
 
         template <typename> Visibility operator() (auto &disp, Context const & /* ctx */) const
         {
-                detail::line (
-                        disp, len,
-                        style::get<style::line, LocalStyle, style::getter::HLine> (std::string_view ("-"))); // TODO make character customizable
+                detail::line (disp, len, style::get<style::line, LocalStyle, style::getter::HLine> (std::string_view ("-")));
                 return Visibility::visible;
         }
 };
@@ -512,7 +510,7 @@ Visibility Check<Callback, ChkT, String, LocalStyle>::operator() (auto &disp, Co
                 detail::print (disp, style::get<style::check, LocalStyle, style::getter::Unchecked> ("."sv));
         }
 
-        disp.cursor () += {style::get<style::check, LocalStyle, style::getter::Interspace> (1), 0}; // TODO make customizable
+        disp.cursor () += {style::get<style::check, LocalStyle, style::getter::Interspace> (1), 0};
 
         detail::print (disp, label_);
 
@@ -634,7 +632,7 @@ Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, 
                         detail::print (disp, style::get<styleTag, LocalStyle, style::getter::Unchecked> ("."sv));
                 }
 
-                disp.cursor () += {style::get<styleTag, LocalStyle, style::getter::Interspace> (1), 0}; // TODO make customizable
+                disp.cursor () += {style::get<styleTag, LocalStyle, style::getter::Interspace> (1), 0};
         }
 
         detail::print (disp, label_);
@@ -1520,7 +1518,7 @@ Visibility Window<ox, oy, widthV, heightV, LocalStyle, ChildT>::operator() (auto
                 constexpr auto vline = style::get<style::window, LocalStyle, style::getter::VLine> (":"sv);
                 constexpr auto hline = style::get<style::window, LocalStyle, style::getter::HLine> ("-"sv);
 
-                detail::print (disp, style::get<style::window, LocalStyle, style::getter::NWCorner> ("+"sv)); // TODO characters customizable
+                detail::print (disp, style::get<style::window, LocalStyle, style::getter::NWCorner> ("+"sv));
                 disp.cursor () += {1, 0};
                 detail::line (disp, width - FrameHelper::cut, hline);
                 detail::print (disp, style::get<style::window, LocalStyle, style::getter::NECorner> ("+"sv));

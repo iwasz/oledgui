@@ -7,6 +7,7 @@
  ****************************************************************************/
 
 #include "inputApi.h"
+#include "customStyles.h"
 #include "regression.h"
 
 namespace {

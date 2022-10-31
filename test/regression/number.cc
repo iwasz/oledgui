@@ -7,6 +7,7 @@
  ****************************************************************************/
 
 #include "number.h"
+#include "customStyles.h"
 #include "regression.h"
 
 namespace {

@@ -10,19 +10,6 @@
 #include "customStyles.h"
 #include "regression.h"
 
-namespace og::style {
-template <> struct Style<check> {
-        static constexpr std::string_view checked{"☑"};
-        static constexpr std::string_view unchecked{"☐"};
-        // static constexpr style::Focus focus = style::Focus::disabled;
-        // static constexpr style::Editable editable = style::Editable::no;
-};
-
-template <> struct Style<line> {
-        static constexpr std::string_view hline{"─"};
-};
-} // namespace og::style
-
 namespace {
 using namespace og;
 using namespace std::string_view_literals;
@@ -78,7 +65,7 @@ auto checkbox = window<0, 0, 18, 7> (vbox (std::ref (backButton),         //
                                            line<18>,                      //
                                            check (true, " std::ref 1"sv), //
                                            line<18>,                      //
-                                           check<void> (true, " std::ref 2"sv)));
+                                           check<CustomStyleCheck> (true, " std::ref 2"sv)));
 
 /*--------------------------------------------------------------------------*/
 

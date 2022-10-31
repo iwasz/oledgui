@@ -10,6 +10,7 @@
  * All functionalities in one place. Manual regression testing
  */
 #include "cellPhone.h"
+#include "customStyles.h"
 #include "inputApi.h"
 #include "layout.h"
 #include "number.h"

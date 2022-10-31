@@ -6,6 +6,7 @@
  *  ~~~~~~~~~                                                               *
  ****************************************************************************/
 
+#include "customStyles.h"
 #include "inputApi.h"
 #include "regression.h"
 #include <iostream>

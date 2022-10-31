@@ -7,6 +7,7 @@
  ****************************************************************************/
 
 #include "progress.h"
+#include "customStyles.h"
 #include "regression.h"
 
 namespace {
@@ -39,13 +40,13 @@ uint8_t sv3{};
 /**
  * All available inputs with callbacks.
  */
-auto integer
-        = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                           //
-                                     hbox (label ("value: "sv), number<0, 16> (std::ref (sharedVal))),                //
-                                     hbox (label ("["sv), progress<16, 0, 16> (std::ref (sharedVal)), label ("]"sv)), //
-                                     hbox (number<0, 28> (std::ref (sv2)), label ("["sv), progress<14, 0, 28> (std::ref (sv2)), label ("]"sv)),
-                                     hbox (label ("value 0-100: "sv), number<0, 100> (std::ref (sv3))), //
-                                     hbox (label ("["sv), progress<16, 0, 100> (std::ref (sv3)), label ("]"sv))));
+auto integer = window<0, 0, 18, 7> (
+        vbox (std::ref (backButton),                                                           //
+              hbox (label ("value: "sv), number<0, 16> (std::ref (sharedVal))),                //
+              hbox (label ("["sv), progress<16, 0, 16> (std::ref (sharedVal)), label ("]"sv)), //
+              hbox (hbox<2> (number<0, 28> (std::ref (sv2))), label ("["sv), progress<14, 0, 28> (std::ref (sv2)), label ("]"sv)),
+              hbox (label ("value 0-100: "sv), number<0, 95> (std::ref (sv3))), //
+              hbox (label ("["sv), progress<16, 0, 95> (std::ref (sv3)), label ("]"sv))));
 
 /*--------------------------------------------------------------------------*/
 
