@@ -30,7 +30,7 @@ public:
         void clear ()
         {
                 cursor () = {0, 0};
-                style (Style::regular);
+                textStyle (Style::regular);
 
                 for (int y = 0; y < heightV; ++y) {
                         std::cout << "\033[" << y + 1 << ";0H" << std::flush;
@@ -40,7 +40,7 @@ public:
                 }
         }
 
-        void style (Style c)
+        void textStyle (Style c)
         {
                 if (c == Style::regular) {
                         std::cout << "\033[44m" << std::flush;

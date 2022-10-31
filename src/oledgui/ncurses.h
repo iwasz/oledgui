@@ -48,9 +48,9 @@ public:
                 cursor ().y () = 0;
         }
 
-        void style (Style clr) override
+        void textStyle (style::Text clr) override
         {
-                if (clr == Style::highlighted) {
+                if (clr == style::Text::highlighted) {
                         wattron (win, COLOR_PAIR (2));
                 }
                 else {

@@ -54,8 +54,8 @@ aaa
   * [x] Make radioGroup and combo APIS simmilar.
   * [x] callbacks and / or references - for all widgets that have input. 
   * [x] Combo box accepts only `const char *` instead of templatized `c::string` concept.
-  * [ ] Styling (external template class impacting various aspects of the output)
-  * [ ] AND / OR Widget parameters dictating the looks.
+  * [x] Styling (external template class impacting various aspects of the output)
+  * [x] AND / OR Widget parameters dictating the looks.
   * [ ] (duplicate) Test the api for potetntial user mistakes. Aren't compiler error messages too long? If yes, fix so they are shorter (concepts as soon ass possible).
 * [x] bug: empty line after nested container 
 * [x] A window. Like ncurses window (i.e. area). It has to have its own coordinate system and focusCounter. It should overlay what was previously displayed (easy and concise)
@@ -101,9 +101,11 @@ aaa
 * [x] Window does not display its contents properly. See cellPhone demo.
 * [x] radio-group when created without ID does not accept input.
 * [x] One button only input (using short and long press). It requires cycling through focusable elements.
-  * [ ] BUG : it works, but does not scroll the contents.
+  * [ ] BUG : it works, but does not scroll the contents (or not always - see the regression's main menu. Press UP when 1st is selected).
 * [ ] Auto repeat on long-press in the Key class.
 * [x] Progress bar.
+* [ ] Bug: can't instantiate combo with single option (some static assert fails)
+* [ ] Global style (if defined) has to be present in all translation units using widgets. Otherwise multiple "implementations" emerge and that's a mess.
 
 
 # Benchmarks
@@ -119,7 +121,7 @@ Real runtime:
 ![Real runtime](doc/realTime.png)
 
 # Documentation TODO:
-* When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.
+* ~~When you implemnt a custom widget, by default it is not focusable. Inherit from og::Focusable to change it.~~ Use styles
 * ~~Display has its own context, so you don;t have to use a window???~~ It was removed.
 * Some (text() ?)functions behave like the std::make_pair does in a way that they strip out the reference wrappers.
 * Only '\n's are recognized as newline characters by text widget.
@@ -153,7 +155,7 @@ Layouts:
 * Minimum widget API is defined by `c::widget` concept but what about full feature set of this API? I have to document that:
 
 ```cpp
-struct Custom : public Focusable /* or use `static constexpr bool canFocus = true;` */ {
+struct Custom /* or use `static constexpr style::Focus focus = xxxx;` */ {
         static constexpr Dimension height = 1;
         static constexpr Dimension width = 1;
 
@@ -166,6 +168,9 @@ struct Custom : public Focusable /* or use `static constexpr bool canFocus = tru
 
 * Combo has additional param now which lets you turn off the *focus ability*. This lets one map integers to labels or icons easily. Give an example (`CanFocus::no`)
 * *Philosophy* Rather than introducing additional complexity in the code I usually lean toward simple workarounds if possible. For example there's no opttion for a checkbox to insert a space between the `☑` and a label automaticaly. You simply add a space to your label and that works. 
+
+Styles:
+* Global style (class template specialization with a tag like `template <> struct Style <check> { /* ... */ };`) should be accessible during *instantiation (?)* of all the Check templates (fix the nomenclature). If Style specialization is present in one translation unita and not present in another then 2 different implementations will emerge (?). After linking only single impl. will remain (random).
 
 # A short code description
 There are two layers of class templates.
@@ -183,7 +188,8 @@ First there are classes like Check, Radio and so on, and they are created by cor
 factory methods named accordingly (check, radio etc). Widgets can have these fields:
 
 * Coordinate height: height in characters.
-* bool canFocus: tells if widget can have focus. You also may inherit from Focusable class.
+* Styles
+* ~~bool focus: tells if widget can have focus. You also may inherit from Focusable class.~~
 * template <typename Wrapper> Visibility operator() (auto &d, Context const &ctx) const : draws
         the widget on the screen.
 * template <typename Wrapper> void input (auto &display, Context const &ctx, char c) : handles

@@ -24,8 +24,8 @@ namespace detail::augment {
                         std::cout << std::string (indent, ' ') << "focusIndex: ";
 
                         if constexpr (requires {
-                                              Wrapped::canFocus;
-                                              requires Wrapped::canFocus == CanFocus::yes;
+                                              Wrapped::focus;
+                                              requires Wrapped::focus == style::Focus::enabled;
                                       }) {
                                 std::cout << w.getFocusIndex ();
                         }
@@ -35,7 +35,7 @@ namespace detail::augment {
 
                         std::cout << ", radioIndex: ";
 
-                        if constexpr (is_radio<Wrapped>::value) {
+                        if constexpr (is_groupable<Wrapped>::value) {
                                 std::cout << int (w.getRadioIndex ());
                         }
                         else {

@@ -54,7 +54,7 @@ public:
                 // printk ("clear\r\n");
         }
 
-        void style (Style stl) override
+        void textStyle (Style stl) override
         {
                 style_ = stl;
                 // printk ("style %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
