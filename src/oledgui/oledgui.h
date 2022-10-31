@@ -1125,12 +1125,12 @@ namespace detail {
  * Displays and edits an integer number.
  */
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
         requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 class Number {
 public:
-        static constexpr style::Focus focus = canFocusV;
+        static constexpr style::Focus focus = style::get<style::number, LocalStyle, style::getter::Focus> (style::Focus::enabled);
         static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
         using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
 
@@ -1152,14 +1152,14 @@ private:
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
         requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 template <typename Wrapper>
-Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto &disp, Context const &ctx) const
+Visibility Number<Callback, ValueT, min, max, inc, LocalStyle>::operator() (auto &disp, Context const &ctx) const
 {
 
-        if constexpr (canFocusV == style::Focus::enabled) {
+        if constexpr (focus == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                         disp.textStyle (style::Text::highlighted);
                 }
@@ -1168,7 +1168,7 @@ Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto 
         typename Buffer::size_type digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
         detail::print (disp, std::string_view{buffer.cbegin (), digits});
 
-        if constexpr (canFocusV == style::Focus::enabled) {
+        if constexpr (focus == style::Focus::enabled) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex ()) {
                         disp.textStyle (style::Text::regular);
                 }
@@ -1181,13 +1181,15 @@ Visibility Number<Callback, ValueT, min, max, inc, canFocusV>::operator() (auto 
 /*--------------------------------------------------------------------------*/
 
 template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, style::Focus canFocusV>
+          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
         requires std::integral<typename std::remove_reference_t<ValueT>> && //
         std::invocable<Callback, typename std::remove_reference_t<ValueT>>
 template <typename Wrapper>
-void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto & /* disp */, Context const &ctx, Key key)
+void Number<Callback, ValueT, min, max, inc, LocalStyle>::input (auto & /* disp */, Context const &ctx, Key key)
 {
-        if constexpr (canFocusV == style::Focus::enabled) {
+        constexpr auto editable = style::get<style::number, LocalStyle, style::getter::Editable> (style::Editable::yes);
+
+        if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         value () += inc;
 
@@ -1204,37 +1206,37 @@ void Number<Callback, ValueT, min, max, inc, canFocusV>::input (auto & /* disp *
 
 constexpr int DEFAULT_NUMBER_MAX = 9;
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT>
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT>
         requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
 auto number (ValueT &&val)
 {
         using Value = std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>;
         using Callback = EmptyUnaryInvocable<Value>;
-        return Number<Callback, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{{}, std::forward<ValueT> (val)};
+        return Number<Callback, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{{}, std::forward<ValueT> (val)};
 }
 
 // /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT,
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT,
           typename Callback>
         requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
         std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>
 auto number (Callback &&clb)
 {
-        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{std::forward<Callback> (clb),
-                                                                                                                    min};
+        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{
+                std::forward<Callback> (clb), min};
 }
 
 /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, style::Focus canFocusV = style::Focus::enabled, typename ValueT,
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT,
           typename Callback>
         requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
         std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>                           //
 auto number (Callback &&clb, ValueT &&val)
 {
-        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, canFocusV>{std::forward<Callback> (clb),
-                                                                                                                    std::forward<ValueT> (val)};
+        return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{
+                std::forward<Callback> (clb), std::forward<ValueT> (val)};
 }
 
 /****************************************************************************/
