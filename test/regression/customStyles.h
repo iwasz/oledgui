@@ -36,14 +36,14 @@ template <> struct Style<line> {
 };
 
 template <> struct Style<progress> {
-        static constexpr std::string_view left0{"|"};
-        static constexpr std::string_view left1{"I"};
+        static constexpr std::string_view left0{" "};
+        static constexpr std::string_view left1{"|"};
         static constexpr std::string_view left2{"["};
         static constexpr std::string_view mid0{"_"};
         static constexpr std::string_view mid1{"▌"};
         static constexpr std::string_view mid2{"█"};
-        static constexpr std::string_view right0{"|"};
-        static constexpr std::string_view right1{"I"};
+        static constexpr std::string_view right0{" "};
+        static constexpr std::string_view right1{"|"};
         static constexpr std::string_view right2{"]"};
         static constexpr bool distinctEnds = true;
         static constexpr auto charsPerSegment = style::CharsPerSegment::chars3;

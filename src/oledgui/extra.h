@@ -62,9 +62,6 @@ namespace style {
                                 style::get<progress, LocalStyle, Mid0> (std::string_view{" "}),
                                 style::get<progress, LocalStyle, Mid1> (std::string_view{":"}),
                         };
-
-                        static constexpr auto const &leftCharacters = midCharacters;
-                        static constexpr auto const &rightCharacters = midCharacters;
                 };
 
                 template <typename LocalStyle> struct SegmentHelper<LocalStyle, false, style::CharsPerSegment::chars3> {
@@ -73,9 +70,6 @@ namespace style {
                                 style::get<progress, LocalStyle, Mid1> (std::string_view{"."}),
                                 style::get<progress, LocalStyle, Mid2> (std::string_view{":"}),
                         };
-
-                        static constexpr auto const &leftCharacters = midCharacters;
-                        static constexpr auto const &rightCharacters = midCharacters;
                 };
 
                 template <typename LocalStyle> struct SegmentHelper<LocalStyle, true, style::CharsPerSegment::chars2> {
@@ -97,9 +91,9 @@ namespace style {
 
                 template <typename LocalStyle> struct SegmentHelper<LocalStyle, true, style::CharsPerSegment::chars3> {
                         static constexpr std::array leftCharacters = {
-                                style::get<progress, LocalStyle, Mid0> (std::string_view{"|"}),
-                                style::get<progress, LocalStyle, Mid1> (std::string_view{"I"}),
-                                style::get<progress, LocalStyle, Mid2> (std::string_view{"["}),
+                                style::get<progress, LocalStyle, Left0> (std::string_view{"|"}),
+                                style::get<progress, LocalStyle, Left1> (std::string_view{"I"}),
+                                style::get<progress, LocalStyle, Left2> (std::string_view{"["}),
                         };
 
                         static constexpr std::array midCharacters = {
@@ -109,9 +103,9 @@ namespace style {
                         };
 
                         static constexpr std::array rightCharacters = {
-                                style::get<progress, LocalStyle, Mid0> (std::string_view{"|"}),
-                                style::get<progress, LocalStyle, Mid1> (std::string_view{"I"}),
-                                style::get<progress, LocalStyle, Mid2> (std::string_view{"]"}),
+                                style::get<progress, LocalStyle, Right0> (std::string_view{"|"}),
+                                style::get<progress, LocalStyle, Right1> (std::string_view{"I"}),
+                                style::get<progress, LocalStyle, Right2> (std::string_view{"]"}),
                         };
                 };
 
@@ -177,15 +171,12 @@ auto &Progress<ValueT, widthV, min, max, LocalStyle>::getSegments (int character
                         return MySegmentHelper::leftCharacters;
                 }
 
-                if (characterNum == width) {
+                if (characterNum == width - 1) {
                         return MySegmentHelper::rightCharacters;
                 }
+        }
 
-                return MySegmentHelper::midCharacters;
-        }
-        else {
-                return MySegmentHelper::midCharacters;
-        }
+        return MySegmentHelper::midCharacters;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -208,9 +199,9 @@ Visibility Progress<ValueT, widthV, min, max, LocalStyle>::operator() (auto &dis
         Value const fraction = valueContainer % unit;
 
         if (fraction > 0 && num < width) {
-                ++num;
                 size_t character = fraction * (getSegments (num).size () - 1) / unit;
                 detail::print (disp, getSegments (num).at (character));
+                ++num;
                 ++disp.cursor ().x ();
         }
 
