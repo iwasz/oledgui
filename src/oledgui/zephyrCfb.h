@@ -50,13 +50,6 @@ public:
                         printk ("Could not clear framebuffer (err %d)\n", err);
                 }
 
-                // for (int y = 0; y < height (); ++y) {
-                //         for (int x = 0; x < width (); ++x) {
-                //                 static char c = '.';
-                //                 cfb_print (display, &c, x, y);
-                //         }
-                // }
-
                 cursor ().x () = 0;
                 cursor ().y () = 0;
                 // printk ("clear\r\n");
