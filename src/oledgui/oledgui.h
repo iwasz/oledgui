@@ -2108,11 +2108,18 @@ namespace detail {
 
 } // namespace detail
 
-Visibility draw (auto &display, detail::augment::window_wrapper auto const &...window)
+template <bool clear = true, bool refresh = true> Visibility draw (auto &display, detail::augment::window_wrapper auto const &...window)
 {
-        display.clear ();
+        if constexpr (clear) {
+                display.clear ();
+        }
+
         Visibility ret = (window (display), ...);
-        display.refresh ();
+
+        if constexpr (refresh) {
+                display.refresh ();
+        }
+
         return ret;
 }
 
@@ -2196,7 +2203,7 @@ public:
                 Visibility ret{};
 
                 applyForOne ([&display, &ret] (auto const &elem) {
-                        ret = std::apply ([&display] (auto const &...win) { return og::draw (display, win...); }, elem.win ());
+                        ret = std::apply ([&display] (auto const &...win) { return og::draw<false, false> (display, win...); }, elem.win ());
                 });
 
                 return ret;

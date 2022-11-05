@@ -45,9 +45,17 @@ public:
 
         void clear () override
         {
-                if (int err = cfb_framebuffer_clear (display, true); err) {
+                // This clears the whole screen. Not desirable, multiple layers do not work.
+                if (int err = cfb_framebuffer_clear (display, false); err) {
                         printk ("Could not clear framebuffer (err %d)\n", err);
                 }
+
+                // for (int y = 0; y < height (); ++y) {
+                //         for (int x = 0; x < width (); ++x) {
+                //                 static char c = '.';
+                //                 cfb_print (display, &c, x, y);
+                //         }
+                // }
 
                 cursor ().x () = 0;
                 cursor ().y () = 0;
