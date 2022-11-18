@@ -18,6 +18,7 @@ enum class Windows {
         menu,
         integer,
         compositeInt,
+        someUseCases,
 };
 
 ISuite<Windows> *mySuite{};
@@ -49,9 +50,10 @@ struct FocusDisabled {
  * All available inputs with callbacks.
  */
 auto integer = window<0, 0, 18, 7> (vbox (
-        std::ref (backButton),                                                                            //
-        hbox (label ("8b, 0-9(1): "sv), og::number (uint8_t (0))),                                        // No callback, only initial value
-        hbox (label ("8b, 0-40(5): "sv), og::number<0, 40, 5, FocusEnabled, uint8_t> ([] (auto val) {})), // No initial value, only callback
+        std::ref (backButton),                                                              //
+        hbox (label ("8b, 0-9(1): "sv), og::number (uint8_t (0))),                          // No callback, only initial value
+        hbox (label ("8b, 0-40(5): "sv), og::number<0, 40, 5, uint8_t> ([] (auto val) {})), // No initial value, only callback
+        // hbox (label ("8b, 0-40(5): "sv), og::number<0, 40, 5> ([] (auto val) {})),                        // No initial value, only callback
         hbox (label ("16b: "sv), og::number<-30000, 29999, 1000, FocusEnabled> ([] (auto val) {}, int16_t (-30000))), //
         hbox (label ("Shared: "sv), og::number (std::ref (sharedVal)), og::hspace<1>,
               og::number (std::ref (sharedVal))) //
@@ -84,9 +86,32 @@ auto compositeInt = window<0, 0, 18, 7> (vbox (std::ref (backButton),           
 
 /*--------------------------------------------------------------------------*/
 
+template <typename T> class Cfg {
+public:
+        operator T () { return val; }
+
+        Cfg &operator= (T const &input)
+        {
+                val = input;
+                return *this;
+        }
+
+private:
+        T val{};
+};
+
+Cfg<int> cfg{};
+
+auto someUseCases = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                             //
+                                               hbox (label ("Clbck, 3 templ: "sv), og::number<0, 40, 5, int> ([] (auto val) {})), //
+                                               hbox (label ("Custom type: "sv), og::number<0, 40, 5> (std::ref (cfg)))            //
+                                               ));
+
+/*--------------------------------------------------------------------------*/
+
 auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),       //
                          element (Windows::integer, std::ref (integer)), //
-                         element (Windows::compositeInt, std::ref (compositeInt)));
+                         element (Windows::compositeInt, std::ref (compositeInt)), element (Windows::someUseCases, std::ref (someUseCases)));
 
 } // namespace
 
