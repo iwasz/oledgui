@@ -472,7 +472,7 @@ public:
         static constexpr style::Focus focus = style::get<style::check, LocalStyle, style::getter::Focus> (style::Focus::enabled);
         static constexpr Dimension height = 1;
 
-        constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
+        constexpr Check (Callback clb, ChkT const &chk, String const &lbl) : label_{lbl}, checked_{chk}, callback{std::move (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key);
@@ -536,17 +536,24 @@ void Check<Callback, ChkT, String, LocalStyle>::input (auto & /* d */, Context c
 
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
-                        // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as
-                        // below. But if it's an int tha cast will fail. It shouldnt be, a concept should be more rigorous.
-                        static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
-                        // checked_ = !static_cast<bool> (checked_); // This won't work either when checked_ is std::reference_wrapper
-                        // <bool>
-                        callback (checked_);
+                        bool tmp = !static_cast<bool> (checked_);
+                        checked_ = tmp;
+                        callback (tmp);
                 }
         }
 }
 
 /*--------------------------------------------------------------------------*/
+
+namespace c {
+
+        template <typename ValueT>
+        concept checkValueContainer = requires (std::unwrap_ref_decay_t<ValueT> t, bool b) {
+                                              b = t;
+                                              t = b;
+                                      };
+
+}
 
 template <typename T> struct EmptyUnaryInvocable {
         void operator() (T /*arg*/) {}
@@ -562,11 +569,11 @@ constexpr auto check (Callback &&clb, String &&str)
                                                                                                         std::forward<String> (str));
 }
 
-template <typename LocalStyle = style::Empty, std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = style::Empty, c::checkValueContainer ChkT, c::string String>
         requires (!std::invocable<ChkT, bool>)
 constexpr auto check (ChkT &&chk, String &&str)
 {
-        return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
+        return Check<EmptyUnaryInvocable<bool>, std::unwrap_ref_decay_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
                 {}, std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
@@ -575,10 +582,10 @@ constexpr auto check (ChkT &&chk, String &&str)
 //         -> Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>>;
 
 // TODO change ChkT to ValueT - make this naming consistent in every widget
-template <typename LocalStyle = style::Empty, std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = style::Empty, std::invocable<bool> Callback, c::checkValueContainer ChkT, c::string String>
 constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 {
-        return Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
+        return Check<std::remove_cvref_t<Callback>, std::unwrap_ref_decay_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
                 std::forward<Callback> (clb), std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
@@ -1209,7 +1216,7 @@ void Number<Callback, ValueT, min, max, inc, LocalStyle>::input (auto & /* disp 
 
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
-                        Value tmp = static_cast<Value> (valueContainer);
+                        auto tmp = static_cast<Value> (valueContainer);
                         tmp += inc;
 
                         if (tmp > max) {

@@ -9,6 +9,7 @@
 #include "inputApi.h"
 #include "customStyles.h"
 #include "regression.h"
+#include "utils.h"
 
 namespace {
 using namespace og;
@@ -70,11 +71,14 @@ auto callbacks = window<0, 0, 18, 7> (
 /*--------------------------------------------------------------------------*/
 
 bool bbb{true};
+Cfg<bool> boolCfg{bbb};
 
-auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
-                                                      check (true, " PR value "sv),            //
-                                                      check (std::ref (bbb), " std::ref 1"sv), //
-                                                      check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                 //
+                                                      check (true, " PR value "sv),                          //
+                                                      check (std::ref (bbb), " std::ref 1"sv),               //
+                                                      check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv), //
+                                                      check (std::ref (boolCfg), " custom type"sv)           //
+                                                      ));
 
 /*--------------------------------------------------------------------------*/
 

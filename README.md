@@ -107,6 +107,7 @@ aaa
 * [ ] Bug: can't instantiate combo with single option (some static assert fails)
 * [ ] Global style (if defined) has to be present in all translation units using widgets. Otherwise multiple "implementations" emerge and that's a mess.
 * [x] `number<0, 2000, 100> ([] (int prs) { /* cfg::set */ })` does not compile because it cannot deduce `ValueT` i changed the order so this would be possible : `number<0, 2000, 100, int> ([] (int prs) {  })`
+* [ ] Not `std::integral` types for input widgets.
 
 
 # Benchmarks

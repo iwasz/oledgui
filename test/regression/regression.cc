@@ -32,7 +32,8 @@ int main ()
 {
         NcursesDisplay<18, 7> d1;
 
-        auto menu = window<0, 1, 18, 6> (vbox (button ([] { mySuiteP->current () = Windows::allFeatures; }, "1. Input API   "sv),
+        auto menu = window<0, 0, 18, 7> (vbox (label ("----Main menu-----"sv),
+                                               button ([] { mySuiteP->current () = Windows::allFeatures; }, "1. Input API   "sv),
                                                button ([] { mySuiteP->current () = Windows::dialog; }, "2. Text widget "sv),
                                                button ([] { mySuiteP->current () = Windows::cellPhone; }, "3. Cell phone  "sv),
                                                button ([] { mySuiteP->current () = Windows::layouts; }, "4. Layouts     "sv),  //
@@ -51,10 +52,10 @@ int main ()
                                        element (Windows::styles, std::ref (styles ())));
         mySuiteP = &mySuite;
 
-        auto status = window<0, 0, 18, 1> (hbox (label ("----Main menu-----"sv)));
+        // auto status = window<0, 0, 18, 1> (hbox (label ("----Main menu-----"sv)));
 
         while (true) {
-                draw (d1, status, mySuite);
+                draw (d1, /* status, */ mySuite);
                 input (d1, mySuite, getKey ());
         }
 

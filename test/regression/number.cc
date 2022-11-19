@@ -9,6 +9,7 @@
 #include "number.h"
 #include "customStyles.h"
 #include "regression.h"
+#include "utils.h"
 
 namespace {
 using namespace og;
@@ -31,7 +32,8 @@ int buttonCnt{};
 auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),                          //
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::menu, //
                                               item (Windows::integer, "Simple integer"sv),                //
-                                              item (Windows::compositeInt, "Composite integer"sv)         //
+                                              item (Windows::compositeInt, "Composite integer"sv),        //
+                                              item (Windows::someUseCases, "Some use cases"sv)            //
                                               )));
 
 auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
@@ -86,32 +88,20 @@ auto compositeInt = window<0, 0, 18, 7> (vbox (std::ref (backButton),           
 
 /*--------------------------------------------------------------------------*/
 
-template <typename T> class Cfg {
-public:
-        operator T () { return val; }
+Cfg<int> cfg{glued};
 
-        Cfg &operator= (T const &input)
-        {
-                val = input;
-                return *this;
-        }
-
-private:
-        T val{};
-};
-
-Cfg<int> cfg{};
-
-auto someUseCases = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                             //
-                                               hbox (label ("Clbck, 3 templ: "sv), og::number<0, 40, 5, int> ([] (auto val) {})), //
-                                               hbox (label ("Custom type: "sv), og::number<0, 40, 5> (std::ref (cfg)))            //
-                                               ));
+auto someUseCases = window<0, 0, 18, 7> (vbox (
+        std::ref (backButton),                                                                                                                //
+        hbox (label ("Clbck, 4 templ: "sv), og::number<0, 40, 5, int> ([] (auto val) {})),                                                    //
+        hbox (label ("Custom type: "sv), og::number<0, 40, 5> (std::ref (cfg)), hspace<1>, number<0, 0, 0, FocusDisabled> (std::ref (glued))) //
+        ));
 
 /*--------------------------------------------------------------------------*/
 
-auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),       //
-                         element (Windows::integer, std::ref (integer)), //
-                         element (Windows::compositeInt, std::ref (compositeInt)), element (Windows::someUseCases, std::ref (someUseCases)));
+auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),                 //
+                         element (Windows::integer, std::ref (integer)),           //
+                         element (Windows::compositeInt, std::ref (compositeInt)), //
+                         element (Windows::someUseCases, std::ref (someUseCases)));
 
 } // namespace
 
