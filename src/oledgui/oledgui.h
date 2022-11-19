@@ -197,11 +197,10 @@ namespace c {
                                  {
                                          T::height
                                          } -> std::same_as<Dimension const &>;
+
                                  {
                                          t.template operator()<int> (d, c)
                                          } -> std::same_as<Visibility>;
-
-                                 // t.template input<int> (d, c, 'a'); // input is not required. Some widget has it, some hasn't
                          };
 
         template <typename S>
@@ -604,8 +603,12 @@ public:
         using Value = ValueT;
 
         constexpr Radio (Value value, String const &lbl) : id_{std::move (value)}, label_{lbl} {}
-        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx, ValueT const &value = {}) const;
-        template <typename Wrapper, typename Callback> void input (auto &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
+
+        template <typename Wrapper, typename ExtValueT = ValueT>
+        Visibility operator() (auto &disp, Context const &ctx, ExtValueT const &value = {}) const;
+
+        template <typename Wrapper, typename Callback, typename ExtValueT>
+        void input (auto &disp, Context const &ctx, Key key, Callback &clb, ExtValueT &value);
 
         // Value &id () { return id_; }
         Value const &id () const { return id_; }
@@ -622,8 +625,8 @@ private:
 
 template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper>
-Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
+template <typename Wrapper, typename ExtValueT>
+Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, Context const &ctx, ExtValueT const &value) const
 {
         using namespace std::string_view_literals;
 
@@ -660,8 +663,8 @@ Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, 
 
 template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper, typename Callback>
-void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+template <typename Wrapper, typename Callback, typename ExtValueT>
+void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ExtValueT &value)
 {
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
@@ -995,8 +998,8 @@ public:
         using ValueContainer = ValueContainerT;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
-        constexpr Combo (Callback clb, ValueContainer cid, OptionCollection const &opts)
-            : options{opts}, valueContainer (std::move (cid)), callback{std::move (clb)}
+        constexpr Combo (Callback clb, ValueContainer const &cid, OptionCollection const &opts)
+            : options{opts}, valueContainer (cid), callback{std::move (clb)}
         {
         }
 
@@ -1009,11 +1012,8 @@ public:
         SelectionIndex index () const { return index_; };
 
 private:
-        Value &toValue () { return static_cast<Value &> (valueContainer); }
-        Value const &toValue () const { return static_cast<Value const &> (valueContainer); }
-
         OptionCollection options;
-        ValueContainer valueContainer; // Can be int, can be std::ref (int)
+        ValueContainer valueContainer; // T or T&
         mutable SelectionIndex index_{};
         Callback callback;
 };
@@ -1031,7 +1031,7 @@ Visibility Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::operat
                 }
         }
 
-        index_ = options.toIndex (value ());
+        index_ = options.toIndex (static_cast<Value> (valueContainer));
         auto &label = options.getOptionByIndex (index_).label ();
         detail::print (disp, label);
 
@@ -1056,13 +1056,22 @@ void Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::input (auto 
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         ++index_;
                         index_ %= options.size ();
-                        toValue () = options.getOptionByIndex (index_).value ();
-                        callback (toValue ());
+                        Value val = options.getOptionByIndex (index_).value ();
+                        valueContainer = val;
+                        callback (val);
                 }
         }
 }
 
 /*--------------------------------------------------------------------------*/
+
+namespace c {
+        template <typename ValueContainer, typename Value>
+        concept comboValueContainer = requires (std::unwrap_ref_decay_t<ValueContainer> a, Value b) {
+                                              a = b;
+                                              b = a;
+                                      };
+} // namespace c
 
 template <typename CallbackT, typename... Opts>
         requires std::invocable<CallbackT, typename First_t<Opts...>::Value>
@@ -1075,13 +1084,13 @@ auto combo (CallbackT &&clb, Opts &&...opts)
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... Opts>
-        requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&   //
-        std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> && //
-        (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)      //
+        requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&      //
+        c::comboValueContainer<ValueContainerT, typename First_t<Opts...>::Value> && //
+        (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)         //
 
 auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
 {
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
@@ -1090,13 +1099,13 @@ auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
 }
 
 template <typename LocalStyle = style::Empty, typename ValueContainerT, typename... Opts>
-        requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value>
+        requires c::comboValueContainer<ValueContainerT, typename First_t<Opts...>::Value>
         && (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)
 auto combo (ValueContainerT &&cid, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
         using Callback = EmptyUnaryInvocable<Value>;
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
         return Combo<Callback, ValueContainer, LocalStyle, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
@@ -1410,8 +1419,8 @@ template <typename Callback, typename ValueContainerT, typename WidgetTuple> cla
 public:
         using ValueContainer = ValueContainerT;
 
-        Group (Callback const &clb, ValueContainer value, WidgetTuple radios)
-            : widgets_{std::move (radios)}, value_ (std::move (value)), callback_{clb}
+        Group (Callback const &clb, ValueContainer const &value, WidgetTuple radios)
+            : widgets_{std::move (radios)}, value_ (value), callback_{clb}
         {
         }
 
@@ -1430,7 +1439,7 @@ public:
 
 private:
         WidgetTuple widgets_;
-        ValueContainer value_; // T, ref_wrap <T> etc
+        ValueContainer value_; // T, T&
         Callback callback_;
 };
 
@@ -1463,12 +1472,12 @@ auto group (CallbackT &&clb, W &&...widgets)
 
 template <typename ValueContainerT, typename... W>
         requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) && //
-        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> &&        //
+        c::comboValueContainer<ValueContainerT, typename First_t<W...>::Value> &&     //
         std::conjunction_v<is_groupable<W>...>                                        //
 
 auto group (ValueContainerT &&val, W &&...widgets)
 {
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
         using Value = typename First_t<W...>::Value;
 
@@ -1477,19 +1486,20 @@ auto group (ValueContainerT &&val, W &&...widgets)
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... W>
-        requires std::invocable<CallbackT, typename First_t<W...>::Value> &&   //
-        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&   //
-        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
-        std::conjunction_v<is_groupable<W>...>                                 //
+        requires std::invocable<CallbackT, typename First_t<W...>::Value> &&      //
+        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&      //
+        c::comboValueContainer<ValueContainerT, typename First_t<W...>::Value> && //
+        std::conjunction_v<is_groupable<W>...>                                    //
 
 auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
         using Value = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
 
-        return Group<Callback, Value, RadioCollection>{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val),
-                                                       std::tuple{std::forward<W> (widgets)...}};
+        return Group<Callback, ValueContainer, RadioCollection>{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val),
+                                                                std::tuple{std::forward<W> (widgets)...}};
 }
 
 /****************************************************************************/
@@ -1652,7 +1662,12 @@ namespace detail {
                                         return Visibility::outside;
                                 }
 
-                                return widget.template operator()<Widget> (disp, *ctx, value);
+                                /*
+                                 * Passing arg means copy-initialization, but there is none from say MyType to int,
+                                 * so I introduced an intermediate variable here.
+                                 */
+                                typename T::Value tmp = value;
+                                return widget.template operator()<Widget> (disp, *ctx, tmp);
                         }
 
                         void input (auto &disp, Context const &ctx, Key key)
@@ -2038,7 +2053,7 @@ namespace detail {
         constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        // TODO can I replace x and y with 1 parameter of type Point?
+        // TODO can I replace x and y with 1 parameter of type Point? EDIT Yes if it's structural
         template <typename T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y> struct Wrap {
 
                 template <typename W> static auto wrap (W &&t)

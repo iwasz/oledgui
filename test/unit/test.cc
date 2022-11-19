@@ -140,6 +140,11 @@ TEST_CASE ("Numeric to string conversion", "[detail]")
                 detail::ftoa (42.4242, buf, 4);
                 REQUIRE (std::string_view{buf.begin (), 7} == "42.4242"sv);
         }
+
+        // auto r = radio (0, std::string_view{""});
+        // EmptyDisplay d{};
+        // Context const c{};
+        // r.operator()<int> (d, c);
 }
 
 static_assert (og::detail::IntStrLen<uint8_t>::value == 4);   // 255'\0'

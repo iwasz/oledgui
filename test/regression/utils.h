@@ -12,7 +12,7 @@ template <typename T> class Cfg {
 public:
         explicit Cfg (T &ref) : val{ref} {}
 
-        operator T () { return val; }
+        operator T () const { return val; }
 
         Cfg &operator= (T const &input)
         {
