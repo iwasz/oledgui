@@ -1494,7 +1494,7 @@ template <typename CallbackT, typename ValueContainerT, typename... W>
 auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
-        using Value = std::remove_reference_t<ValueContainerT>;
+        // using Value = std::remove_reference_t<ValueContainerT>;
         using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
 
