@@ -15,12 +15,7 @@ namespace {
 using namespace og;
 using namespace std::string_view_literals;
 
-enum class Windows {
-        menu,
-        integer,
-        compositeInt,
-        someUseCases,
-};
+enum class Windows { menu, integer, compositeInt, someUseCases, floats };
 
 ISuite<Windows> *mySuite{};
 std::string chkBxLabel = "-";
@@ -33,7 +28,8 @@ auto menu = window<0, 0, 18, 7> (vbox (button ([] { mainMenu (); }, "[back]"sv),
                                        group ([] (Windows s) { mySuite->current () = s; }, Windows::menu, //
                                               item (Windows::integer, "Simple integer"sv),                //
                                               item (Windows::compositeInt, "Composite integer"sv),        //
-                                              item (Windows::someUseCases, "Some use cases"sv)            //
+                                              item (Windows::someUseCases, "Some use cases"sv),           //
+                                              item (Windows::floats, "Floating points"sv)                 //
                                               )));
 
 auto backButton = button ([] { mySuite->current () = Windows::menu; }, "[back]"sv);
@@ -98,10 +94,19 @@ auto someUseCases = window<0, 0, 18, 7> (vbox (
 
 /*--------------------------------------------------------------------------*/
 
+float fff{};
+
+auto floats = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                    //
+                                         hbox (label ("float: "sv), og::number<0.0F, 4.0F, 0.1F> (std::ref (fff))) //
+                                         ));
+
+/*--------------------------------------------------------------------------*/
+
 auto s = suite<Windows> (element (Windows::menu, std::ref (menu)),                 //
                          element (Windows::integer, std::ref (integer)),           //
                          element (Windows::compositeInt, std::ref (compositeInt)), //
-                         element (Windows::someUseCases, std::ref (someUseCases)));
+                         element (Windows::someUseCases, std::ref (someUseCases)), //
+                         element (Windows::floats, std::ref (floats)));
 
 } // namespace
 

@@ -305,8 +305,11 @@ namespace detail {
 
         // Converts a floating-point/double number to a string.
         // Taken from https://www.geeksforgeeks.org/convert-floating-point-number-string/
-        template <std::floating_point Float, out_string String> void ftoa (Float n, String &res, int afterpoint)
+        template <std::floating_point Float, out_string String> int ftoa (Float n, String &res, unsigned int afterpoint)
         {
+                auto scale = pow (10, afterpoint);
+                n = std::round (n * scale) / scale;
+
                 // Extract integer part
                 int ipart = n;
 
@@ -318,15 +321,16 @@ namespace detail {
 
                 // check for display option after point
                 if (afterpoint != 0) {
-                        res[i] = '.'; // add dot
+                        res[i++] = '.'; // add dot
 
                         // Get the value of fraction part upto given no.
                         // of points after dot. The third parameter
                         // is needed to handle cases like 233.007
-                        fpart = std::round (fpart * pow (10, afterpoint));
-
-                        itoa (static_cast<int> (fpart), std::next (res.begin (), i + 1), afterpoint);
+                        fpart = std::round (fpart * scale);
+                        i += itoa (static_cast<int> (fpart), std::next (res.begin (), i), afterpoint);
                 }
+
+                return i;
         }
 
 } // namespace detail
@@ -1137,6 +1141,10 @@ namespace detail {
                  */
                 static constexpr auto value = std::numeric_limits<T>::digits10 + 3;
         };
+
+        template <std::floating_point T> struct IntStrLen<T> {
+                static constexpr auto value = 16; // TODO implemet!!!
+        };
 } // namespace detail
 
 namespace c {
@@ -1153,8 +1161,9 @@ namespace c {
 
         // All of the same integral type
         template <auto min, auto max, auto inc>
-        concept numberMinMaxInc = std::integral<decltype (min)> && std::integral<decltype (max)> && std::integral<decltype (inc)>
-                && std::same_as<decltype (min), decltype (max)> && std::same_as<decltype (max), decltype (inc)>;
+        concept numberMinMaxInc
+                = (std::integral<decltype (min)> || std::floating_point<decltype (max)>) && std::same_as<decltype (min), decltype (max)>
+                && std::same_as<decltype (max), decltype (inc)>;
 
         // Helper to clean the code out;
         template <typename Callback, typename ValueT, auto min, auto max, auto inc>
@@ -1177,8 +1186,8 @@ public:
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto &disp, Context const &ctx, Key key);
 
-        // Value &value () { return valueContainer; }
-        // Value const &value () const { return valueContainer; }
+        Value &value () { return valueContainer; }
+        Value const &value () const { return valueContainer; }
 
 private:
         ValueT valueContainer; // Can be int, can be int &. Or any other std::integral and its reference
@@ -1201,7 +1210,15 @@ Visibility Number<Callback, ValueT, min, max, inc, LocalStyle>::operator() (auto
                 }
         }
 
-        typename Buffer::size_type digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
+        typename Buffer::size_type digits{};
+
+        if constexpr (std::is_integral_v<Value>) {
+                digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
+        }
+        else if constexpr (std::is_floating_point_v<Value>) {
+                digits = detail::ftoa (static_cast<Value> (valueContainer), buffer, 2); // TODO Shouldn't be fixed. This 2 I mean.
+        }
+
         detail::print (disp, std::string_view{buffer.cbegin (), digits});
 
         if constexpr (focus == style::Focus::enabled) {
