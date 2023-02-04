@@ -208,6 +208,8 @@ namespace c {
                                                      {
                                                              s.size ()
                                                              } -> std::convertible_to<std::size_t>;
+                                                     // TODO begin & end
+                                                     // TODO label & text buffer should use the same concept.
                                              };
 
         template <typename S>
