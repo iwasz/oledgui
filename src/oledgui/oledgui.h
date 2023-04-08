@@ -59,6 +59,7 @@ namespace style {
 
         /// Default empty style
         template <Tag tag> struct Style {};
+        using Empty = void;
 
         /* clang-format off */
         namespace getter {
@@ -196,11 +197,10 @@ namespace c {
                                  {
                                          T::height
                                          } -> std::same_as<Dimension const &>;
+
                                  {
                                          t.template operator()<int> (d, c)
                                          } -> std::same_as<Visibility>;
-
-                                 // t.template input<int> (d, c, 'a'); // input is not required. Some widget has it, some hasn't
                          };
 
         template <typename S>
@@ -208,6 +208,8 @@ namespace c {
                                                      {
                                                              s.size ()
                                                              } -> std::convertible_to<std::size_t>;
+                                                     // TODO begin & end
+                                                     // TODO label & text buffer should use the same concept.
                                              };
 
         template <typename S>
@@ -305,8 +307,11 @@ namespace detail {
 
         // Converts a floating-point/double number to a string.
         // Taken from https://www.geeksforgeeks.org/convert-floating-point-number-string/
-        template <std::floating_point Float, out_string String> void ftoa (Float n, String &res, int afterpoint)
+        template <std::floating_point Float, out_string String> int ftoa (Float n, String &res, unsigned int afterpoint)
         {
+                auto scale = pow (10, afterpoint);
+                n = std::round (n * scale) / scale;
+
                 // Extract integer part
                 int ipart = n;
 
@@ -318,15 +323,16 @@ namespace detail {
 
                 // check for display option after point
                 if (afterpoint != 0) {
-                        res[i] = '.'; // add dot
+                        res[i++] = '.'; // add dot
 
                         // Get the value of fraction part upto given no.
                         // of points after dot. The third parameter
                         // is needed to handle cases like 233.007
-                        fpart = std::round (fpart * pow (10, afterpoint));
-
-                        itoa (static_cast<int> (fpart), std::next (res.begin (), i + 1), afterpoint);
+                        fpart = std::round (fpart * scale);
+                        i += itoa (static_cast<int> (fpart), std::next (res.begin (), i), afterpoint);
                 }
+
+                return i;
         }
 
 } // namespace detail
@@ -443,7 +449,7 @@ template <Dimension len, typename LocalStyle> struct Line {
         }
 };
 
-template <Dimension len, typename LocalStyle = void> Line<len, LocalStyle> const line;
+template <Dimension len, typename LocalStyle = style::Empty> Line<len, LocalStyle> const line;
 
 template <Dimension widthV, Dimension heightV> struct Space {
         static constexpr Dimension height = heightV;
@@ -471,7 +477,7 @@ public:
         static constexpr style::Focus focus = style::get<style::check, LocalStyle, style::getter::Focus> (style::Focus::enabled);
         static constexpr Dimension height = 1;
 
-        constexpr Check (Callback clb, ChkT chk, String const &lbl) : label_{lbl}, checked_{std::move (chk)}, callback{std::move (clb)} {}
+        constexpr Check (Callback clb, ChkT const &chk, String const &lbl) : label_{lbl}, checked_{chk}, callback{std::move (clb)} {}
 
         template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx) const;
         template <typename Wrapper> void input (auto & /* d */, Context const & /* ctx */, Key key);
@@ -535,17 +541,24 @@ void Check<Callback, ChkT, String, LocalStyle>::input (auto & /* d */, Context c
 
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
-                        // TODO there's a problem here. When checked_ has std::reference_wrapper <bool> type it has to be casted as
-                        // below. But if it's an int tha cast will fail. It shouldnt be, a concept should be more rigorous.
-                        static_cast<bool &> (checked_) = !static_cast<bool &> (checked_);
-                        // checked_ = !static_cast<bool> (checked_); // This won't work either when checked_ is std::reference_wrapper
-                        // <bool>
-                        callback (checked_);
+                        bool tmp = !static_cast<bool> (checked_);
+                        checked_ = tmp;
+                        callback (tmp);
                 }
         }
 }
 
 /*--------------------------------------------------------------------------*/
+
+namespace c {
+
+        template <typename ValueT>
+        concept checkValueContainer = requires (std::unwrap_ref_decay_t<ValueT> t, bool b) {
+                                              b = t;
+                                              t = b;
+                                      };
+
+}
 
 template <typename T> struct EmptyUnaryInvocable {
         void operator() (T /*arg*/) {}
@@ -554,17 +567,18 @@ template <typename T> struct EmptyUnaryInvocable {
 // template <std::invocable<bool> Callback, c::string String>
 // Check (Callback clb, String const &lbl) -> Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>, void>;
 
-template <typename LocalStyle = void, std::invocable<bool> Callback, c::string String> constexpr auto check (Callback &&clb, String &&str)
+template <typename LocalStyle = style::Empty, std::invocable<bool> Callback, c::string String>
+constexpr auto check (Callback &&clb, String &&str)
 {
         return Check<std::remove_cvref_t<Callback>, bool, std::unwrap_ref_decay_t<String>, LocalStyle> (std::forward<Callback> (clb), {},
                                                                                                         std::forward<String> (str));
 }
 
-template <typename LocalStyle = void, std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = style::Empty, c::checkValueContainer ChkT, c::string String>
         requires (!std::invocable<ChkT, bool>)
 constexpr auto check (ChkT &&chk, String &&str)
 {
-        return Check<EmptyUnaryInvocable<bool>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
+        return Check<EmptyUnaryInvocable<bool>, std::unwrap_ref_decay_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
                 {}, std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
@@ -573,10 +587,10 @@ constexpr auto check (ChkT &&chk, String &&str)
 //         -> Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>>;
 
 // TODO change ChkT to ValueT - make this naming consistent in every widget
-template <typename LocalStyle = void, std::invocable<bool> Callback, std::convertible_to<bool> ChkT, c::string String>
+template <typename LocalStyle = style::Empty, std::invocable<bool> Callback, c::checkValueContainer ChkT, c::string String>
 constexpr auto check (Callback &&clb, ChkT &&chk, String &&str)
 {
-        return Check<std::remove_cvref_t<Callback>, std::remove_reference_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
+        return Check<std::remove_cvref_t<Callback>, std::unwrap_ref_decay_t<ChkT>, std::unwrap_ref_decay_t<String>, LocalStyle> (
                 std::forward<Callback> (clb), std::forward<ChkT> (chk), std::forward<String> (str));
 }
 
@@ -595,8 +609,12 @@ public:
         using Value = ValueT;
 
         constexpr Radio (Value value, String const &lbl) : id_{std::move (value)}, label_{lbl} {}
-        template <typename Wrapper> Visibility operator() (auto &disp, Context const &ctx, ValueT const &value = {}) const;
-        template <typename Wrapper, typename Callback> void input (auto &disp, Context const &ctx, Key key, Callback &clb, ValueT &value);
+
+        template <typename Wrapper, typename ExtValueT = ValueT>
+        Visibility operator() (auto &disp, Context const &ctx, ExtValueT const &value = {}) const;
+
+        template <typename Wrapper, typename Callback, typename ExtValueT>
+        void input (auto &disp, Context const &ctx, Key key, Callback &clb, ExtValueT &value);
 
         // Value &id () { return id_; }
         Value const &id () const { return id_; }
@@ -613,8 +631,8 @@ private:
 
 template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper>
-Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, Context const &ctx, ValueT const &value) const
+template <typename Wrapper, typename ExtValueT>
+Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, Context const &ctx, ExtValueT const &value) const
 {
         using namespace std::string_view_literals;
 
@@ -651,8 +669,8 @@ Visibility Radio<String, ValueT, LocalStyle, styleTag>::operator() (auto &disp, 
 
 template <typename String, std::regular ValueT, typename LocalStyle, style::Tag styleTag>
         requires c::string<std::remove_reference_t<String>>
-template <typename Wrapper, typename Callback>
-void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ValueT &value)
+template <typename Wrapper, typename Callback, typename ExtValueT>
+void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Context const & /* ctx */, Key key, Callback &clb, ExtValueT &value)
 {
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (key == Key::select) {
@@ -664,12 +682,12 @@ void Radio<String, ValueT, LocalStyle, styleTag>::input (auto & /* disp */, Cont
 
 /*--------------------------------------------------------------------------*/
 
-template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
+template <typename LocalStyle = style::Empty, typename String, std::regular Id> constexpr auto radio (Id &&cid, String &&label)
 {
         return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle> (std::forward<Id> (cid), std::forward<String> (label));
 }
 
-template <typename LocalStyle = void, typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
+template <typename LocalStyle = style::Empty, typename String, std::regular Id> constexpr auto item (Id &&cid, String &&label)
 {
         return Radio<std::unwrap_ref_decay_t<String>, std::decay_t<Id>, LocalStyle, style::item> (std::forward<Id> (cid),
                                                                                                   std::forward<String> (label));
@@ -986,8 +1004,8 @@ public:
         using ValueContainer = ValueContainerT;
         using SelectionIndex = typename OptionCollection::SelectionIndex;
 
-        constexpr Combo (Callback clb, ValueContainer cid, OptionCollection const &opts)
-            : options{opts}, valueContainer (std::move (cid)), callback{std::move (clb)}
+        constexpr Combo (Callback clb, ValueContainer const &cid, OptionCollection const &opts)
+            : options{opts}, valueContainer (cid), callback{std::move (clb)}
         {
         }
 
@@ -1000,11 +1018,8 @@ public:
         SelectionIndex index () const { return index_; };
 
 private:
-        Value &toValue () { return static_cast<Value &> (valueContainer); }
-        Value const &toValue () const { return static_cast<Value const &> (valueContainer); }
-
         OptionCollection options;
-        ValueContainer valueContainer; // Can be int, can be std::ref (int)
+        ValueContainer valueContainer; // T or T&
         mutable SelectionIndex index_{};
         Callback callback;
 };
@@ -1022,7 +1037,7 @@ Visibility Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::operat
                 }
         }
 
-        index_ = options.toIndex (value ());
+        index_ = options.toIndex (static_cast<Value> (valueContainer));
         auto &label = options.getOptionByIndex (index_).label ();
         detail::print (disp, label);
 
@@ -1047,13 +1062,22 @@ void Combo<Callback, ValueContainer, LocalStyle, OptionCollection>::input (auto 
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
                         ++index_;
                         index_ %= options.size ();
-                        toValue () = options.getOptionByIndex (index_).value ();
-                        callback (toValue ());
+                        Value val = options.getOptionByIndex (index_).value ();
+                        valueContainer = val;
+                        callback (val);
                 }
         }
 }
 
 /*--------------------------------------------------------------------------*/
+
+namespace c {
+        template <typename ValueContainer, typename Value>
+        concept comboValueContainer = requires (std::unwrap_ref_decay_t<ValueContainer> a, Value b) {
+                                              a = b;
+                                              b = a;
+                                      };
+} // namespace c
 
 template <typename CallbackT, typename... Opts>
         requires std::invocable<CallbackT, typename First_t<Opts...>::Value>
@@ -1066,13 +1090,13 @@ auto combo (CallbackT &&clb, Opts &&...opts)
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... Opts>
-        requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&   //
-        std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value> && //
-        (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)      //
+        requires std::invocable<CallbackT, typename First_t<Opts...>::Value> &&      //
+        c::comboValueContainer<ValueContainerT, typename First_t<Opts...>::Value> && //
+        (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)         //
 
 auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
 {
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using Callback = std::remove_reference_t<CallbackT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
@@ -1080,14 +1104,14 @@ auto combo (CallbackT &&clb, ValueContainerT &&value, Opts &&...opts)
                                                                         Options (std::forward<Opts> (opts)...));
 }
 
-template <typename LocalStyle = void, typename ValueContainerT, typename... Opts>
-        requires std::convertible_to<ValueContainerT, typename First_t<Opts...>::Value>
+template <typename LocalStyle = style::Empty, typename ValueContainerT, typename... Opts>
+        requires c::comboValueContainer<ValueContainerT, typename First_t<Opts...>::Value>
         && (!std::invocable<ValueContainerT, typename First_t<Opts...>::Value>)
 auto combo (ValueContainerT &&cid, Opts &&...opts)
 {
         using Value = typename First_t<Opts...>::Value;
         using Callback = EmptyUnaryInvocable<Value>;
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using OptionCollection = decltype (Options (std::forward<Opts> (opts)...));
 
         return Combo<Callback, ValueContainer, LocalStyle, OptionCollection> ({}, std::forward<ValueContainerT> (cid),
@@ -1119,20 +1143,45 @@ namespace detail {
                  */
                 static constexpr auto value = std::numeric_limits<T>::digits10 + 3;
         };
+
+        template <std::floating_point T> struct IntStrLen<T> {
+                static constexpr auto value = 16; // TODO implemet!!!
+        };
 } // namespace detail
+
+namespace c {
+        // Callback requirements
+        template <typename Callback, auto min>
+        concept numberCallback = std::invocable<Callback, decltype (min)>;
+
+        // Simply check for operations used in the Number body
+        template <typename ValueT, auto min>
+        concept numberValueContainer = requires (ValueT t) {
+                                               static_cast<decltype (min)> (t);
+                                               t = min;
+                                       };
+
+        // All of the same integral type
+        template <auto min, auto max, auto inc>
+        concept numberMinMaxInc
+                = (std::integral<decltype (min)> || std::floating_point<decltype (max)>) && std::same_as<decltype (min), decltype (max)>
+                && std::same_as<decltype (max), decltype (inc)>;
+
+        // Helper to clean the code out;
+        template <typename Callback, typename ValueT, auto min, auto max, auto inc>
+        concept number = numberValueContainer<ValueT, min> && numberMinMaxInc<min, max, inc> && numberCallback<Callback, min>;
+} // namespace c
 
 /**
  * Displays and edits an integer number.
  */
-template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
-        requires std::integral<typename std::remove_reference_t<ValueT>> && //
-        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+template <typename Callback, typename ValueT, auto min, auto max, auto inc, typename LocalStyle>
+        requires c::number<Callback, ValueT, min, max, inc>
 class Number {
 public:
         static constexpr style::Focus focus = style::get<style::number, LocalStyle, style::getter::Focus> (style::Focus::enabled);
-        static constexpr Dimension height = 1;         // Width is undetermined. Wrap in a hbox to constrain it.
-        using Value = std::remove_reference_t<ValueT>; // std::integral or a reference like int or int &
+        static constexpr Dimension height = 1; // Width is undetermined. Wrap in a hbox to constrain it.
+        using Value = decltype (min);          // std::integral or a reference like int or int &
 
         constexpr explicit Number (Callback clb, ValueT const &cid) : valueContainer (cid), callback{std::move (clb)} {}
 
@@ -1151,10 +1200,8 @@ private:
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
-        requires std::integral<typename std::remove_reference_t<ValueT>> && //
-        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+template <typename Callback, typename ValueT, auto min, auto max, auto inc, typename LocalStyle>
+        requires c::number<Callback, ValueT, min, max, inc>
 template <typename Wrapper>
 Visibility Number<Callback, ValueT, min, max, inc, LocalStyle>::operator() (auto &disp, Context const &ctx) const
 {
@@ -1165,7 +1212,15 @@ Visibility Number<Callback, ValueT, min, max, inc, LocalStyle>::operator() (auto
                 }
         }
 
-        typename Buffer::size_type digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
+        typename Buffer::size_type digits{};
+
+        if constexpr (std::is_integral_v<Value>) {
+                digits = detail::itoa (static_cast<Value> (valueContainer), buffer);
+        }
+        else if constexpr (std::is_floating_point_v<Value>) {
+                digits = detail::ftoa (static_cast<Value> (valueContainer), buffer, 2); // TODO Shouldn't be fixed. This 2 I mean.
+        }
+
         detail::print (disp, std::string_view{buffer.cbegin (), digits});
 
         if constexpr (focus == style::Focus::enabled) {
@@ -1180,10 +1235,8 @@ Visibility Number<Callback, ValueT, min, max, inc, LocalStyle>::operator() (auto
 
 /*--------------------------------------------------------------------------*/
 
-template <typename Callback, typename ValueT, typename std::remove_reference_t<ValueT> min, typename std::remove_reference_t<ValueT> max,
-          typename std::remove_reference_t<ValueT> inc, typename LocalStyle>
-        requires std::integral<typename std::remove_reference_t<ValueT>> && //
-        std::invocable<Callback, typename std::remove_reference_t<ValueT>>
+template <typename Callback, typename ValueT, auto min, auto max, auto inc, typename LocalStyle>
+        requires c::number<Callback, ValueT, min, max, inc>
 template <typename Wrapper>
 void Number<Callback, ValueT, min, max, inc, LocalStyle>::input (auto & /* disp */, Context const &ctx, Key key)
 {
@@ -1191,13 +1244,15 @@ void Number<Callback, ValueT, min, max, inc, LocalStyle>::input (auto & /* disp 
 
         if constexpr (focus == style::Focus::enabled && editable == style::Editable::yes) {
                 if (ctx.currentFocus == Wrapper::getFocusIndex () && key == Key::select) {
-                        value () += inc;
+                        auto tmp = static_cast<Value> (valueContainer);
+                        tmp += inc;
 
-                        if (value () > max) {
-                                value () = min;
+                        if (tmp > max) {
+                                tmp = min;
                         }
 
-                        callback (value ());
+                        valueContainer = tmp;
+                        callback (tmp);
                 }
         }
 }
@@ -1206,21 +1261,20 @@ void Number<Callback, ValueT, min, max, inc, LocalStyle>::input (auto & /* disp 
 
 constexpr int DEFAULT_NUMBER_MAX = 9;
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT>
-        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = style::Empty, typename ValueT>
+        requires c::numberMinMaxInc<min, max, inc> && c::numberValueContainer<std::unwrap_ref_decay_t<ValueT>, min>
 auto number (ValueT &&val)
 {
-        using Value = std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>;
-        using Callback = EmptyUnaryInvocable<Value>;
+        // using Value = std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>;
+        using Callback = EmptyUnaryInvocable<decltype (max)>;
         return Number<Callback, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{{}, std::forward<ValueT> (val)};
 }
 
 // /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT,
-          typename Callback>
-        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
-        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename ValueT, typename Callback, typename LocalStyle = style::Empty>
+        requires c::numberMinMaxInc<min, max, inc> && c::numberValueContainer<std::unwrap_ref_decay_t<ValueT>, min>
+        && c::numberCallback<Callback, min>
 auto number (Callback &&clb)
 {
         return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{
@@ -1229,10 +1283,9 @@ auto number (Callback &&clb)
 
 /*--------------------------------------------------------------------------*/
 
-template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = void, typename ValueT,
-          typename Callback>
-        requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>> && //
-        std::invocable<Callback, typename std::unwrap_ref_decay_t<ValueT>>                           //
+template <auto min = 0, auto max = DEFAULT_NUMBER_MAX, auto inc = 1, typename LocalStyle = style::Empty, typename ValueT, typename Callback>
+        requires c::numberMinMaxInc<min, max, inc> && c::numberValueContainer<std::unwrap_ref_decay_t<ValueT>, min>
+        && c::numberCallback<Callback, min>
 auto number (Callback &&clb, ValueT &&val)
 {
         return Number<std::remove_reference_t<Callback>, std::unwrap_ref_decay_t<ValueT>, min, max, inc, LocalStyle>{
@@ -1385,8 +1438,8 @@ template <typename Callback, typename ValueContainerT, typename WidgetTuple> cla
 public:
         using ValueContainer = ValueContainerT;
 
-        Group (Callback const &clb, ValueContainer value, WidgetTuple radios)
-            : widgets_{std::move (radios)}, value_ (std::move (value)), callback_{clb}
+        Group (Callback const &clb, ValueContainer const &value, WidgetTuple radios)
+            : widgets_{std::move (radios)}, value_ (value), callback_{clb}
         {
         }
 
@@ -1405,7 +1458,7 @@ public:
 
 private:
         WidgetTuple widgets_;
-        ValueContainer value_; // T, ref_wrap <T> etc
+        ValueContainer value_; // T, T&
         Callback callback_;
 };
 
@@ -1438,12 +1491,12 @@ auto group (CallbackT &&clb, W &&...widgets)
 
 template <typename ValueContainerT, typename... W>
         requires (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) && //
-        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> &&        //
+        c::comboValueContainer<ValueContainerT, typename First_t<W...>::Value> &&     //
         std::conjunction_v<is_groupable<W>...>                                        //
 
 auto group (ValueContainerT &&val, W &&...widgets)
 {
-        using ValueContainer = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
         using Value = typename First_t<W...>::Value;
 
@@ -1452,19 +1505,20 @@ auto group (ValueContainerT &&val, W &&...widgets)
 }
 
 template <typename CallbackT, typename ValueContainerT, typename... W>
-        requires std::invocable<CallbackT, typename First_t<W...>::Value> &&   //
-        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&   //
-        std::convertible_to<ValueContainerT, typename First_t<W...>::Value> && //
-        std::conjunction_v<is_groupable<W>...>                                 //
+        requires std::invocable<CallbackT, typename First_t<W...>::Value> &&      //
+        (!std::invocable<ValueContainerT, typename First_t<W...>::Value>) &&      //
+        c::comboValueContainer<ValueContainerT, typename First_t<W...>::Value> && //
+        std::conjunction_v<is_groupable<W>...>                                    //
 
 auto group (CallbackT &&clb, ValueContainerT &&val, W &&...widgets)
 {
         using Callback = std::remove_reference_t<CallbackT>;
-        using Value = std::remove_reference_t<ValueContainerT>;
+        // using Value = std::remove_reference_t<ValueContainerT>;
+        using ValueContainer = std::unwrap_ref_decay_t<ValueContainerT>;
         using RadioCollection = decltype (std::tuple{std::forward<W> (widgets)...});
 
-        return Group<Callback, Value, RadioCollection>{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val),
-                                                       std::tuple{std::forward<W> (widgets)...}};
+        return Group<Callback, ValueContainer, RadioCollection>{std::forward<CallbackT> (clb), std::forward<ValueContainerT> (val),
+                                                                std::tuple{std::forward<W> (widgets)...}};
 }
 
 /****************************************************************************/
@@ -1627,7 +1681,12 @@ namespace detail {
                                         return Visibility::outside;
                                 }
 
-                                return widget.template operator()<Widget> (disp, *ctx, value);
+                                /*
+                                 * Passing arg means copy-initialization, but there is none from say MyType to int,
+                                 * so I introduced an intermediate variable here.
+                                 */
+                                typename T::Value tmp = value;
+                                return widget.template operator()<Widget> (disp, *ctx, tmp);
                         }
 
                         void input (auto &disp, Context const &ctx, Key key)
@@ -2015,7 +2074,7 @@ namespace detail {
         constexpr auto transform (ChildrenTuple &tuple);
 
         // Wrapper for ordinary widgets
-        // TODO can I replace x and y with 1 parameter of type Point?
+        // TODO can I replace x and y with 1 parameter of type Point? EDIT Yes if it's structural
         template <typename T, typename Parent, Focus f, Selection r, Coordinate x, Coordinate y> struct Wrap {
 
                 template <typename W> static auto wrap (W &&t)
@@ -2110,11 +2169,18 @@ namespace detail {
 
 } // namespace detail
 
-Visibility draw (auto &display, detail::augment::window_wrapper auto const &...window)
+template <bool clear = true, bool refresh = true> Visibility draw (auto &display, detail::augment::window_wrapper auto const &...window)
 {
-        display.clear ();
+        if constexpr (clear) {
+                display.clear ();
+        }
+
         Visibility ret = (window (display), ...);
-        display.refresh ();
+
+        if constexpr (refresh) {
+                display.refresh ();
+        }
+
         return ret;
 }
 
@@ -2198,7 +2264,7 @@ public:
                 Visibility ret{};
 
                 applyForOne ([&display, &ret] (auto const &elem) {
-                        ret = std::apply ([&display] (auto const &...win) { return og::draw (display, win...); }, elem.win ());
+                        ret = std::apply ([&display] (auto const &...win) { return og::draw<false, false> (display, win...); }, elem.win ());
                 });
 
                 return ret;
@@ -2296,7 +2362,8 @@ template <Dimension width = 0, typename... W> auto hbox (W &&...widgets)
 /****************************************************************************/
 
 /// window factory function has special meaning that is also wraps.
-template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle = void, typename W = void> auto window (W &&c)
+template <Coordinate ox, Coordinate oy, Dimension widthV, Dimension heightV, typename LocalStyle = style::Empty, typename W = void>
+auto window (W &&c)
 {
         return detail::wrap (detail::windowRaw<ox, oy, widthV, heightV, LocalStyle> (std::forward<W> (c)));
 }

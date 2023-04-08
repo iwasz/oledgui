@@ -215,6 +215,7 @@ Visibility Progress<ValueT, widthV, min, max, LocalStyle>::operator() (auto &dis
 
 /*--------------------------------------------------------------------------*/
 
+// TODO does not compile when ValueT holds std::ref <uint32_t>
 template <auto widthV, auto min, auto max, typename LocalStye = void, typename ValueT>
         requires std::integral<typename std::remove_reference_t<std::unwrap_ref_decay_t<ValueT>>>
 auto progress (ValueT &&val)

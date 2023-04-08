@@ -62,11 +62,11 @@ static_assert (detail::augment::group_wrapper<detail::augment::Group<int, std::t
 TEST_CASE ("Pow function", "[detail]")
 {
 
-        REQUIRE (og::detail::pow (10, 0) == 1);
-        REQUIRE (og::detail::pow (10, 1) == 10);
-        REQUIRE (og::detail::pow (10, 2) == 100);
-        REQUIRE (og::detail::pow (10, 3) == 1000);
-        REQUIRE (og::detail::pow (10, 4) == 10000);
+        CHECK (og::detail::pow (10, 0) == 1);
+        CHECK (og::detail::pow (10, 1) == 10);
+        CHECK (og::detail::pow (10, 2) == 100);
+        CHECK (og::detail::pow (10, 3) == 1000);
+        CHECK (og::detail::pow (10, 4) == 10000);
 
         static_assert (og::detail::pow (10, 0) == 1);
         static_assert (og::detail::pow (10, 1) == 10);
@@ -83,63 +83,89 @@ TEST_CASE ("Numeric to string conversion", "[detail]")
 
         SECTION ("Integers")
         {
-                REQUIRE (detail::itoa (0U, buf) == 1);
-                REQUIRE (std::string_view{buf.begin (), 1} == "0"sv);
+                CHECK (detail::itoa (0U, buf) == 1);
+                CHECK (std::string_view{buf.begin (), 1} == "0"sv);
 
-                REQUIRE (detail::itoa (42U, buf) == 2);
-                REQUIRE (std::string_view{buf.begin (), 2} == "42"sv);
+                CHECK (detail::itoa (42U, buf) == 2);
+                CHECK (std::string_view{buf.begin (), 2} == "42"sv);
         }
 
         SECTION ("Integers padding")
         {
-                REQUIRE (detail::itoa (0U, buf, 3) == 3);
-                REQUIRE (std::string_view{buf.begin (), 3} == "000"sv);
+                CHECK (detail::itoa (0U, buf, 3) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "000"sv);
 
-                REQUIRE (detail::itoa (10U, buf, 3) == 3);
-                REQUIRE (std::string_view{buf.begin (), 3} == "010"sv);
+                CHECK (detail::itoa (10U, buf, 3) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "010"sv);
 
-                REQUIRE (detail::itoa (10U, buf, 5) == 5);
-                REQUIRE (std::string_view{buf.begin (), 5} == "00010"sv);
+                CHECK (detail::itoa (10U, buf, 5) == 5);
+                CHECK (std::string_view{buf.begin (), 5} == "00010"sv);
         }
 
         SECTION ("Signed integers")
         {
-                REQUIRE (detail::itoa (0, buf) == 1);
-                REQUIRE (std::string_view{buf.begin (), 1} == "0"sv);
+                CHECK (detail::itoa (0, buf) == 1);
+                CHECK (std::string_view{buf.begin (), 1} == "0"sv);
 
-                REQUIRE (detail::itoa (-1, buf) == 2);
-                REQUIRE (std::string_view{buf.begin (), 2} == "-1"sv);
+                CHECK (detail::itoa (-1, buf) == 2);
+                CHECK (std::string_view{buf.begin (), 2} == "-1"sv);
 
-                REQUIRE (detail::itoa (-42, buf) == 3);
-                REQUIRE (std::string_view{buf.begin (), 3} == "-42"sv);
+                CHECK (detail::itoa (-42, buf) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "-42"sv);
 
-                REQUIRE (detail::itoa (-30000, buf) == 6);
-                REQUIRE (std::string_view{buf.begin (), 6} == "-30000"sv);
+                CHECK (detail::itoa (-30000, buf) == 6);
+                CHECK (std::string_view{buf.begin (), 6} == "-30000"sv);
         }
 
         SECTION ("Signed integers padding")
         {
-                REQUIRE (detail::itoa (0, buf, 3) == 3);
-                REQUIRE (std::string_view{buf.begin (), 3} == "000"sv);
+                CHECK (detail::itoa (0, buf, 3) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "000"sv);
 
-                REQUIRE (detail::itoa (-1, buf, 3) == 4);
-                REQUIRE (std::string_view{buf.begin (), 4} == "-001"sv);
+                CHECK (detail::itoa (-1, buf, 3) == 4);
+                CHECK (std::string_view{buf.begin (), 4} == "-001"sv);
 
-                REQUIRE (detail::itoa (-42, buf, 4) == 5);
-                REQUIRE (std::string_view{buf.begin (), 5} == "-0042"sv);
+                CHECK (detail::itoa (-42, buf, 4) == 5);
+                CHECK (std::string_view{buf.begin (), 5} == "-0042"sv);
 
-                REQUIRE (detail::itoa (-30000, buf, 6) == 7);
-                REQUIRE (std::string_view{buf.begin (), 7} == "-030000"sv);
+                CHECK (detail::itoa (-30000, buf, 6) == 7);
+                CHECK (std::string_view{buf.begin (), 7} == "-030000"sv);
         }
 
         SECTION ("Floats")
         {
-                detail::ftoa (42.1F, buf, 1);
-                REQUIRE (std::string_view{buf.begin (), 4} == "42.1"sv);
+                CHECK (detail::ftoa (42.1F, buf, 1) == 4);
+                CHECK (std::string_view{buf.begin (), 4} == "42.1"sv);
 
-                detail::ftoa (42.4242, buf, 4);
-                REQUIRE (std::string_view{buf.begin (), 7} == "42.4242"sv);
+                CHECK (detail::ftoa (0.0F, buf, 1) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "0.0"sv);
+
+                CHECK (detail::ftoa (1.0F, buf, 3) == 5);
+                CHECK (std::string_view{buf.begin (), 5} == "1.000"sv);
+
+                CHECK (detail::ftoa (1.0F, buf, 0) == 1);
+                CHECK (std::string_view{buf.begin (), 1} == "1"sv);
+
+                CHECK (detail::ftoa (42.4242, buf, 4) == 7);
+                CHECK (std::string_view{buf.begin (), 7} == "42.4242"sv);
         }
+
+        SECTION ("Rounded floats")
+        {
+                CHECK (detail::ftoa (3.9999F, buf, 1) == 3);
+                CHECK (std::string_view{buf.begin (), 3} == "4.0"sv);
+
+                CHECK (detail::ftoa (3.9999F, buf, 2) == 4);
+                CHECK (std::string_view{buf.begin (), 4} == "4.00"sv);
+
+                CHECK (detail::ftoa (3.9999F, buf, 3) == 5);
+                CHECK (std::string_view{buf.begin (), 5} == "4.000"sv);
+        }
+
+        // auto r = radio (0, std::string_view{""});
+        // EmptyDisplay d{};
+        // Context const c{};
+        // r.operator()<int> (d, c);
 }
 
 static_assert (og::detail::IntStrLen<uint8_t>::value == 4);   // 255'\0'

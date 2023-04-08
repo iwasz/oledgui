@@ -52,8 +52,10 @@ int main ()
                                        element (Windows::styles, std::ref (styles ())));
         mySuiteP = &mySuite;
 
+        // auto status = window<0, 0, 18, 1> (hbox (label ("----Main menu-----"sv)));
+
         while (true) {
-                draw (d1, mySuite);
+                draw (d1, /* status, */ mySuite);
                 input (d1, mySuite, getKey ());
         }
 

@@ -9,6 +9,7 @@
 #include "inputApi.h"
 #include "customStyles.h"
 #include "regression.h"
+#include "utils.h"
 
 namespace {
 using namespace og;
@@ -70,11 +71,14 @@ auto callbacks = window<0, 0, 18, 7> (
 /*--------------------------------------------------------------------------*/
 
 bool bbb{true};
+Cfg<bool> boolCfg{bbb};
 
-auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),                   //
-                                                      check (true, " PR value "sv),            //
-                                                      check (std::ref (bbb), " std::ref 1"sv), //
-                                                      check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv)));
+auto dataReferencesCheck = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                 //
+                                                      check (true, " PR value "sv),                          //
+                                                      check (std::ref (bbb), " std::ref 1"sv),               //
+                                                      check ([] (bool) {}, std::ref (bbb), " std::ref 2"sv), //
+                                                      check (std::ref (boolCfg), " custom type"sv)           //
+                                                      ));
 
 /*--------------------------------------------------------------------------*/
 
@@ -86,35 +90,41 @@ auto dataReferencesCheckCtad = window<0, 0, 18, 7> (vbox (std::ref (backButton),
 /*--------------------------------------------------------------------------*/
 
 int cid{777};
+Cfg<int> intCfg{cid};
 
 auto dataReferencesCombo
         = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
                                      combo (888, option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
                                      combo (std::ref (cid), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)),
-                                     combo ([] (int) {}, std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)))
-
-        );
+                                     combo ([] (int) {}, std::ref (cid), option (666, "RED"sv), option (777, "GREEN"sv), option (888, "BLUE"sv)),
+                                     combo (std::ref (intCfg), option (666, "red"sv), option (777, "green"sv), option (888, "blue"sv)) //
+                                     ));
 
 /*--------------------------------------------------------------------------*/
 
 enum class Color { red, green, blue };
 Color clr{Color::blue};
+Cfg<Color> colorCfg{clr};
 
-auto dataReferencesComboEnum = window<0, 0, 18, 7> (hbox (std::ref (backButton),
-                                                          combo ([] (Color clr) {}, std::ref (clr), option (Color::red, "red"sv),
-                                                                 option (Color::green, "green"sv), option (Color::blue, "blue"sv))));
+auto dataReferencesComboEnum = window<0, 0, 18, 7> (
+        vbox (std::ref (backButton),
+              combo ([] (Color clr) {}, std::ref (clr), option (Color::red, "red"sv), option (Color::green, "green"sv),
+                     option (Color::blue, "blue"sv)),
+              combo (std::ref (colorCfg), option (Color::red, "red"sv), option (Color::green, "green"sv), option (Color::blue, "blue"sv)) //
+              ));
 
 /*--------------------------------------------------------------------------*/
 
 int gid{2};
+Cfg<int> intCfg2{gid};
 
 auto dataReferencesRadio
-        = window<0, 0, 18, 7> (vbox (std::ref (backButton), //
-                                     hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),
-                                     hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),
-                                     hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))))
-
-        );
+        = window<0, 0, 18, 7> (vbox (std::ref (backButton),                                                                                  //
+                                     hbox (group ([] (int) {}, 1, radio (0, " c "sv), radio (1, " m "sv), radio (2, " y "sv))),              //
+                                     hbox (group (std::ref (gid), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv))),              //
+                                     hbox (group ([] (int) {}, std::ref (gid), radio (0, " R "sv), radio (1, " G "sv), radio (2, " B "sv))), //
+                                     hbox (group (std::ref (intCfg2), radio (0, " r "sv), radio (1, " g "sv), radio (2, " b "sv)))           //
+                                     ));
 
 /*--------------------------------------------------------------------------*/
 

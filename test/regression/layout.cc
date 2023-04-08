@@ -46,7 +46,7 @@ auto layout = window<0, 0, 18, 7> (vbox (
 
 auto background = window<0, 0, 18, 7> (vbox (text<18, 7> (
         "0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee0xdeadbabe0xdeadbee"sv)));
-auto win = window<5, 1, 8, 4, WindowsWithFrame> (vbox (label ("Window"sv), std::ref (back), check (false, " ln3"sv), check (true, " ln4"sv)));
+auto win = window<5, 1, 8, 4, ShowFrame> (vbox (label ("Window"sv), std::ref (back), check (false, " ln3"sv), check (true, " ln4"sv)));
 
 /****************************************************************************/
 

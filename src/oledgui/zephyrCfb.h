@@ -36,7 +36,7 @@ public:
                         printk ("cfb_print is unable to print\r\n");
                 }
 
-                if (style_ == Style::highlighted) {
+                if (style_ == style::Text::highlighted) {
                         if (int err = cfb_invert_area (display, cursor ().x () * 7, cursor ().y () * 8, str.size () * 7, 8); err != 0) {
                                 printk ("Could not invert (err %d)\n", err);
                         }
@@ -45,7 +45,8 @@ public:
 
         void clear () override
         {
-                if (int err = cfb_framebuffer_clear (display, true); err) {
+                // This clears the whole screen. Not desirable, multiple layers do not work.
+                if (int err = cfb_framebuffer_clear (display, false); err) {
                         printk ("Could not clear framebuffer (err %d)\n", err);
                 }
 
@@ -54,7 +55,7 @@ public:
                 // printk ("clear\r\n");
         }
 
-        void textStyle (Style stl) override
+        void textStyle (style::Text stl) override
         {
                 style_ = stl;
                 // printk ("style %d,%d\r\n", cursor ().x () * 7, cursor ().y () * 8);
@@ -70,7 +71,7 @@ public:
 
 private:
         device const *display{};
-        Style style_{};
+        style::Text style_{};
 };
 
 /****************************************************************************/
