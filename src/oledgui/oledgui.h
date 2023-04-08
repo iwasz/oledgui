@@ -1892,22 +1892,24 @@ namespace detail {
                         {
                                 if (context.currentFocus < Wrapped::focusableWidgetCount - 1) {
                                         ++context.currentFocus;
-                                        scrollToFocus (&context);
                                 }
                                 else { // TODO this branch should be conditionally enabled based on this CSS style config
                                         context.currentFocus = 0;
                                 }
+
+                                scrollToFocus (&context);
                         }
 
                         void decrementFocus (IDisplay & /* disp */) const override
                         {
                                 if (context.currentFocus > 0) {
                                         --context.currentFocus;
-                                        scrollToFocus (&context);
                                 }
                                 else { // TODO this branch should be conditionally enabled based on this CSS style config
                                         context.currentFocus = Wrapped::focusableWidgetCount - 1;
                                 }
+
+                                scrollToFocus (&context);
                         }
 
                 private:
