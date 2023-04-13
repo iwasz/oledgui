@@ -38,7 +38,7 @@ public:
         {
                 // This is to ensure mvwprintw does not print the whole string.
                 std::string tmp{str.begin (), str.end ()};
-                mvwprintw (win, cursor ().y (), cursor ().x (), tmp.data ());
+                mvwprintw (win, cursor ().y (), cursor ().x (), tmp.data ()); // TODO why not c_str?
         }
 
         void clear () override

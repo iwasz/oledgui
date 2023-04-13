@@ -204,27 +204,12 @@ namespace c {
                          };
 
         template <typename S>
-        concept string = std::copyable<S> && requires (S s) {
-                                                     {
-                                                             s.size ()
-                                                             } -> std::convertible_to<std::size_t>;
-                                                     // TODO begin & end
-                                                     // TODO label & text buffer should use the same concept.
-                                             };
-
-        template <typename S>
-        concept text_buffer = string<S> && requires (S s) {
-                                                   typename S::value_type;
-
-                                                   {
-                                                           s.cbegin ()
-                                                           } -> std::input_iterator;
-
-                                                   {
-                                                           s.cend ()
-                                                           } -> std::input_iterator;
-                                           };
-
+        concept string = std::copyable<S> && std::same_as<typename S::value_type, char> && std::ranges::range<S>
+                && requires (S s) {
+                           {
+                                   s.size ()
+                                   } -> std::convertible_to<std::size_t>;
+                   };
 } // namespace c
 
 /**
@@ -251,8 +236,8 @@ namespace detail {
                 Int sign{};
 
                 if constexpr (std::is_signed_v<Int>) {
-                        if ((sign = num) < 0) { /* record sign */
-                                num = -num;     /* make n positive */
+                        if (sign = num; sign < 0) { /* record sign */
+                                num = -num;         /* make n positive */
                         }
                 }
 
@@ -361,16 +346,7 @@ struct IDisplay {
 };
 
 namespace detail {
-
-        // TODO export this mess to a named concept, and use a placeholder.
-        template <typename String>
-                requires requires (String str) {
-                                 {
-                                         // TODO not acurate
-                                         str.data ()
-                                         } -> std::convertible_to<const char *>;
-                         }
-        void print (IDisplay &disp, String const &str)
+        template <c::string String> void print (IDisplay &disp, String const &str)
         {
                 disp.print (std::span<const char> (str.begin (), str.end ()));
         }
@@ -385,6 +361,11 @@ public:
         static constexpr Dimension width_ = widthV;   // Dimensions in characters
         static constexpr Dimension height_ = heightV; // Dimensions in characters
 
+        AbstractDisplay () = default;
+        AbstractDisplay (AbstractDisplay const & /*aaa*/) = default;
+        AbstractDisplay &operator= (AbstractDisplay const & /*aaa*/) = default;
+        AbstractDisplay (AbstractDisplay && /*aaa*/) noexcept = default;
+        AbstractDisplay &operator= (AbstractDisplay && /*aaa*/) noexcept = default;
         ~AbstractDisplay () noexcept override = default;
 
         constexpr Dimension width () const final { return width_; }
@@ -712,7 +693,7 @@ struct is_groupable<Radio<String, Id, LocalStyle, styleTag>> : public std::bool_
  * TODO do not allow scrolling so the text inside is not visible. Stop scrolling when the last line is reached.
  */
 template <Dimension widthV, Dimension heightV, typename Buffer>
-        requires c::text_buffer<std::remove_reference_t<Buffer>>
+        requires c::string<std::remove_reference_t<Buffer>>
 class Text {
 public:
         using BufferType = std::remove_reference_t<Buffer>;
@@ -771,7 +752,7 @@ private:
 };
 
 template <Dimension widthV, Dimension heightV, typename Buffer>
-        requires c::text_buffer<std::remove_reference_t<Buffer>>
+        requires c::string<std::remove_reference_t<Buffer>>
 template <typename Wrapper>
 Visibility Text<widthV, heightV, Buffer>::operator() (auto &d, Context const &ctx) const
 {

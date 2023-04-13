@@ -31,8 +31,15 @@ public:
 
         void print (std::span<const char> const &str) override
         {
-                if (cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7, cursor ().y () * 8)
-                    != 0) {
+                // We do the copy to have null-terminated string suitable for C API.
+                std::array<char, widthV + 1> tmp;
+                auto n = std::min<size_t> (widthV, str.size ());
+                std::copy_n (str.begin (), n, tmp.begin ());
+                tmp.at (n) = '\0';
+
+                // TODO why data instead of c_str! Obviously this code expects null-trminated string!
+                // if (cfb_print (display, const_cast<char *> (static_cast<const char *> (str.data ())), cursor ().x () * 7, cursor ().y () * 8)
+                if (cfb_print (display, tmp.data (), cursor ().x () * 7, cursor ().y () * 8) != 0) {
                         printk ("cfb_print is unable to print\r\n");
                 }
 
