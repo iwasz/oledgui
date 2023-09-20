@@ -901,7 +901,10 @@ auto button (Callback &&clb, String &&str)
 /**
  * Single combo option.
  */
-template <std::regular ValueT, c::string String> struct Option {
+template <std::regular ValueT, typename String>
+        requires c::string<std::remove_reference_t<String>>
+        struct Option
+ {
 public:
         using Value = ValueT;
 
@@ -926,7 +929,7 @@ template <std::regular Value, c::string String> auto option (Value &&val, String
 /**
  * A container for options.
  */
-template <std::regular ValueT, size_t Num, c::string String> struct Options {
+template <std::regular ValueT, size_t Num, typename String> struct Options {
 public:
         using OptionType = Option<ValueT, String>;
         using Value = ValueT;
@@ -953,7 +956,7 @@ template <typename String, typename... J> Options (Option<J, String> &&...elms) 
 
 /*--------------------------------------------------------------------------*/
 
-template <std::regular I, size_t Num, c::string String>
+template <std::regular I, size_t Num, typename String>
 typename Options<I, Num, String>::SelectionIndex Options<I, Num, String>::toIndex (Value const &cid) const
 {
         size_t ret{};
